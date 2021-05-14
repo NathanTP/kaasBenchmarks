@@ -65,18 +65,57 @@ def getSuperRes():
     return pathlib.Path(modelPath)
 
 
-def main():
+def imagePreprocess(buf):
+    # mode and size were manually read from the png (used Image.open and then
+    # inspected the img.mode and img.size attributes). We're gonna just go with
+    # this for now.
+    img = Image.frombytes("RGB", (256,256), buf)
 
-    # Test Image
+    img = img.resize((224,224))
+    img = img.convert("YCbCr")
+    img_y, img_cb, img_cr = img.split()
+    imgNp = (np.array(img_y)[np.newaxis, np.newaxis, :, :]).astype("float32")
+    return (img, imgNp)
+
+
+def imagePostProcess(imgPil, outNp):
+    img_y, img_cb, img_cr = imgPil.split()
+    out_y = Image.fromarray(outNp, mode="L")
+    out_cb = img_cb.resize(out_y.size, Image.BICUBIC)
+    out_cr = img_cr.resize(out_y.size, Image.BICUBIC)
+    result = Image.merge("YCbCr", [out_y, out_cb, out_cr]).convert("RGB")
+    canvas = np.full((672, 672 * 2, 3), 255)
+    canvas[0:224, 0:224, :] = np.asarray(imgPil)
+    canvas[:, 672:, :] = np.asarray(result)
+    plt.imshow(canvas.astype(np.uint8))
+    plt.savefig("test.png", format="png")
+
+
+def getImage():
     img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
     img_path = download_testdata(img_url, "cat.png", module="data")
-    img = Image.open(img_path).resize((224, 224))
-    img_ycbcr = img.convert("YCbCr")  # convert to YCbCr
-    img_y, img_cb, img_cr = img_ycbcr.split()
-    x = np.array(img_y)[np.newaxis, np.newaxis, :, :]
+    img = Image.open(img_path)
+
+    # We go through bytes to better align with faas requirements
+    imgBuf = img.tobytes()
+
+    return imagePreprocess(imgBuf)
+
+
+def executeModel(ex, img):
+    ex.set_input('1', tvm.nd.array(img))
+    ex.run()
+    tvm_output = ex.get_output(0, tvm.nd.empty((1, 1, 672, 672))).asnumpy()
+    outNp = np.uint8((tvm_output[0, 0]).clip(0, 255))
+    return outNp
+
+
+def main():
+
+    imgPil, imgNp = getImage()
 
     modelPath = getSuperRes()
-    ex = importOnnx(modelPath, x.shape)
+    ex = importOnnx(modelPath, imgNp.shape)
 
     # with open("super_resolution.tvm.tar.so", 'rb') as f:
     #     modelBuf = f.read()
@@ -84,21 +123,10 @@ def main():
 
     # Execute
     print("Running model")
-    dtype = "float32"
-    ex.set_input('1', tvm.nd.array(x.astype(dtype)))
-    ex.run()
-    tvm_output = ex.get_output(0, tvm.nd.empty((1, 1, 672, 672))).asnumpy()
+    out = executeModel(ex, imgNp)
 
     # Display Result
     print("Success, saving output to test.png")
-    out_y = Image.fromarray(np.uint8((tvm_output[0, 0]).clip(0, 255)), mode="L")
-    out_cb = img_cb.resize(out_y.size, Image.BICUBIC)
-    out_cr = img_cr.resize(out_y.size, Image.BICUBIC)
-    result = Image.merge("YCbCr", [out_y, out_cb, out_cr]).convert("RGB")
-    canvas = np.full((672, 672 * 2, 3), 255)
-    canvas[0:224, 0:224, :] = np.asarray(img)
-    canvas[:, 672:, :] = np.asarray(result)
-    plt.imshow(canvas.astype(np.uint8))
-    plt.savefig("test.png", format="png")
+    imagePostProcess(imgPil, out)
 
 main()
