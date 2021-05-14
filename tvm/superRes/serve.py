@@ -3,6 +3,7 @@ import pathlib
 import pickle
 import tempfile
 import os
+import io
 
 import onnx
 import tvm
@@ -88,7 +89,12 @@ def imagePostProcess(imgPil, outNp):
     canvas[0:224, 0:224, :] = np.asarray(imgPil)
     canvas[:, 672:, :] = np.asarray(result)
     plt.imshow(canvas.astype(np.uint8))
-    plt.savefig("test.png", format="png")
+
+    with io.BytesIO() as f:
+        plt.savefig(f, format="png")
+        pngBuf = f.getvalue()
+    return pngBuf
+    # plt.savefig("test.png", format="png")
 
 
 def getImage():
@@ -97,9 +103,7 @@ def getImage():
     img = Image.open(img_path)
 
     # We go through bytes to better align with faas requirements
-    imgBuf = img.tobytes()
-
-    return imagePreprocess(imgBuf)
+    return img.tobytes()
 
 
 def executeModel(ex, img):
@@ -111,8 +115,8 @@ def executeModel(ex, img):
 
 
 def main():
-
-    imgPil, imgNp = getImage()
+    imgBuf = getImage()
+    imgPil, imgNp = imagePreprocess(imgBuf)
 
     modelPath = getSuperRes()
     ex = importOnnx(modelPath, imgNp.shape)
@@ -127,6 +131,10 @@ def main():
 
     # Display Result
     print("Success, saving output to test.png")
-    imagePostProcess(imgPil, out)
+    pngBuf = imagePostProcess(imgPil, out)
 
-main()
+    with open("test.png", "wb") as f:
+        f.write(pngBuf)
+
+if __name__ == "__main__":
+    main()
