@@ -3,17 +3,23 @@ import pathlib
 import pickle
 import tempfile
 import os
+import sys
 import io
+
+# Defaults to home dir which I don't want. Have to set the env before loading
+# the module because of python weirdness.
+if "TEST_DATA_ROOT_PATH" not in os.environ:
+    os.environ['TEST_DATA_ROOT_PATH'] = os.path.join(os.getcwd(), "downloads")
 
 import onnx
 import tvm
 from tvm import te
 import tvm.relay as relay
-from tvm.contrib.download import download_testdata
 from tvm.contrib import graph_executor
 from PIL import Image
 import matplotlib.pyplot as plt
 
+from tvm.contrib.download import download_testdata
 
 def importModelBuffer(buf):
     """Load the graph executor from an in-memory buffer containing the .so 
@@ -31,7 +37,11 @@ def importModelBuffer(buf):
 
 
 def importOnnx(onnxPath, shape):
-    libraryPath = pathlib.Path.cwd() / (onnxPath.stem + ".tvm.tar")
+    """Will load the onnx model (*.onnx) from onnxPath and store it in a
+    pre-compiled .so file. It will return a TVM executor capable of running the
+    model. Shape is the input shape for the model and must be derived
+    manually."""
+    libraryPath = pathlib.Path.cwd() / (onnxPath.stem + ".so")
 
     if libraryPath.exists():
         graphMod = tvm.runtime.load_module(libraryPath)
@@ -53,6 +63,7 @@ def importOnnx(onnxPath, shape):
 
 
 def getSuperRes():
+    """Downloads the superres model used in this example"""
     # Pre-Trained ONNX Model
     modelUrl = "".join(
         [
@@ -62,6 +73,7 @@ def getSuperRes():
             "super_resolution_0.2.onnx",
         ]
     )
+
     modelPath = download_testdata(modelUrl, "super_resolution.onnx", module="onnx")
     return pathlib.Path(modelPath)
 
@@ -94,10 +106,10 @@ def imagePostProcess(imgPil, outNp):
         plt.savefig(f, format="png")
         pngBuf = f.getvalue()
     return pngBuf
-    # plt.savefig("test.png", format="png")
 
 
 def getImage():
+    """Downloads an example image for the test"""
     img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
     img_path = download_testdata(img_url, "cat.png", module="data")
     img = Image.open(img_path)
@@ -121,7 +133,10 @@ def main():
     modelPath = getSuperRes()
     ex = importOnnx(modelPath, imgNp.shape)
 
-    # with open("super_resolution.tvm.tar.so", 'rb') as f:
+    # If you extract the .so you can save an untar step. This is also handy for
+    # testing importModelBuffer which we may or may not use in FaaS (since we
+    # want to avoid the filesystem if at all possible).
+    # with open("super_resolution.so", 'rb') as f:
     #     modelBuf = f.read()
     # ex = importModelBuffer(modelBuf)
 
