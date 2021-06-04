@@ -1,0 +1,7 @@
+wget
+pathlib
+tvm
+ray
+pillow
+onnx
+matplotlib

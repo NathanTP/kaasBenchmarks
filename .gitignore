@@ -3,3 +3,4 @@
 *.o
 *.png
 __pycache__
+*.egg-info*
