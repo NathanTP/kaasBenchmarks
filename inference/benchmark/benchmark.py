@@ -39,7 +39,6 @@ def runMlperf():
 
 
 def main():
-    print("Starting Benchmark:")
     # sanityCheck()
     # nshot()
     runMlperf()

@@ -121,17 +121,18 @@ class superRes(tvmModelBase):
         # These ones are probably the same for every benchmark
         settings = mlperf_loadgen.TestSettings()
         settings.scenario = mlperf_loadgen.TestScenario.Server
-        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+        # settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+        settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
 
         # These are typically defined by the benchmark itself. In the case of
         # superRes, we just pick something that more or less works.
 
         # Set this to the lowest qps that any system should be able to get
         # (benchmarks might fiddle with it to get a real measurement).
-        settings.server_target_qps = 6
+        settings.server_target_qps = 3
 
         # This is arbitrary for superRes
-        settings.server_target_latency_ns = 100000000
+        settings.server_target_latency_ns = 1000000000
 
         # I don't think these are all that big of a deal, but you can bump them
         # up if results aren't statistically significant enough.
