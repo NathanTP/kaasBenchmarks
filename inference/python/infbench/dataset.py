@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import io
 
 
-class dataset():
-    """Represents a particular dataset. All 'dat' arguments and return values
-    are bytes unless otherwise specified.
+class processor():
+    """Container for transformations over a dataset. Doesn't hold any complex
+    refernces, it's really just a namespace.
     
     Methods may return multiple values, some or all of these values may be
     needed by subsequent steps. To track how things plug together, every
@@ -20,10 +20,6 @@ class dataset():
                  value and that will be the last input given.
     """
 
-    def get(self, idx):
-        """Returns a single datum at idx"""
-        pass
-
     def pre(self, dat):
         pass
 
@@ -31,7 +27,29 @@ class dataset():
         pass
 
 
-class superResLoader():
+class loader():
+    """Handle to a dataset, used for reading inputs. Does not pre or post
+    process data at all. Data are typically bytes or bytearrays."""
+    # number of individual items in the dataset (the max index you could "get")
+    ndata = 0
+
+    def preload(self, idxs):
+        """Some datasets are too big to fit in RAM in their entirety, preload
+        will load a subset of data based on the indexes in idxs"""
+        pass
+
+    def unload(self, idxs):
+        """Free memory associated with idxs"""
+        pass
+
+    def get(self, idx):
+        """Returns a single datum at idx"""
+        pass
+
+
+class superResLoader(loader):
+    ndata = 1
+
     def __init__(self, dataDir):
         imgPath = dataDir / "superRes" / "cat.png"
         self.img = Image.open(imgPath).tobytes()
@@ -44,7 +62,7 @@ class superResLoader():
         return self.img
 
 
-class superResProcessor(dataset):
+class superResProcessor(processor):
     nOutputPre = 2
     nOutputPost = 1
     preMap = (0,)
@@ -84,12 +102,9 @@ class superResProcessor(dataset):
         canvas = np.full((672, 672 * 2, 3), 255)
         canvas[0:224, 0:224, :] = np.asarray(imgPil)
         canvas[:, 672:, :] = np.asarray(result)
-        plt.imshow(canvas.astype(np.uint8))
 
-        # Encode and serialize image as png buffer
         with io.BytesIO() as f:
-            plt.savefig(f, format="png")
+            plt.imsave(f, canvas.astype(np.uint8), format="png")
             pngBuf = f.getvalue()
 
         return (pngBuf)
-

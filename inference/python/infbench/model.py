@@ -4,6 +4,7 @@ import tempfile
 import os
 import sys
 import io
+import mlperf_loadgen
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -114,3 +115,29 @@ class superRes(tvmModelBase):
         datNp = np.frombuffer(dat, dtype=np.float32)
         datNp.shape = self.inShape
         return super()._run(tvm.nd.array(datNp))
+
+    @staticmethod
+    def getMlPerfCfg():
+        # These ones are probably the same for every benchmark
+        settings = mlperf_loadgen.TestSettings()
+        settings.scenario = mlperf_loadgen.TestScenario.Server
+        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+
+        # These are typically defined by the benchmark itself. In the case of
+        # superRes, we just pick something that more or less works.
+
+        # Set this to the lowest qps that any system should be able to get
+        # (benchmarks might fiddle with it to get a real measurement).
+        settings.server_target_qps = 6
+
+        # This is arbitrary for superRes
+        settings.server_target_latency_ns = 100000000
+
+        # I don't think these are all that big of a deal, but you can bump them
+        # up if results aren't statistically significant enough.
+        settings.min_query_count = 10
+        settings.min_duration_ms = 10000
+
+        return settings
+
+

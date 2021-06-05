@@ -1,17 +1,22 @@
 import infbench
-
+import mlperf_loadgen
+import numpy as np
+import time
+import threading
+import queue
+from gpuinfo import GPUInfo
 
 config = {}
-models = {}
+modelSpecs = {}
 
 def configure(cfg):
     """Must include dataDir and modelDir fields (pathlib paths)"""
     global config
-    global models
+    global modelSpecs
 
     config = cfg
 
-    models = {
+    modelSpecs = {
             "superRes" : {
                     "loader" : infbench.dataset.superResLoader,
                     "dataProc" : infbench.dataset.superResProcessor,
@@ -20,11 +25,50 @@ def configure(cfg):
                 }
             }
 
-def oneShot(modelName):
-    modelSpec = models[modelName]
+
+def _getHandlers(modelSpec):
     loader = modelSpec['loader'](config['dataDir'])
     dataProc = modelSpec['dataProc']()
-    model = modelSpec['model'](modelSpec['modelPath'])
+
+    # Create as many models as we have GPUs to get some concurrency. The local
+    # mode doesn't independently scale pre/post/run.
+    models = []
+    for i in range(len(GPUInfo.check_empty())):
+        models.append(modelSpec['model'](modelSpec['modelPath']))
+
+    return (loader, dataProc, models)
+
+
+def nShot(modelName, n):
+    modelSpec = modelSpecs[modelName]
+    loader, dataProc, model = _getHandlers(modelSpec)
+
+    inp = loader.get(0)
+
+    stops = []
+    for i in range(n):
+        inp = loader.get(i % loader.ndata)
+
+        start = time.time()
+
+        preOut = dataProc.pre([inp])
+        modOut = model.run(preOut[model.inpMap[0]])
+        postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
+        postOut = dataProc.post(postInp)
+
+        stops.append(time.time() - start)
+        print("Took: ", stops[-1])
+
+    print("Average latency: ")
+    print(np.mean(stops))
+    print("Median latency: ")
+    print(np.percentile(stops, 50))
+    print("99 percentile latency: ")
+    print(np.percentile(stops, 99))
+
+def oneShot(modelName):
+    modelSpec = modelSpecs[modelName]
+    loader, dataProc, model = _getHandlers(modelSpec)
 
     inp = loader.get(0)
 
@@ -35,3 +79,94 @@ def oneShot(modelName):
     postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
     postOut = dataProc.post(postInp)
     return postOut
+
+
+#==============================================================================
+# MLPERF INFERENCE STUFF
+#==============================================================================
+
+class mlperfRunner():
+
+    def __init__(self, loader, dataProc, models):
+        self.loader = loader
+        self.dataProc = dataProc
+        self.models = models
+        self.queue = queue.SimpleQueue()
+
+    def start(self):
+        for model in self.models:
+            threading.Thread(target=self.runOneAsync, args=[model, self.queue]).start()
+
+    def stop(self):
+        for i in range(len(self.models)):
+            self.queue.put(None)
+
+    def runOne(self, queries):
+        self.queue.put(queries)
+
+    def runOneAsync(self, model, queue):
+        batch = queue.get()
+
+        while batch is not None:
+            responses = []
+            for query in batch:
+                inp = self.loader.get(query.index)
+                preOut = self.dataProc.pre([inp])
+                modOut = model.run(preOut[model.inpMap[0]])
+                postInp = [ preOut[i] for i in self.dataProc.postMap ] + [modOut]
+                postOut = self.dataProc.post(postInp)
+
+                # XXX I really don't know what the last two args are for. The first
+                # is the memory address of the response, the second is the length
+                # (in bytes) of the response. I don't know what mlperf does with
+                # these, hopefully leaving them out doesn't break anything. You can
+                # see the mlperf vision examples to see an example of actually
+                # providing them.
+                responses.append(mlperf_loadgen.QuerySampleResponse(query.id, 0, 0))
+
+            mlperf_loadgen.QuerySamplesComplete(responses)
+
+            batch = queue.get()
+
+
+def flushQueries():
+    # I don't actually know what this is supposed to do, none of the examples
+    # I've seen actually use it.
+    pass
+
+
+def processLatencies(latencies_ns):
+    print("Average latency: ")
+    print(np.mean(latencies_ns))
+    print("Median latency: ")
+    print(np.percentile(latencies_ns, 50))
+    print("99 percentile latency: ")
+    print(np.percentile(latencies_ns, 99))
+
+
+nquery = 128
+# nquery = 32
+# nquery = 1 
+def mlperfBench(modelName):
+    """Run the mlperf loadgen version"""
+
+    modelSpec = modelSpecs[modelName]
+    loader, dataProc, models = _getHandlers(modelSpec)
+
+    settings = models[0].getMlPerfCfg()
+
+    runner = mlperfRunner(loader, dataProc, models)
+    runner.start()
+    try:
+        print("Starting MLPerf Benchmark:")
+        sut = mlperf_loadgen.ConstructSUT(
+            runner.runOne, flushQueries, processLatencies)
+
+        qsl = mlperf_loadgen.ConstructQSL(
+            loader.ndata, nquery, loader.preload, loader.unload)
+
+        mlperf_loadgen.StartTest(sut, qsl, settings)
+        mlperf_loadgen.DestroyQSL(qsl)
+        mlperf_loadgen.DestroySUT(sut)
+    finally:
+        runner.stop()
