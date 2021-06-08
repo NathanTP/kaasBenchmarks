@@ -129,24 +129,6 @@ class mlperfRunner():
             batch = queue.get()
 
 
-def flushQueries():
-    # I don't actually know what this is supposed to do, none of the examples
-    # I've seen actually use it.
-    pass
-
-
-def processLatencies(latencies_ns):
-    print("Average latency: ")
-    print(np.mean(latencies_ns))
-    print("Median latency: ")
-    print(np.percentile(latencies_ns, 50))
-    print("99 percentile latency: ")
-    print(np.percentile(latencies_ns, 99))
-
-
-nquery = 128
-# nquery = 32
-# nquery = 1 
 def mlperfBench(modelName):
     """Run the mlperf loadgen version"""
 
@@ -160,13 +142,15 @@ def mlperfBench(modelName):
     try:
         print("Starting MLPerf Benchmark:")
         sut = mlperf_loadgen.ConstructSUT(
-            runner.runOne, flushQueries, processLatencies)
+            runner.runOne, infbench.model.flushQueries, infbench.model.processLatencies)
 
         qsl = mlperf_loadgen.ConstructQSL(
-            loader.ndata, nquery, loader.preload, loader.unload)
+            loader.ndata, infbench.model.mlperfNquery, loader.preload, loader.unload)
 
         mlperf_loadgen.StartTest(sut, qsl, settings)
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
     finally:
         runner.stop()
+
+    infbench.model.reportMlPerf()

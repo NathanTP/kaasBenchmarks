@@ -117,28 +117,66 @@ class superRes(tvmModelBase):
         return super()._run(tvm.nd.array(datNp))
 
     @staticmethod
-    def getMlPerfCfg():
-        # These ones are probably the same for every benchmark
-        settings = mlperf_loadgen.TestSettings()
-        settings.scenario = mlperf_loadgen.TestScenario.Server
-        # settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-        settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+    def getMlPerfCfg(testing=False):
+        """Return a configuration for mlperf_inference. If testing==True, run a
+        potentially invalid configuration that will run fast. This should ease
+        testing for correctness."""
+        settings = getDefaultMlPerfCfg()
 
-        # These are typically defined by the benchmark itself. In the case of
-        # superRes, we just pick something that more or less works.
+        if testing:
+            # MLperf detects an unatainable SLO pretty fast.
+            settings.server_target_qps = 3
+            settings.server_target_latency_ns = 10000000
+            settings.min_duration_ms = 1000
+        else:
+            # Set this to the lowest qps that any system should be able to get
+            # (benchmarks might fiddle with it to get a real measurement).
+            settings.server_target_qps = 3
 
-        # Set this to the lowest qps that any system should be able to get
-        # (benchmarks might fiddle with it to get a real measurement).
-        settings.server_target_qps = 3
-
-        # This is arbitrary for superRes
-        settings.server_target_latency_ns = 1000000000
-
-        # I don't think these are all that big of a deal, but you can bump them
-        # up if results aren't statistically significant enough.
-        settings.min_query_count = 10
-        settings.min_duration_ms = 10000
+            # This is arbitrary for superRes
+            settings.server_target_latency_ns = 1000000000
 
         return settings
 
 
+#==============================================================================
+# MLPERF INFERENCE STUFF
+#==============================================================================
+
+# Use as nquery argument to mlperf_loadgen.ConstructQSL
+# I'm not 100% sure what this does... 
+mlperfNquery = 32
+
+
+def getDefaultMlPerfCfg():
+    settings = mlperf_loadgen.TestSettings()
+    settings.scenario = mlperf_loadgen.TestScenario.Server
+    settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+
+    # I don't think these are all that big of a deal, but you can bump them
+    # up if results aren't statistically significant enough.
+    # settings.min_query_count = 10
+    settings.min_query_count = 200
+    settings.min_duration_ms = 10000
+
+    return settings
+
+
+# I don't actually know what this is supposed to do, none of the examples
+# I've seen actually use it. MLPerf needs a callback for it though.
+def flushQueries():
+    pass
+
+
+def processLatencies(latencies):
+    """Callback for mlperf to report results"""
+    # latencies is a list of latencies for each query issued (in ns).
+    # For now we leave this blank because the benchmarks report the final
+    # results from mlperf's logs. This could be useful for custom analysis or
+    # something, but we don't need it now.
+    pass
+
+def reportMlPerf():
+    with open("mlperf_log_summary.txt", 'r') as f:
+        fullRes = f.readlines()
+        print("".join(fullRes[:28]))

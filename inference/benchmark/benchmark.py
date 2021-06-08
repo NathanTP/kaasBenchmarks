@@ -1,5 +1,7 @@
-import infbench
 import pathlib
+import filecmp
+
+import infbench
 
 import localBench
 import rayBench
@@ -13,18 +15,21 @@ def sanityCheck():
     be manually fiddled with to spot check stuff. It will run the superres
     model and write the output to test.png, it should be the superres output (a
     small cat next to a big cat in a figure)."""
-    bench = localBench
-    # bench = rayBench
+    # bench = localBench
+    bench = rayBench
 
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    res = bench.oneShot("superRes")
-
-    # rayBench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    # res = rayBench.oneShot("superRes")
+    res = bench.oneShot("superRes", inline=False)
+    # res = bench.oneShot("superRes", inline=True)
 
     with open("test.png", "wb") as f:
         f.write(res)
 
+    print("Sanity check didn't crash!")
+    if filecmp.cmp("test.png", dataDir / "superRes" / "catSupered.png"):
+        print("Result looks reasonable")
+    else:
+        print("Result doesn't look right. Check test.png.")
 
 
 def nshot():
@@ -34,8 +39,10 @@ def nshot():
 
 
 def runMlperf():
-    localBench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    localBench.mlperfBench("superRes")
+    bench = rayBench
+    # bench = localBench
+    bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
+    bench.mlperfBench("superRes")
 
 
 def main():

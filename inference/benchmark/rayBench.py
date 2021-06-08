@@ -1,5 +1,9 @@
 import ray
+import ray.util.queue
 import infbench
+import threading
+
+import mlperf_loadgen
 
 config = {}
 models = {}
@@ -22,41 +26,221 @@ def configure(cfg):
 
 
 @ray.remote
-def pre(modelName, data):
-    dataProc = models[modelName]['dataProcClass']()
-    return dataProc.pre(data)
+def pre(modelName, batch):
+    results = []
+    for data in batch:
+        dataProc = models[modelName]['dataProcClass']()
+        results.append(dataProc.pre(data))
+
+    # We work with batches of inputs and need to return batched results. Since
+    # each call to pre returns a tuple, we need to re-arrange into a tuple of
+    # lists instead of a list of tuples, zip(*X) is like the inverse of zip.
+    # [ (a0, b0), (a1, b1) ] -> ([a0, a1], [b0, b1])
+    return tuple(zip(*results))
 
 
 @ray.remote(num_gpus=1)
-def run(modelName, modelBuf, data):
-    model = models[modelName]['modelClass'](modelBuf)
-    return model.run(data)
+def run(modelName, modelBuf, batch):
+    results = []
+    for data in batch:
+        model = models[modelName]['modelClass'](modelBuf)
+        results.append(model.run(data))
+
+    return results 
 
 
 @ray.remote
-def post(modelName, dataRefs):
+# def post(modelName, batchRefs, completionQ=None, queryIds=None):
+def post(modelName, *batch, completionQ=None, queryIds=None):
     dataProc = models[modelName]['dataProcClass']()
-    data = [ ray.get(r) for r in dataRefs ]
-    return dataProc.post(data)
+
+    # This works on batches of inputs (each input is a list) zip them up into
+    # tuples representing individual queries:
+    # batch: [ [preA0, preA1], [preB0, preB1], [run0, run1] ]
+    # data: (preA0, preB0, run0)
+    # Return: [res0, res1, res2, ...]
+
+    results = []
+    for data in zip(*batch):
+        results.append(dataProc.post(data))
+
+    # In mlperf mode, we need to asynchronously report completions to a worker
+    # through this queue. Otherwise we can return a ray future.
+    if completionQ is not None:
+        completionQ.put((results, queryIds))
+        return None
+    else:
+        return results
 
 
-def oneShot(modelName):
+@ray.remote(num_gpus=1)
+def runInline(modelName, modelBuf, data):
+    """Run model with inlined pre and post-processing"""
+    modelSpec = models[modelName]
+
+    dataProc = modelSpec['dataProcClass']()
+    model = modelSpec['modelClass'](modelBuf)
+
+    preOut = dataProc.pre(data)
+
+    runIn = preOut[modelSpec['modelClass'].inpMap[0]]
+    runOut = model.run(runIn)
+
+    postIn = [ preOut[i] for i in dataProc.postMap ] + [runOut]
+    res = dataProc.post(postIn)
+
+    return res 
+
+
+def runN(modelName, modelBuf, inputs, inline=False, completionQ=None, queryIds=None):
+    """Issue one query asynchronously to ray, returns a future. inline will run
+       all data processing steps in the same function as the model."""
+    modelSpec = models[modelName]
+
+    if inline:
+        postOut = runInline.options(num_returns=modelSpec['modelClass'].nOutput).remote(
+                modelName, modelBuf, [inputs])
+    else:
+        dataProc = modelSpec['dataProcClass']
+
+        preOut = pre.options(num_returns=dataProc.nOutputPre).remote(modelName, [inputs])
+
+        modOut = run.options(num_returns=modelSpec['modelClass'].nOutput).remote(
+                     modelName, modelBuf, preOut[modelSpec['modelClass'].inpMap[0]])
+
+        postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
+        if completionQ is not None:
+            post.options(num_returns=dataProc.nOutputPost).remote(
+                    modelName, *postInp, completionQ=completionQ, queryIds=queryIds)
+            postOut = None
+        else:
+            postOut = post.options(num_returns=dataProc.nOutputPost).remote(modelName, *postInp)
+
+    return postOut
+
+def oneShot(modelName, inline=False):
     """Single invocation of the model. This test assumes you have compiled the
     model at least once (the .so is available in the cache)."""
     ray.init()
 
     modelSpec = models[modelName]
-    loader = modelSpec['loader'](config['dataDir'])
     modelBuf = infbench.model.loadModelBuffer(modelSpec['modelPath'])
-    dataProc = modelSpec['dataProcClass']
-
+    loader = modelSpec['loader'](config['dataDir'])
     inp = loader.get(0)
 
-    preOut = pre.options(num_returns=dataProc.nOutputPre).remote(modelName, [inp])
+    postOut = runN(modelName, modelBuf, [inp], inline=inline)
+    return ray.get(postOut)[0]
+    return postOut
 
-    modOut = run.options(num_returns=modelSpec['modelClass'].nOutput).remote(
-                 modelName, modelBuf, preOut[modelSpec['modelClass'].inpMap[0]])
 
-    postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
-    postOut = post.options(num_returns=dataProc.nOutputPost).remote(modelName, postInp)
-    return ray.get(postOut)
+
+#==============================================================================
+# MLPERF INFERENCE STUFF
+#==============================================================================
+
+
+def handleCompletion(queue):
+    """Handle responses from mlperf model serving functions. Each response is a
+    list of query IDs that are now complete. To signal completion, the user
+    must push an integer to the queue representing the total number of
+    responses to expect (including all those already completed).
+    
+    Note: For now we ignore return values, the client does not care about the
+    result of the prediction in this benchmark."""
+
+    # number of batches we've received.
+    ncomplete = 0
+
+    # Once set, this is the total number of responses we're expecting
+    targetComplete = None
+    wrapItUp = False
+    while not wrapItUp or ncomplete != targetComplete:
+        # One batch at a time
+        resps, qids = queue.get()
+
+        if ncomplete % 10 == 0:
+            print("Query {} Finished".format(ncomplete))
+
+        if isinstance(resps, int):
+            targetComplete = resps
+
+            if ncomplete == targetComplete:
+                break
+            else:
+                wrapItUp = True
+        else:
+            responses = []
+            for i in qids:
+                responses.append(mlperf_loadgen.QuerySampleResponse(i, 0, 0))
+            mlperf_loadgen.QuerySamplesComplete(responses)
+            ncomplete += 1
+
+
+class mlperfRunner():
+    def __init__(self, modelName, inline=False):
+        self.modelName = modelName
+        self.modelSpec = models[modelName]
+        self.modelBuf = infbench.model.loadModelBuffer(self.modelSpec['modelPath'])
+        self.loader = self.modelSpec['loader'](config['dataDir'])
+        self.inline = inline
+
+        # Total number of queries issued 
+        self.nIssued = 0
+
+
+    def start(self, preWarm=True):
+        self.completionQueue = ray.util.queue.Queue()
+        self.completionHandler = threading.Thread(
+                target=handleCompletion, args=[self.completionQueue])
+        self.completionHandler.start()
+
+        # This is very important for Ray because the cold start is like 1s and
+        # mlperf is based on SLOs which we violate immediately.
+        if preWarm:
+            inputs = [self.loader.get(0)]
+            res = runN(self.modelName, self.modelBuf, inputs, inline=self.inline)
+            ray.get(res)
+
+    def runBatch(self, queryBatch):
+        inputs = []
+        qids = []
+        for q in queryBatch:
+            inputs.append(self.loader.get(q.index))
+            qids.append(q.id)
+
+        runN(self.modelName, self.modelBuf, inputs, inline=self.inline,
+                completionQ=self.completionQueue, queryIds=qids)
+
+        self.nIssued += len(queryBatch)
+
+
+    def stop(self):
+        self.completionQueue.put((self.nIssued, None))
+        print("Waiting for completion handler to finish")
+        self.completionHandler.join()
+
+
+def mlperfBench(modelName, inline=False):
+    """Run the mlperf loadgen version"""
+    modelSpec = models[modelName]
+    settings = modelSpec['modelClass'].getMlPerfCfg(testing=False)
+    loader = modelSpec['loader'](config['dataDir'])
+
+    runner = mlperfRunner(modelName, inline)
+
+    ray.init()
+    runner.start(preWarm=False)
+    print("Starting MLPerf Benchmark:")
+    sut = mlperf_loadgen.ConstructSUT(
+        runner.runBatch, infbench.model.flushQueries, infbench.model.processLatencies)
+
+    qsl = mlperf_loadgen.ConstructQSL(
+        loader.ndata, infbench.model.mlperfNquery, loader.preload, loader.unload)
+
+    mlperf_loadgen.StartTest(sut, qsl, settings)
+    mlperf_loadgen.DestroyQSL(qsl)
+    mlperf_loadgen.DestroySUT(sut)
+
+    runner.stop()
+
+    infbench.model.reportMlPerf()
