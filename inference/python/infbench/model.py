@@ -155,8 +155,8 @@ def getDefaultMlPerfCfg():
 
     # I don't think these are all that big of a deal, but you can bump them
     # up if results aren't statistically significant enough.
-    # settings.min_query_count = 10
-    settings.min_query_count = 200
+    settings.min_query_count = 10
+    # settings.min_query_count = 200
     settings.min_duration_ms = 10000
 
     return settings

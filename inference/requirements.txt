@@ -1,7 +1,8 @@
 wget
 pathlib
 tvm
-ray
+ray[default]
 pillow
 onnx
 matplotlib
+gpuinfo

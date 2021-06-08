@@ -74,22 +74,28 @@ def post(modelName, *batch, completionQ=None, queryIds=None):
 
 
 @ray.remote(num_gpus=1)
-def runInline(modelName, modelBuf, data):
+def runInline(modelName, modelBuf, batch, completionQ=None, queryIds=None):
     """Run model with inlined pre and post-processing"""
     modelSpec = models[modelName]
 
     dataProc = modelSpec['dataProcClass']()
     model = modelSpec['modelClass'](modelBuf)
 
-    preOut = dataProc.pre(data)
+    results = []
+    for data in batch:
+        preOut = dataProc.pre(data)
 
-    runIn = preOut[modelSpec['modelClass'].inpMap[0]]
-    runOut = model.run(runIn)
+        runIn = preOut[modelSpec['modelClass'].inpMap[0]]
+        runOut = model.run(runIn)
 
-    postIn = [ preOut[i] for i in dataProc.postMap ] + [runOut]
-    res = dataProc.post(postIn)
+        postIn = [ preOut[i] for i in dataProc.postMap ] + [runOut]
+        results.append(dataProc.post(postIn))
 
-    return res 
+    if completionQ is not None:
+        completionQ.put((results, queryIds))
+        return None
+    else:
+        return results
 
 
 def runN(modelName, modelBuf, inputs, inline=False, completionQ=None, queryIds=None):
@@ -98,8 +104,13 @@ def runN(modelName, modelBuf, inputs, inline=False, completionQ=None, queryIds=N
     modelSpec = models[modelName]
 
     if inline:
-        postOut = runInline.options(num_returns=modelSpec['modelClass'].nOutput).remote(
-                modelName, modelBuf, [inputs])
+        if completionQ is not None:
+            runInline.options(num_returns=modelSpec['modelClass'].nOutput).remote(
+                    modelName, modelBuf, [inputs], completionQ=completionQ, queryIds=queryIds)
+            postOut = None
+        else:
+            postOut = runInline.options(num_returns=modelSpec['modelClass'].nOutput).remote(
+                                modelName, modelBuf, [inputs])
     else:
         dataProc = modelSpec['dataProcClass']
 
@@ -130,8 +141,6 @@ def oneShot(modelName, inline=False):
 
     postOut = runN(modelName, modelBuf, [inp], inline=inline)
     return ray.get(postOut)[0]
-    return postOut
-
 
 
 #==============================================================================
@@ -158,8 +167,8 @@ def handleCompletion(queue):
         # One batch at a time
         resps, qids = queue.get()
 
-        if ncomplete % 10 == 0:
-            print("Query {} Finished".format(ncomplete))
+        # if ncomplete % 10 == 0:
+        #     print("Query {} Finished".format(ncomplete))
 
         if isinstance(resps, int):
             targetComplete = resps
@@ -229,7 +238,7 @@ def mlperfBench(modelName, inline=False):
     runner = mlperfRunner(modelName, inline)
 
     ray.init()
-    runner.start(preWarm=False)
+    runner.start(preWarm=True)
     print("Starting MLPerf Benchmark:")
     sut = mlperf_loadgen.ConstructSUT(
         runner.runBatch, infbench.model.flushQueries, infbench.model.processLatencies)

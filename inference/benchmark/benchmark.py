@@ -19,8 +19,8 @@ def sanityCheck():
     bench = rayBench
 
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    res = bench.oneShot("superRes", inline=False)
-    # res = bench.oneShot("superRes", inline=True)
+    # res = bench.oneShot("superRes", inline=False)
+    res = bench.oneShot("superRes", inline=True)
 
     with open("test.png", "wb") as f:
         f.write(res)
@@ -42,7 +42,7 @@ def runMlperf():
     bench = rayBench
     # bench = localBench
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    bench.mlperfBench("superRes")
+    bench.mlperfBench("superRes", inline=False)
 
 
 def main():
