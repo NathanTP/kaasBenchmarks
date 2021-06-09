@@ -4,6 +4,11 @@ import tempfile
 import os
 import sys
 import io
+import abc
+import json
+from PIL import Image
+import matplotlib.pyplot as plt
+
 import mlperf_loadgen
 
 # Defaults to home dir which I don't want. Have to set the env before loading
@@ -19,102 +24,268 @@ from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
 
 
-def onnxPathToLibrary(onnxPath):
+def getCachePath(name):
     """Convert an onnx path to a path to the cached shared library (this
     manipulates paths only, the library may or may not already exist."""
-    libraryPath = pathlib.Path.cwd() / "modelCache" / (onnxPath.stem + ".so")
+
+    # The compiled TVM output
+    libraryPath = pathlib.Path.cwd() / "modelCache" / (name + ".so")
+
+    # Metadata about model that's normally encoded in the onnx protobuf
+    metaPath = pathlib.Path.cwd() / "modelCache" / (name + ".json")
+
     if not libraryPath.parent.exists():
         libraryPath.parent.mkdir(mode=0o700)
-    return libraryPath
+
+    return libraryPath, metaPath
 
 
-def loadModelBuffer(onnxPath, create=False):
-    """Return a model buffer from a pre-compiled .so."""
-    libraryPath = onnxPathToLibrary(onnxPath)
-
-    if not libraryPath.exists():
-        raise RuntimeError("Pre-compiled model does not exist at " + str(libraryPath))
-
-    with open(libraryPath, "rb") as f:
-        model = f.read()
-    return model
-
-
-def importModelBuffer(buf):
-    """Load the graph executor from an in-memory buffer containing the .so 
-    file. This is a bit roundabout (we have to write it to a tmp file anyway),
-    but it may be useful in faas settings."""
-    with tempfile.TemporaryDirectory() as dpath:
-        fpath = os.path.join(dpath, 'tmp.so')
-        with open(fpath, 'wb') as f:
-            f.write(buf)
-
-        graphMod = tvm.runtime.load_module(fpath)
-
-    ex = graph_executor.GraphModule(graphMod['default'](tvm.cuda()))
-    return ex
+# These map data_type and elem_type fields from the onnx protobuf structure to numpy types.
+# I don't know of a nice way to get this, I manually extracted this from the onnx protobuf definition:
+# https://github.com/onnx/onnx/blob/master/onnx/onnx.in.proto#L483-L485
+onnxTypes = {
+        1  : "float32",
+        2  : "uint8",
+        3  : "int8",
+        4  : "uint16",
+        5  : "int16",
+        6  : "int32",
+        7  : "int64",
+        8  : "string",
+        9  : "bool",
+        10 : "float16",
+        11 : "float64",
+        12 : "uint32",
+        13 : "uint64",
+        # 14 and 15 are complex numbers, hopefully we don't need those
+}
 
 
-def importOnnx(onnxPath, shape):
-    """Will load the onnx model (*.onnx) from onnxPath and store it in a
-    pre-compiled .so file. It will return a TVM executor capable of running the
-    model. Shape is the input shape for the model and must be derived
-    manually."""
-    libraryPath = onnxPathToLibrary(onnxPath)
-
-    if libraryPath.exists():
-        graphMod = tvm.runtime.load_module(libraryPath)
-    else:
-        # This seems to be a convention in ONNX. There doesn't seem to be a
-        # principled way to discover the input name in general.
-        shapeDict = {"1" : shape}
-        target = tvm.target.cuda()
-
-        onnxModel = onnx.load(onnxPath)
-
-        mod, params = relay.frontend.from_onnx(onnxModel, shapeDict)
-        with tvm.transform.PassContext(opt_level=1):
-            graphMod = relay.build(mod, target, params=params)
-
-        graphMod.export_library(libraryPath)
-
-    return graph_executor.GraphModule(graphMod['default'](tvm.cuda()))
-
-
-
-class tvmModelBase():
-    """A generic onnx on tvm model. Derived models should set constants for:
-        nOutput:  Number of outputs returned 
-        inpMap:   tuple representing which outputs of dataset.pre to use. For
-                  now, this may only have one value.
-        inShape:  dimensions of the input arrays
-        outShape: dimensions of output array
+# This function was written with a bit of trial and error. the onnxModel
+# returned by onnx.load is a protobuf structure, you can print it and inspect
+# different parts of it.
+def getOnnxInfo(onnxDesc):
+    """Get metadata from an onnx file or loaded protobuf object. Metadata
+       returned includes at least:
+        - inName/outName   : Name of the input/output node
+        - inType/outType   : numpy type of the input/output
+        - inShape/outShape : numpy compatible shape tuple for input/output
     """
-    def __init__(self, onnx):
-        if isinstance(onnx, pathlib.Path) or isinstance(onnx, str):
-            self.ex = importOnnx(onnx, self.inShape)
-        elif isinstance(onnx, bytes):
-            self.ex = importModelBuffer(onnx)
+
+    if isinstance(onnxDesc, str) or isinstance(onnxDesc, pathlib.Path):
+        onnxModel = onnx.load(onnxDesc)
+    else:
+        onnxModel = onnxDesc
+
+    info = {}
+
+    # I assume the model has only one input from the host (the first one). I
+    # suppose we could validate this somehow by parsing the graph but we're
+    # just gonna assume for now.
+    inNode = onnxModel.graph.input[0]
+    info['inName'] = inNode.name
+    info['inType'] = onnxTypes[inNode.type.tensor_type.elem_type]
+
+    info['inShape'] = []
+    for dim in inNode.type.tensor_type.shape.dim:
+        info['inShape'].append(dim.dim_value)
+    
+    if len(onnxModel.graph.output) > 1:
+        raise RuntimeError("ONNX Model has multiple outputs, we can't handle this yet")
+
+    outNode = onnxModel.graph.output[0]
+    info['outName'] = outNode.name
+    info['outType'] = onnxTypes[outNode.type.tensor_type.elem_type]
+    info['outShape'] = []
+    for dim in outNode.type.tensor_type.shape.dim:
+        info['outShape'].append(dim.dim_value)
+
+    return info
 
 
-    def _run(self, tvmArr):
-        # self.ex.set_input('1', tvm.nd.array(dat))
-        self.ex.set_input('1', tvmArr)
-        self.ex.run()
-        return self.ex.get_output(0, tvm.nd.empty(self.outShape)).asnumpy().tobytes()
+def readModelBuf(libraryPath):
+    if libraryPath.suffix == ".onnx":
+        libraryPath, metaPath = getCachePath(libraryPath.stem)
+    else:
+        metaPath = libraryPath.with_suffix(".json")
+
+    with open(libraryPath, 'rb') as f:
+        modelBuf = f.read()
+    with open(metaPath, 'r') as f:
+        meta = json.load(f)
+
+    return modelBuf, meta
 
 
-class superRes(tvmModelBase):
-    nOutput = 1
-    inpMap = (1,)
-    inShape = (1, 1, 224, 224) 
-    outShape = (1, 1, 672, 672)
+def _loadSo(libraryPath):
+    metaPath = libraryPath.with_suffix(".json")
+    module = tvm.runtime.load_module(libraryPath)
+    with open(metaPath, 'r') as f:
+        meta = json.load(f)
 
+    model = graph_executor.GraphModule(module['default'](tvm.cuda()))
+    return model, meta
+
+
+def _loadOnnx(onnxPath):
+    onnxModel = onnx.load(onnxPath)
+    meta = getOnnxInfo(onnxModel)
+
+    mod, params = relay.frontend.from_onnx(onnxModel)
+    with tvm.transform.PassContext(opt_level=1):
+        module = relay.build(mod, tvm.target.cuda(), params=params)
+
+    # Cache Results
+    libraryPath, metaPath = getCachePath(onnxPath.stem)
+    module.export_library(libraryPath)
+    with open(metaPath, 'w') as f:
+        json.dump(meta, f)
+
+    model = graph_executor.GraphModule(module['default'](tvm.cuda()))
+    return model, meta
+
+
+def loadModel(modelDesc):
+    """Load a saved model. modelDesc describes where to get the model, it can be either:
+        - Path to onnx file: If modelDesc is a path to a .onnx file, loadModel
+              will attempt to find a cached pre-compiled version of the onnx file
+              first. If none is found, the onnx model will be compiled and cached.
+        - Path to precompiled (.so) file: If modelDesc points to a .so,
+              loadModel will assume this is a TVM pre-compiled library. It will
+              look for a corresponding .json file with model metadata in the same
+              directory as the .so and load from these. 
+        - Tuple of (bytes, dict): modelDesc can be a pre-loaded raw model. In
+              this case bytes is assumed to be the contents of a .so file and dict
+              is the corresponding metadata.
+    
+    Paths are assumed to be pathlib.Path
+
+    Returns:
+        (TVM graph executor, onnxInfo dictionary)
+        - see getOnnxInfo for details of the metadata dictionary.
+    """
+    if isinstance(modelDesc, pathlib.Path):
+        if modelDesc.suffix == ".so":
+            model, meta = _loadSo(modelDesc)
+
+        elif modelDesc.suffix == ".onnx":
+            libraryPath, metaPath = getCachePath(modelDesc.stem)
+            if libraryPath.exists():
+                model, meta = _loadSo(libraryPath)
+            else:
+                model, meta = _loadOnnx(modelDesc)
+
+        else:
+            raise RuntimeError("model description {} invalid (must be either an onnx file or a .so)".format(modelDesc))
+
+    elif isinstance(modelDesc, tuple):
+        modelBin = modelDesc[0]
+        with tempfile.TemporaryDirectory() as dpath:
+            fpath = os.path.join(dpath, 'tmp.so')
+            with open(fpath, 'wb') as f:
+                f.write(modelBin)
+
+            graphMod = tvm.runtime.load_module(fpath)
+
+        model = graph_executor.GraphModule(graphMod['default'](tvm.cuda()))
+        meta = modelDesc[1]
+
+    else:
+        raise RuntimeError("Model description type {} invalid (must be .onnx, .so, or tuple)".format(type(modelDesc)))
+
+    return model, meta
+
+
+class tvmModel(abc.ABC):
+    """A generic onnx on tvm model. Concrete models must additionally provide:
+        - runMap:  Which output from pre() to pass to run. For now, there can
+                   only be one input to run. 
+        - postMap: List of indices to pass to post from pre()'s output. post()
+                   will recieve these values, followed by the output of run(). 
+    """
+    def __init__(self, modelDesc):
+        """See loadModel() for allowable values of modelDesc"""
+        self.model, self.meta = loadModel(modelDesc)
 
     def run(self, dat):
-        datNp = np.frombuffer(dat, dtype=np.float32)
-        datNp.shape = self.inShape
-        return super()._run(tvm.nd.array(datNp))
+        """Run the model against input 'dat'. Dat is expected to be a bytes
+       object that can be converted to numpy/tvm and passed to the model as
+       input."""
+        datNp = np.frombuffer(dat, dtype=self.meta['inType'])
+        datNp.shape = self.meta['inShape']
+
+        self.model.set_input(self.meta['inName'], tvm.nd.array(datNp))
+        self.model.run()
+        return self.model.get_output(0, tvm.nd.empty(self.meta['outShape'])).asnumpy().tobytes()
+
+
+    @staticmethod
+    @abc.abstractmethod
+    def pre(data):
+        """Preprocess data and return nOutputPre bytes objects"""
+        pass
+
+
+    @staticmethod
+    @abc.abstractmethod
+    def post(data):
+        """Postprocess data and return nOutputPost bytes objects"""
+        pass
+
+
+    @staticmethod
+    @abc.abstractmethod
+    def getMlPerfCfg(testing=False):
+        """Return a mlperf settings object for this model"""
+        pass
+
+
+class superRes(tvmModel):
+    postMap = (0,)
+    runMap = 1
+    nOutPre = 2
+    nOutPost = 1
+
+    @staticmethod
+    def pre(data):
+        raw = data[0]
+        # mode and size were manually read from the png (used Image.open and then
+        # inspected the img.mode and img.size attributes). We're gonna just go with
+        # this for now.
+        img = Image.frombytes("RGB", (256,256), raw)
+
+        imgProcessed = img.resize((224,224)).convert("YCbCr")
+        img_y, img_cb, img_cr = imgProcessed.split()
+        imgNp = (np.array(img_y)[np.newaxis, np.newaxis, :, :]).astype("float32")
+
+        return (imgProcessed.tobytes(), imgNp.tobytes())
+
+    @staticmethod
+    def post(data):
+        imgPilRaw = data[0]
+        imgRetRaw = data[1]
+
+        retNp = np.frombuffer(imgRetRaw, dtype=np.float32)
+        retNp.shape = (1, 1, 672, 672)
+        retNp = np.uint8((retNp[0, 0]).clip(0, 255))
+
+        imgPil = Image.frombytes("YCbCr", (224,224), imgPilRaw)
+
+        img_y, img_cb, img_cr = imgPil.split()
+        out_y = Image.fromarray(retNp, mode="L")
+        out_cb = img_cb.resize(out_y.size, Image.BICUBIC)
+        out_cr = img_cr.resize(out_y.size, Image.BICUBIC)
+        result = Image.merge("YCbCr", [out_y, out_cb, out_cr]).convert("RGB")
+        canvas = np.full((672, 672 * 2, 3), 255)
+        canvas[0:224, 0:224, :] = np.asarray(imgPil)
+        canvas[:, 672:, :] = np.asarray(result)
+
+        with io.BytesIO() as f:
+            plt.imsave(f, canvas.astype(np.uint8), format="png")
+            pngBuf = f.getvalue()
+
+        return (pngBuf)
+
 
     @staticmethod
     def getMlPerfCfg(testing=False):

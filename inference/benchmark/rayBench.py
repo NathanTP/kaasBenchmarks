@@ -29,8 +29,7 @@ def configure(cfg):
 def pre(modelName, batch):
     results = []
     for data in batch:
-        dataProc = models[modelName]['dataProcClass']()
-        results.append(dataProc.pre(data))
+        results.append(models[modelName]['modelClass'].pre(data))
 
     # We work with batches of inputs and need to return batched results. Since
     # each call to pre returns a tuple, we need to re-arrange into a tuple of
@@ -52,8 +51,6 @@ def run(modelName, modelBuf, batch):
 @ray.remote
 # def post(modelName, batchRefs, completionQ=None, queryIds=None):
 def post(modelName, *batch, completionQ=None, queryIds=None):
-    dataProc = models[modelName]['dataProcClass']()
-
     # This works on batches of inputs (each input is a list) zip them up into
     # tuples representing individual queries:
     # batch: [ [preA0, preA1], [preB0, preB1], [run0, run1] ]
@@ -62,7 +59,7 @@ def post(modelName, *batch, completionQ=None, queryIds=None):
 
     results = []
     for data in zip(*batch):
-        results.append(dataProc.post(data))
+        results.append(models[modelName]['modelClass'].post(data))
 
     # In mlperf mode, we need to asynchronously report completions to a worker
     # through this queue. Otherwise we can return a ray future.
@@ -85,7 +82,7 @@ def runInline(modelName, modelBuf, batch, completionQ=None, queryIds=None):
     for data in batch:
         preOut = dataProc.pre(data)
 
-        runIn = preOut[modelSpec['modelClass'].inpMap[0]]
+        runIn = preOut[modelSpec['modelClass'].runMap]
         runOut = model.run(runIn)
 
         postIn = [ preOut[i] for i in dataProc.postMap ] + [runOut]
@@ -105,29 +102,29 @@ def runN(modelName, modelBuf, inputs, inline=False, completionQ=None, queryIds=N
 
     if inline:
         if completionQ is not None:
-            runInline.options(num_returns=modelSpec['modelClass'].nOutput).remote(
+            runInline.options(num_returns=modelSpec['modelClass'].nOutPost).remote(
                     modelName, modelBuf, [inputs], completionQ=completionQ, queryIds=queryIds)
             postOut = None
         else:
-            postOut = runInline.options(num_returns=modelSpec['modelClass'].nOutput).remote(
+            postOut = runInline.options(num_returns=modelSpec['modelClass'].nOutPost).remote(
                                 modelName, modelBuf, [inputs])
     else:
         dataProc = modelSpec['dataProcClass']
 
-        preOut = pre.options(num_returns=dataProc.nOutputPre).remote(modelName, [inputs])
+        preOut = pre.options(num_returns=modelSpec['modelClass'].nOutPre).remote(modelName, [inputs])
 
-        modOut = run.options(num_returns=modelSpec['modelClass'].nOutput).remote(
-                     modelName, modelBuf, preOut[modelSpec['modelClass'].inpMap[0]])
+        modOut = run.remote(modelName, modelBuf, preOut[modelSpec['modelClass'].runMap])
 
         postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
         if completionQ is not None:
-            post.options(num_returns=dataProc.nOutputPost).remote(
+            post.options(num_returns=modelSpec['modelClass'].nOutPost).remote(
                     modelName, *postInp, completionQ=completionQ, queryIds=queryIds)
             postOut = None
         else:
-            postOut = post.options(num_returns=dataProc.nOutputPost).remote(modelName, *postInp)
+            postOut = post.options(num_returns=modelSpec['modelClass'].nOutPost).remote(modelName, *postInp)
 
     return postOut
+
 
 def oneShot(modelName, inline=False):
     """Single invocation of the model. This test assumes you have compiled the
@@ -135,7 +132,7 @@ def oneShot(modelName, inline=False):
     ray.init()
 
     modelSpec = models[modelName]
-    modelBuf = infbench.model.loadModelBuffer(modelSpec['modelPath'])
+    modelBuf = infbench.model.readModelBuf(modelSpec['modelPath'])
     loader = modelSpec['loader'](config['dataDir'])
     inp = loader.get(0)
 
@@ -189,7 +186,7 @@ class mlperfRunner():
     def __init__(self, modelName, inline=False):
         self.modelName = modelName
         self.modelSpec = models[modelName]
-        self.modelBuf = infbench.model.loadModelBuffer(self.modelSpec['modelPath'])
+        self.modelBuf = infbench.model.readModelBuf(self.modelSpec['modelPath'])
         self.loader = self.modelSpec['loader'](config['dataDir'])
         self.inline = inline
 

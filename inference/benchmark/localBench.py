@@ -18,25 +18,23 @@ def configure(cfg):
 
     modelSpecs = {
             "superRes" : {
-                    "loader" : infbench.dataset.superResLoader,
-                    "dataProc" : infbench.dataset.superResProcessor,
-                    "model" : infbench.model.superRes,
-                    "modelPath" : config['modelDir'] / "super_resolution.onnx"
+                    "loader"     : infbench.dataset.superResLoader,
+                    "modelPath"  : config['modelDir'] / "super_resolution.onnx",
+                    "modelClass" : infbench.model.superRes
                 }
             }
 
 
 def _getHandlers(modelSpec):
     loader = modelSpec['loader'](config['dataDir'])
-    dataProc = modelSpec['dataProc']()
 
     # Create as many models as we have GPUs to get some concurrency. The local
     # mode doesn't independently scale pre/post/run.
     models = []
     for i in range(len(GPUInfo.check_empty())):
-        models.append(modelSpec['model'](modelSpec['modelPath']))
+        models.append(modelSpec['modelClass'](modelSpec['modelPath']))
 
-    return (loader, dataProc, models)
+    return (loader, models)
 
 
 def nShot(modelName, n):
@@ -68,16 +66,17 @@ def nShot(modelName, n):
 
 def oneShot(modelName):
     modelSpec = modelSpecs[modelName]
-    loader, dataProc, model = _getHandlers(modelSpec)
+    loader, models = _getHandlers(modelSpec)
+    model = models[0]
 
     inp = loader.get(0)
 
-    preOut = dataProc.pre([inp])
+    preOut = model.pre([inp])
 
-    modOut = model.run(preOut[model.inpMap[0]])
+    modOut = model.run(preOut[model.runMap])
 
-    postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
-    postOut = dataProc.post(postInp)
+    postInp = [ preOut[i] for i in model.postMap ] + [modOut]
+    postOut = model.post(postInp)
     return postOut
 
 
@@ -87,9 +86,8 @@ def oneShot(modelName):
 
 class mlperfRunner():
 
-    def __init__(self, loader, dataProc, models):
+    def __init__(self, loader, models):
         self.loader = loader
-        self.dataProc = dataProc
         self.models = models
         self.queue = queue.SimpleQueue()
 
@@ -111,10 +109,10 @@ class mlperfRunner():
             responses = []
             for query in batch:
                 inp = self.loader.get(query.index)
-                preOut = self.dataProc.pre([inp])
-                modOut = model.run(preOut[model.inpMap[0]])
-                postInp = [ preOut[i] for i in self.dataProc.postMap ] + [modOut]
-                postOut = self.dataProc.post(postInp)
+                preOut = model.pre([inp])
+                modOut = model.run(preOut[model.runMap])
+                postInp = [ preOut[i] for i in model.postMap ] + [modOut]
+                postOut = model.post(postInp)
 
                 # XXX I really don't know what the last two args are for. The first
                 # is the memory address of the response, the second is the length
@@ -133,11 +131,11 @@ def mlperfBench(modelName):
     """Run the mlperf loadgen version"""
 
     modelSpec = modelSpecs[modelName]
-    loader, dataProc, models = _getHandlers(modelSpec)
+    loader, models = _getHandlers(modelSpec)
 
-    settings = models[0].getMlPerfCfg()
+    settings = models[0].getMlPerfCfg(testing=True)
 
-    runner = mlperfRunner(loader, dataProc, models)
+    runner = mlperfRunner(loader, models)
     runner.start()
     try:
         print("Starting MLPerf Benchmark:")
