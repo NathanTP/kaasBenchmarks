@@ -1,11 +1,12 @@
 import pathlib
 import wget
+import subprocess as sp
 
 modelDir = pathlib.Path("./models").resolve()
 
 if not modelDir.exists():
     modelDir.mkdir(mode=0o700)
-print("SUP?: ", modelDir)
+
 # These sources were taken from:
 # https://github.com/mlcommons/inference/tree/master/vision/classification_and_detection
 # superres is from a tvm tutorial
@@ -21,3 +22,11 @@ for name,url in models.items():
     if not modelPath.exists():
         print("Downloading ", modelPath)
         wget.download(url, str(modelPath))
+
+
+print("Fixing resnet50 onnx model:")
+# resnet50 has some dynamic input shapes, this messes up TVM since it can't
+# infer them for the static graph. The solution is to use this onnxsim
+# (onnx-simplifier) to manually specify the shape and then simplify the onnx to
+# make it all static. I believe that the leading 1 in the shape is the batch size.
+sp.run(["python", '-m', 'onnxsim', '--input-shape=1,3,224,224', 'resnet50.onnx', 'resnet50.onnx'], cwd=modelDir)

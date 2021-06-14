@@ -9,6 +9,7 @@ import json
 import pickle
 from PIL import Image
 import matplotlib.pyplot as plt
+import cv2
 
 import mlperf_loadgen
 
@@ -78,6 +79,8 @@ def getOnnxInfo(onnxDesc):
     else:
         onnxModel = onnxDesc
 
+    print(onnxModel)
+    return
     info = {}
 
     # I assume the model has only one input from the host (the first one). I
@@ -91,8 +94,10 @@ def getOnnxInfo(onnxDesc):
     for dim in inNode.type.tensor_type.shape.dim:
         info['inShape'].append(dim.dim_value)
     
-    if len(onnxModel.graph.output) > 1:
-        raise RuntimeError("ONNX Model has multiple outputs, we can't handle this yet")
+    #XXX resnet has multiple outputs, I don't know why or how to pick them. The
+    #reference code from mlperf has it hardcoded by name.
+    # if len(onnxModel.graph.output) > 1:
+    #     raise RuntimeError("ONNX Model has multiple outputs, we can't handle this yet")
 
     outNode = onnxModel.graph.output[0]
     info['outName'] = outNode.name
@@ -132,8 +137,12 @@ def _loadOnnx(onnxPath):
     onnxModel = onnx.load(onnxPath)
     meta = getOnnxInfo(onnxModel)
 
-    mod, params = relay.frontend.from_onnx(onnxModel)
-    with tvm.transform.PassContext(opt_level=1):
+    # Some onnx models seem to have dynamic parameters. I don't really know
+    # what this is but the freeze_params and DynamicToStatic call seem to
+    # resolve the issue.
+    mod, params = relay.frontend.from_onnx(onnxModel, freeze_params=True)
+    relay.transform.DynamicToStatic()(mod)
+    with tvm.transform.PassContext(opt_level=3):
         module = relay.build(mod, tvm.target.cuda(), params=params)
 
     # Cache Results
@@ -245,7 +254,7 @@ class tvmModel(abc.ABC):
 
         self.model.set_input(self.meta['inName'], tvm.nd.array(datNp))
         self.model.run()
-        return self.model.get_output(0, tvm.nd.empty(self.meta['outShape'])).asnumpy().tobytes()
+        return self.model.get_output(0, tvm.nd.empty(self.meta['outShape'], dtype=self.meta['outType'])).asnumpy().tobytes()
 
 
     @staticmethod
@@ -344,6 +353,30 @@ class superRes(tvmModel):
         return settings
 
 
+def _centerCrop(img, out_height, out_width):
+    height, width, _ = img.shape
+    left = int((width - out_width) / 2)
+    right = int((width + out_width) / 2)
+    top = int((height - out_height) / 2)
+    bottom = int((height + out_height) / 2)
+    img = img[top:bottom, left:right]
+    return img
+
+
+def _resizeWithAspectratio(img, out_height, out_width, scale=87.5, inter_pol=cv2.INTER_LINEAR):
+    height, width, _ = img.shape
+    new_height = int(100. * out_height / scale)
+    new_width = int(100. * out_width / scale)
+    if height > width:
+        w = new_width
+        h = int(new_height * height / width)
+    else:
+        h = new_height
+        w = int(new_width * width / height)
+    img = cv2.resize(img, (w, h), interpolation=inter_pol)
+    return img
+
+
 class resnet50(tvmModel):
     noPost = True
     postMap = (0,)
@@ -354,14 +387,15 @@ class resnet50(tvmModel):
 
     @staticmethod
     def pre(imgBuf):
-        img = cv2.imdecode(imgBuf)
+        imgBuf = imgBuf[0]
+        img = cv2.imdecode(np.frombuffer(imgBuf, dtype=np.uint8), flags=cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         output_height, output_width, _ = [224, 224, 3]
 
         cv2_interpol = cv2.INTER_AREA
-        img = resize_with_aspectratio(img, output_height, output_width, inter_pol=cv2_interpol)
-        img = center_crop(img, output_height, output_width)
+        img = _resizeWithAspectratio(img, output_height, output_width, inter_pol=cv2_interpol)
+        img = _centerCrop(img, output_height, output_width)
         img = np.asarray(img, dtype='float32')
 
         # normalize image
@@ -370,7 +404,7 @@ class resnet50(tvmModel):
 
         img = img.transpose([2, 0, 1])
 
-        return img.data
+        return [img.tobytes()]
 
 
     @staticmethod

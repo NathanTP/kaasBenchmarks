@@ -35,7 +35,7 @@ def sanityCheck():
 def nshot(modelName):
     bench = localBench
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    res = bench.nShot(modelName, 16)
+    res = bench.nShot(modelName, 8)
 
 
 def runMlperf(modelName):
@@ -47,7 +47,7 @@ def runMlperf(modelName):
 
 def main():
     # sanityCheck()
-    nshot("superRes")
+    nshot("resnet50")
     # runMlperf()
     # infbench.model.getOnnxInfo(modelDir / "resnet50.onnx")
 

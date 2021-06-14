@@ -54,17 +54,22 @@ def nShot(modelName, n):
     stops = []
     accuracies = []
     for i in range(n):
-        inp = loader.get(i % loader.ndata)
+        idx = i % loader.ndata
+        inp = loader.get(idx)
 
         start = time.time()
 
         preOut = model.pre([inp])
         modOut = model.run(preOut[model.runMap])
-        postInp = [ preOut[i] for i in model.postMap ] + [modOut]
-        postOut = model.post(postInp)
+
+        if model.noPost:
+            postOut = modOut
+        else:
+            postInp = [ preOut[i] for i in model.postMap ] + [modOut]
+            postOut = model.post(postInp)
 
         stops.append(time.time() - start)
-        accuracies.append(loader.check(postOut, i))
+        accuracies.append(loader.check(postOut, idx))
 
     print("Average latency: ")
     print(np.mean(stops))

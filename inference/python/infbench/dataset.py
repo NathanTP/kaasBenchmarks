@@ -1,8 +1,10 @@
+import sys
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 import io
 import re
+import cv2
 
 
 class processor():
@@ -105,8 +107,6 @@ class imageNetLoader(loader):
 
 
     def get(self, idx):
-        #XXX
-        print("Getting ", idx)
         try:
             return self.images[idx]
         except KeyError as e:
@@ -114,12 +114,10 @@ class imageNetLoader(loader):
 
 
     def preLoad(self, idxs):
-        print("Asked to preload: ", idxs)
         for i in idxs:
-            #XXX
-            print("Preloading ", i)
-            with open(self.imagePaths[i], 'rb') as f:
-                self.images[i] = f.read() 
+            cImg = cv2.imread(str(self.imagePaths[i]))
+            bImg = cv2.imencode('.jpg', cImg)[1]
+            self.images[i] = bImg.tobytes()
 
 
     def unload(self):
@@ -127,4 +125,5 @@ class imageNetLoader(loader):
 
 
     def check(self, result, idx):
-        return int(result) == self.imageLabels[idx]
+        # I don't know why it's -1, but it is
+        return (int.from_bytes(result, sys.byteorder) - 1) == self.imageLabels[idx]
