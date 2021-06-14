@@ -21,7 +21,13 @@ def configure(cfg):
                     "loader"     : infbench.dataset.superResLoader,
                     "modelPath"  : config['modelDir'] / "super_resolution.onnx",
                     "modelClass" : infbench.model.superRes
+                },
+            "resnet50" : {
+                    "loader"     : infbench.dataset.imageNetLoader,
+                    "modelPath"  : config['modelDir'] / "resnet50.onnx",
+                    "modelClass" : infbench.model.resnet50
                 }
+
             }
 
 
@@ -39,23 +45,26 @@ def _getHandlers(modelSpec):
 
 def nShot(modelName, n):
     modelSpec = modelSpecs[modelName]
-    loader, dataProc, model = _getHandlers(modelSpec)
+    loader, models = _getHandlers(modelSpec)
 
+    loader.preLoad(list(range( min(n, loader.ndata) )))
+    model = models[0]
     inp = loader.get(0)
 
     stops = []
+    accuracies = []
     for i in range(n):
         inp = loader.get(i % loader.ndata)
 
         start = time.time()
 
-        preOut = dataProc.pre([inp])
-        modOut = model.run(preOut[model.inpMap[0]])
-        postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
-        postOut = dataProc.post(postInp)
+        preOut = model.pre([inp])
+        modOut = model.run(preOut[model.runMap])
+        postInp = [ preOut[i] for i in model.postMap ] + [modOut]
+        postOut = model.post(postInp)
 
         stops.append(time.time() - start)
-        print("Took: ", stops[-1])
+        accuracies.append(loader.check(postOut, i))
 
     print("Average latency: ")
     print(np.mean(stops))
@@ -63,6 +72,8 @@ def nShot(modelName, n):
     print(np.percentile(stops, 50))
     print("99 percentile latency: ")
     print(np.percentile(stops, 99))
+
+    print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
 
 def oneShot(modelName):
     modelSpec = modelSpecs[modelName]
@@ -77,6 +88,7 @@ def oneShot(modelName):
 
     postInp = [ preOut[i] for i in model.postMap ] + [modOut]
     postOut = model.post(postInp)
+
     return postOut
 
 
@@ -127,13 +139,13 @@ class mlperfRunner():
             batch = queue.get()
 
 
-def mlperfBench(modelName):
+def mlperfBench(modelName, testing=False):
     """Run the mlperf loadgen version"""
 
     modelSpec = modelSpecs[modelName]
     loader, models = _getHandlers(modelSpec)
 
-    settings = models[0].getMlPerfCfg(testing=True)
+    settings = models[0].getMlPerfCfg(testing=testing)
 
     runner = mlperfRunner(loader, models)
     runner.start()

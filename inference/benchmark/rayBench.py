@@ -18,7 +18,6 @@ def configure(cfg):
     models = {
             "superRes" : {
                     "loader" : infbench.dataset.superResLoader,
-                    "dataProcClass" : infbench.dataset.superResProcessor,
                     "modelClass" : infbench.model.superRes,
                     "modelPath" : config['modelDir'] / "super_resolution.onnx"
                 }
@@ -75,18 +74,17 @@ def runInline(modelName, modelBuf, batch, completionQ=None, queryIds=None):
     """Run model with inlined pre and post-processing"""
     modelSpec = models[modelName]
 
-    dataProc = modelSpec['dataProcClass']()
     model = modelSpec['modelClass'](modelBuf)
 
     results = []
     for data in batch:
-        preOut = dataProc.pre(data)
+        preOut = model.pre(data)
 
-        runIn = preOut[modelSpec['modelClass'].runMap]
+        runIn = preOut[model.runMap]
         runOut = model.run(runIn)
 
-        postIn = [ preOut[i] for i in dataProc.postMap ] + [runOut]
-        results.append(dataProc.post(postIn))
+        postIn = [ preOut[i] for i in model.postMap ] + [runOut]
+        results.append(model.post(postIn))
 
     if completionQ is not None:
         completionQ.put((results, queryIds))
@@ -99,29 +97,28 @@ def runN(modelName, modelBuf, inputs, inline=False, completionQ=None, queryIds=N
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     modelSpec = models[modelName]
+    mClass = modelSpec['modelClass']
 
     if inline:
         if completionQ is not None:
-            runInline.options(num_returns=modelSpec['modelClass'].nOutPost).remote(
+            runInline.options(num_returns=mClass.nOutPost).remote(
                     modelName, modelBuf, [inputs], completionQ=completionQ, queryIds=queryIds)
             postOut = None
         else:
-            postOut = runInline.options(num_returns=modelSpec['modelClass'].nOutPost).remote(
+            postOut = runInline.options(num_returns=mClass.nOutPost).remote(
                                 modelName, modelBuf, [inputs])
     else:
-        dataProc = modelSpec['dataProcClass']
+        preOut = pre.options(num_returns=mClass.nOutPre).remote(modelName, [inputs])
 
-        preOut = pre.options(num_returns=modelSpec['modelClass'].nOutPre).remote(modelName, [inputs])
+        modOut = run.remote(modelName, modelBuf, preOut[mClass.runMap])
 
-        modOut = run.remote(modelName, modelBuf, preOut[modelSpec['modelClass'].runMap])
-
-        postInp = [ preOut[i] for i in dataProc.postMap ] + [modOut]
+        postInp = [ preOut[i] for i in mClass.postMap ] + [modOut]
         if completionQ is not None:
-            post.options(num_returns=modelSpec['modelClass'].nOutPost).remote(
+            post.options(num_returns=mClass.nOutPost).remote(
                     modelName, *postInp, completionQ=completionQ, queryIds=queryIds)
             postOut = None
         else:
-            postOut = post.options(num_returns=modelSpec['modelClass'].nOutPost).remote(modelName, *postInp)
+            postOut = post.options(num_returns=mClass.nOutPost).remote(modelName, *postInp)
 
     return postOut
 
@@ -226,10 +223,10 @@ class mlperfRunner():
         self.completionHandler.join()
 
 
-def mlperfBench(modelName, inline=False):
+def mlperfBench(modelName, testing=False, inline=False):
     """Run the mlperf loadgen version"""
     modelSpec = models[modelName]
-    settings = modelSpec['modelClass'].getMlPerfCfg(testing=False)
+    settings = modelSpec['modelClass'].getMlPerfCfg(testing=testing)
     loader = modelSpec['loader'](config['dataDir'])
 
     runner = mlperfRunner(modelName, inline)

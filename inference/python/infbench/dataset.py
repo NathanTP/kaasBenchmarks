@@ -2,6 +2,7 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 import io
+import re
 
 
 class processor():
@@ -33,7 +34,7 @@ class loader():
     # number of individual items in the dataset (the max index you could "get")
     ndata = 0
 
-    def preload(self, idxs):
+    def preLoad(self, idxs):
         """Some datasets are too big to fit in RAM in their entirety, preload
         will load a subset of data based on the indexes in idxs"""
         pass
@@ -47,6 +48,11 @@ class loader():
         pass
 
 
+    def check(self, result, idx):
+        """Check if the result of index idx is correct"""
+        pass
+
+
 class superResLoader(loader):
     ndata = 1
 
@@ -54,6 +60,8 @@ class superResLoader(loader):
         imgPath = dataDir / "superRes" / "cat.png"
         self.img = Image.open(imgPath).tobytes()
 
+        with open(dataDir / 'superRes' / 'catSupered.png', 'rb') as f:
+            self.imgRef = f.read()
 
     def get(self, idx):
         if idx != 0:
@@ -62,49 +70,61 @@ class superResLoader(loader):
         return self.img
 
 
-class superResProcessor(processor):
-    nOutputPre = 2
-    nOutputPost = 1
-    preMap = (0,)
-    postMap = (0,)
-    inShape = (1, 1, 224, 224) 
-    outShape = (1, 1, 672, 672)
+    def check(self, result, idx):
+        return result == self.imgRef
 
 
-    def pre(self, data):
-        raw = data[0]
-        # mode and size were manually read from the png (used Image.open and then
-        # inspected the img.mode and img.size attributes). We're gonna just go with
-        # this for now.
-        img = Image.frombytes("RGB", (256,256), raw)
+class imageNetLoader(loader):
 
-        imgProcessed = img.resize((224,224)).convert("YCbCr")
-        img_y, img_cb, img_cr = imgProcessed.split()
-        imgNp = (np.array(img_y)[np.newaxis, np.newaxis, :, :]).astype("float32")
+    def __init__(self, dataDir):
+        self.dataDir = dataDir / "fake_imagenet"
 
-        return (imgProcessed.tobytes(), imgNp.tobytes())
+        # { imageID -> rawImage }
+        # Loaded on-demand by preLoad
+        self.images = {}
+
+        # Dataset metadata, we only load actual data in preLoad (to avoid
+        # loading all of a potentially large dataset)
+        self.imagePaths = []
+        self.imageLabels = []
+        with open(self.dataDir / "val_map.txt", 'r') as f:
+            nMissing = 0
+            for imgRelPath in f:
+                name, label = re.split(r"\s+", imgRelPath.strip())
+                imgPath = self.dataDir / name 
+
+                if not imgPath.exists():
+                    # OK to ignore missing images
+                    nMissing += 1
+                    continue
+
+                self.imagePaths.append(imgPath)
+                self.imageLabels.append(int(label))
+
+        self.ndata = len(self.imageLabels)
 
 
-    def post(self, dat):
-        imgPilRaw, imgRetRaw = dat
+    def get(self, idx):
+        #XXX
+        print("Getting ", idx)
+        try:
+            return self.images[idx]
+        except KeyError as e:
+            raise RuntimeError("Key {} not preloaded".format(e.args)) from e
 
-        retNp = np.frombuffer(imgRetRaw, dtype=np.float32)
-        retNp.shape = self.outShape
-        retNp = np.uint8((retNp[0, 0]).clip(0, 255))
 
-        imgPil = Image.frombytes("YCbCr", (224,224), imgPilRaw)
+    def preLoad(self, idxs):
+        print("Asked to preload: ", idxs)
+        for i in idxs:
+            #XXX
+            print("Preloading ", i)
+            with open(self.imagePaths[i], 'rb') as f:
+                self.images[i] = f.read() 
 
-        img_y, img_cb, img_cr = imgPil.split()
-        out_y = Image.fromarray(retNp, mode="L")
-        out_cb = img_cb.resize(out_y.size, Image.BICUBIC)
-        out_cr = img_cr.resize(out_y.size, Image.BICUBIC)
-        result = Image.merge("YCbCr", [out_y, out_cb, out_cr]).convert("RGB")
-        canvas = np.full((672, 672 * 2, 3), 255)
-        canvas[0:224, 0:224, :] = np.asarray(imgPil)
-        canvas[:, 672:, :] = np.asarray(result)
 
-        with io.BytesIO() as f:
-            plt.imsave(f, canvas.astype(np.uint8), format="png")
-            pngBuf = f.getvalue()
+    def unload(self):
+        self.images = {}
 
-        return (pngBuf)
+
+    def check(self, result, idx):
+        return int(result) == self.imageLabels[idx]

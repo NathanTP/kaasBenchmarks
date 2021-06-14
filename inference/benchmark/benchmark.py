@@ -32,23 +32,23 @@ def sanityCheck():
         print("Result doesn't look right. Check test.png.")
 
 
-def nshot():
+def nshot(modelName):
     bench = localBench
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    res = bench.nShot("superRes", 16)
+    res = bench.nShot(modelName, 16)
 
 
-def runMlperf():
+def runMlperf(modelName):
     bench = rayBench
     # bench = localBench
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    bench.mlperfBench("superRes")
+    bench.mlperfBench(modelName, testing=False)
 
 
 def main():
     # sanityCheck()
-    # nshot()
-    runMlperf()
-    # print(infbench.model.getOnnxInfo(modelDir / "super_resolution.onnx"))
+    nshot("superRes")
+    # runMlperf()
+    # infbench.model.getOnnxInfo(modelDir / "resnet50.onnx")
 
 main()

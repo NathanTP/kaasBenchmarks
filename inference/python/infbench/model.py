@@ -6,6 +6,7 @@ import sys
 import io
 import abc
 import json
+import pickle
 from PIL import Image
 import matplotlib.pyplot as plt
 
@@ -196,6 +197,34 @@ def loadModel(modelDesc):
     return model, meta
 
 
+def dumpModel(graphMod, outputBasePath):
+    lib = graphMod.get_lib()
+    cudaLib = lib.imported_modules[0]
+    outputName = outputBasePath.name
+
+    print("\n")
+    print(graphMod.__dir__())
+
+    graphPath = outputBasePath.with_suffix(".graph.json")
+    print("Saving execution graph to: ", graphPath)
+    with open(graphPath, 'w') as f:
+        f.write(graphMod.get_graph_json())
+
+    paramPath = outputBasePath.with_suffix(".params.pickle")
+    print("Saving parameters to: ", paramPath )
+    with open(paramPath, "wb") as f:
+        # Can't pickle tvm.ndarray, gotta convert to numpy
+        pickle.dump({ k : p.asnumpy() for k,p in graphMod.params.items() }, f)
+
+    srcPath = outputBasePath.with_suffix(".cu")
+    print("Saving Raw CUDA Source to: ", srcPath)
+    with open(srcPath, 'w') as f:
+        f.write(cudaLib.get_source())
+
+    print("Saving CUDA to: {}.ptx and {}.tvm_meta.json:".format(outputBasePath.stem,outputBasePath.stem))
+    cudaLib.save(str(outputBasePath.with_suffix(".ptx")))
+
+
 class tvmModel(abc.ABC):
     """A generic onnx on tvm model. Concrete models must additionally provide:
         - runMap:  Which output from pre() to pass to run. For now, there can
@@ -240,11 +269,16 @@ class tvmModel(abc.ABC):
         pass
 
 
+#==============================================================================
+# Individual Models
+#==============================================================================
 class superRes(tvmModel):
     postMap = (0,)
     runMap = 1
     nOutPre = 2
     nOutPost = 1
+
+    noPost = False
 
     @staticmethod
     def pre(data):
@@ -295,19 +329,65 @@ class superRes(tvmModel):
         settings = getDefaultMlPerfCfg()
 
         if testing:
-            # MLperf detects an unatainable SLO pretty fast.
-            settings.server_target_qps = 3
-            settings.server_target_latency_ns = 10000000
-            settings.min_duration_ms = 1000
-        else:
-            # Set this to the lowest qps that any system should be able to get
-            # (benchmarks might fiddle with it to get a real measurement).
-            settings.server_target_qps = 3
+            # MLperf detects an unatainable SLO pretty fast
+            settings.server_target_qps = 3 
+            settings.server_target_latency_ns = 10000
+            # settings.min_duration_ms = 1000
 
-            # This is arbitrary for superRes
-            settings.server_target_latency_ns = 1000000000
+        # Set this to the lowest qps that any system should be able to get
+        # (benchmarks might fiddle with it to get a real measurement).
+        settings.server_target_qps = 3
+
+        # This is arbitrary for superRes
+        settings.server_target_latency_ns = 1000000000
 
         return settings
+
+
+class resnet50(tvmModel):
+    noPost = True
+    postMap = (0,)
+    runMap = 0
+    nOutPre = 1
+    nOutPost = 1
+
+
+    @staticmethod
+    def pre(imgBuf):
+        img = cv2.imdecode(imgBuf)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        output_height, output_width, _ = [224, 224, 3]
+
+        cv2_interpol = cv2.INTER_AREA
+        img = resize_with_aspectratio(img, output_height, output_width, inter_pol=cv2_interpol)
+        img = center_crop(img, output_height, output_width)
+        img = np.asarray(img, dtype='float32')
+
+        # normalize image
+        means = np.array([123.68, 116.78, 103.94], dtype=np.float32)
+        img -= means
+
+        img = img.transpose([2, 0, 1])
+
+        return img.data
+
+
+    @staticmethod
+    def post(label):
+        raise AttributeError("resnet50 has no post-processing")
+
+
+    @staticmethod
+    def getMlPerfCfg(testing=False):
+
+        if testing:
+            settings = getDefaultMlPerfCfg()
+            settings.max_query_count = 100
+
+        # Not sure exactly how to pick this, probably some trial and error. It
+        # doesn't seem to be defined by mlperf.
+        settings.server_target_latency_ns = (100 * 1E6)
 
 
 #==============================================================================
