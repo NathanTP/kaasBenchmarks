@@ -6,3 +6,4 @@ pillow
 onnx
 matplotlib
 gpuinfo
+onnx-simplifier
