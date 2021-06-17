@@ -43,58 +43,54 @@ def _getHandlers(modelSpec):
     return (loader, models)
 
 
+def _runOne(model, inputs):
+    preInp = [ inputs[i] for i in model.preMap ]
+    preOut = model.pre(preInp)
+
+    runInp = [ preOut[i] for i in model.runMap ]
+    modOut = model.run(runInp)
+
+    if model.noPost:
+        postOut = modOut
+    else:
+        postInp = [ preOut[i] for i in model.postMap ] + modOut
+        postOut = model.post(postInp)
+
+    return postOut
+
+
 def nShot(modelName, n):
     modelSpec = modelSpecs[modelName]
     loader, models = _getHandlers(modelSpec)
 
     loader.preLoad(list(range( min(n, loader.ndata) )))
     model = models[0]
-    inp = loader.get(0)
 
-    stops = []
+    times = []
     accuracies = []
+    results = []
     for i in range(n):
         idx = i % loader.ndata
-        inp = loader.get(idx)
+        inputs = loader.get(idx)
 
         start = time.time()
 
-        preOut = model.pre([inp])
-        modOut = model.run(preOut[model.runMap])
+        result = _runOne(model, inputs)
 
-        if model.noPost:
-            postOut = modOut
-        else:
-            postInp = [ preOut[i] for i in model.postMap ] + [modOut]
-            postOut = model.post(postInp)
-
-        stops.append(time.time() - start)
-        accuracies.append(loader.check(postOut, idx))
+        times.append(time.time() - start)
+        results.append(result)
+        accuracies.append(loader.check(result, idx))
 
     print("Average latency: ")
-    print(np.mean(stops))
+    print(np.mean(times))
     print("Median latency: ")
-    print(np.percentile(stops, 50))
+    print(np.percentile(times, 50))
     print("99 percentile latency: ")
-    print(np.percentile(stops, 99))
+    print(np.percentile(times, 99))
 
     print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
 
-def oneShot(modelName):
-    modelSpec = modelSpecs[modelName]
-    loader, models = _getHandlers(modelSpec)
-    model = models[0]
-
-    inp = loader.get(0)
-
-    preOut = model.pre([inp])
-
-    modOut = model.run(preOut[model.runMap])
-
-    postInp = [ preOut[i] for i in model.postMap ] + [modOut]
-    postOut = model.post(postInp)
-
-    return postOut
+    return results
 
 
 #==============================================================================
@@ -125,11 +121,8 @@ class mlperfRunner():
         while batch is not None:
             responses = []
             for query in batch:
-                inp = self.loader.get(query.index)
-                preOut = model.pre([inp])
-                modOut = model.run(preOut[model.runMap])
-                postInp = [ preOut[i] for i in model.postMap ] + [modOut]
-                postOut = model.post(postInp)
+                inputs = self.loader.get(query.index)
+                result = _runOne(model, inputs)
 
                 # XXX I really don't know what the last two args are for. The first
                 # is the memory address of the response, the second is the length
@@ -144,8 +137,11 @@ class mlperfRunner():
             batch = queue.get()
 
 
-def mlperfBench(modelName, testing=False):
+def mlperfBench(modelName, testing=False, inline=False):
     """Run the mlperf loadgen version"""
+
+    if inline:
+        print("WARNING: inline does nothing in local mode (it's basically always inline)")
 
     modelSpec = modelSpecs[modelName]
     loader, models = _getHandlers(modelSpec)
@@ -155,12 +151,11 @@ def mlperfBench(modelName, testing=False):
     runner = mlperfRunner(loader, models)
     runner.start()
     try:
-        print("Starting MLPerf Benchmark:")
         sut = mlperf_loadgen.ConstructSUT(
             runner.runOne, infbench.model.flushQueries, infbench.model.processLatencies)
 
         qsl = mlperf_loadgen.ConstructQSL(
-            loader.ndata, infbench.model.mlperfNquery, loader.preload, loader.unload)
+            loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
         mlperf_loadgen.StartTest(sut, qsl, settings)
         mlperf_loadgen.DestroyQSL(qsl)

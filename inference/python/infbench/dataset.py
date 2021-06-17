@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import io
 import re
 import cv2
+import abc
 
 
 class processor():
@@ -30,7 +31,7 @@ class processor():
         pass
 
 
-class loader():
+class loader(abc.ABC):
     """Handle to a dataset, used for reading inputs. Does not pre or post
     process data at all. Data are typically bytes or bytearrays."""
     # number of individual items in the dataset (the max index you could "get")
@@ -41,15 +42,17 @@ class loader():
         will load a subset of data based on the indexes in idxs"""
         pass
 
-    def unload(self, idxs):
+    def unLoad(self, idxs):
         """Free memory associated with idxs"""
         pass
 
+    @abc.abstractmethod
     def get(self, idx):
         """Returns a single datum at idx"""
         pass
 
 
+    @abc.abstractmethod
     def check(self, result, idx):
         """Check if the result of index idx is correct"""
         pass
@@ -65,15 +68,16 @@ class superResLoader(loader):
         with open(dataDir / 'superRes' / 'catSupered.png', 'rb') as f:
             self.imgRef = f.read()
 
+
     def get(self, idx):
         if idx != 0:
             raise ArgumentError("The superres dataset has only one datum""")
 
-        return self.img
+        return (self.img,)
 
 
     def check(self, result, idx):
-        return result == self.imgRef
+        return result[0] == self.imgRef
 
 
 class imageNetLoader(loader):
@@ -108,7 +112,7 @@ class imageNetLoader(loader):
 
     def get(self, idx):
         try:
-            return self.images[idx]
+            return (self.images[idx],)
         except KeyError as e:
             raise RuntimeError("Key {} not preloaded".format(e.args)) from e
 
@@ -120,10 +124,63 @@ class imageNetLoader(loader):
             self.images[i] = bImg.tobytes()
 
 
-    def unload(self):
-        self.images = {}
+    def unLoad(self, idxs):
+        for i in idxs:
+            self.images[i] = None
 
 
     def check(self, result, idx):
         # I don't know why it's -1, but it is
-        return (int.from_bytes(result, sys.byteorder) - 1) == self.imageLabels[idx]
+        return (int.from_bytes(result[0], sys.byteorder) - 1) == self.imageLabels[idx]
+
+
+class cocoLoader(loader):
+
+    def __init__(self, dataDir):
+        self.dataDir = dataDir / "coco"
+
+        with open(self.dataDir / "annotations/instances_val2017.json", "r") as f:
+            meta = json.load(f)
+
+        images = {}
+        for img in meta["images"]:
+            images[img["id"]] = {"file_name": img["file_name"],
+                               "height": img["height"],
+                               "width": img["width"],
+                               "bbox": [],
+                               "category": [],
+                               'raw': None}
+
+        for a in meta["annotations"]:
+            img = images.get(a["image_id"])
+            if img is None:
+                continue
+            catagory_ids = a.get("category_id")
+            img["category"].append(catagory_ids)
+            img["bbox"].append(a.get("bbox"))
+
+        # At first, these have only metadata, but preLoad() can fill in a 'raw'
+        # field to have the actual binary data.
+        self.images = [ i for i in images.values() ]
+
+
+    def preLoad(self, idxs):
+        for i in idxs:
+            img = self.images[i]
+            imgPath = self.dataDir / 'val2017' / img['file_name']
+            cImg = cv2.imread(str(imgPath))
+            bImg = cv2.imencode('.jpg', cImg)[1]
+            img['raw'] = bImg.tobytes()
+
+
+    def get(self, idx):
+        return self.images[idx]['raw']
+
+
+    def unload(self):
+        for img in self.images:
+            del img['raw']
+
+
+    def check(self, result, idx):
+        raise NotImplementedError("Check()")

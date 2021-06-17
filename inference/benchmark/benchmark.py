@@ -15,40 +15,55 @@ def sanityCheck():
     be manually fiddled with to spot check stuff. It will run the superres
     model and write the output to test.png, it should be the superres output (a
     small cat next to a big cat in a figure)."""
-    # bench = localBench
-    bench = rayBench
+    bench = localBench
+    # bench = rayBench
 
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    # res = bench.oneShot("superRes", inline=False)
-    res = bench.oneShot("superRes")
+    res = bench.nShot("superRes", 1)
 
     with open("test.png", "wb") as f:
-        f.write(res)
+        f.write(res[0][0])
 
     print("Sanity check didn't crash!")
-    if filecmp.cmp("test.png", dataDir / "superRes" / "catSupered.png"):
-        print("Result looks reasonable")
-    else:
-        print("Result doesn't look right. Check test.png.")
+    print("Output available at ./test.png")
 
 
 def nshot(modelName):
-    bench = localBench
+    # bench = localBench
+    bench = rayBench
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    res = bench.nShot(modelName, 8)
+    res = bench.nShot(modelName, 16, inline=True)
 
 
 def runMlperf(modelName):
-    bench = rayBench
-    # bench = localBench
+    testing = False 
+    inline = True 
+    backend = "ray"
+
+    if backend == 'ray':
+        bench = rayBench
+    elif backend == 'local':
+        bench = localBench
+    else:
+        raise ArgumentError("Unrecognized backend: ", backend)
+
     bench.configure({"dataDir" : dataDir, "modelDir" : modelDir})
-    bench.mlperfBench(modelName, testing=False)
+
+    print("Starting MLPerf Benchmark: ")
+    print("\tModel: ", modelName)
+    print("\tBackend: ", backend)
+    print("\tTesting: ", testing)
+    print("\tInline: ", inline)
+
+    bench.mlperfBench(modelName, testing=testing, inline=inline)
 
 
 def main():
     # sanityCheck()
-    nshot("resnet50")
-    # runMlperf()
+    # nshot("resnet50")
+    # nshot("superRes")
+    # runMlperf("superRes")
+    runMlperf("resnet50")
     # infbench.model.getOnnxInfo(modelDir / "resnet50.onnx")
 
 main()

@@ -79,8 +79,6 @@ def getOnnxInfo(onnxDesc):
     else:
         onnxModel = onnxDesc
 
-    print(onnxModel)
-    return
     info = {}
 
     # I assume the model has only one input from the host (the first one). I
@@ -94,17 +92,17 @@ def getOnnxInfo(onnxDesc):
     for dim in inNode.type.tensor_type.shape.dim:
         info['inShape'].append(dim.dim_value)
     
-    #XXX resnet has multiple outputs, I don't know why or how to pick them. The
-    #reference code from mlperf has it hardcoded by name.
-    # if len(onnxModel.graph.output) > 1:
-    #     raise RuntimeError("ONNX Model has multiple outputs, we can't handle this yet")
+    outs = []
+    for outNode in onnxModel.graph.output:
+        outInfo = { 'outName' : outNode.name,
+                 'outType' : onnxTypes[outNode.type.tensor_type.elem_type]}
 
-    outNode = onnxModel.graph.output[0]
-    info['outName'] = outNode.name
-    info['outType'] = onnxTypes[outNode.type.tensor_type.elem_type]
-    info['outShape'] = []
-    for dim in outNode.type.tensor_type.shape.dim:
-        info['outShape'].append(dim.dim_value)
+        outInfo['outShape'] = []
+        for dim in outNode.type.tensor_type.shape.dim:
+            outInfo['outShape'].append(dim.dim_value)
+        outs.append(outInfo)
+
+    info['outputs'] = outs
 
     return info
 
@@ -245,16 +243,27 @@ class tvmModel(abc.ABC):
         """See loadModel() for allowable values of modelDesc"""
         self.model, self.meta = loadModel(modelDesc)
 
+
     def run(self, dat):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
+
+        # XXX Assuming only one input for run
+        dat = dat[0]
+
         datNp = np.frombuffer(dat, dtype=self.meta['inType'])
         datNp.shape = self.meta['inShape']
 
         self.model.set_input(self.meta['inName'], tvm.nd.array(datNp))
         self.model.run()
-        return self.model.get_output(0, tvm.nd.empty(self.meta['outShape'], dtype=self.meta['outType'])).asnumpy().tobytes()
+
+        outputs = []
+        for i, outMeta in enumerate(self.meta['outputs']):
+            outputs.append(self.model.get_output(i,
+                tvm.nd.empty(outMeta['outShape'], dtype=outMeta['outType'])).asnumpy().tobytes())
+
+        return outputs
 
 
     @staticmethod
@@ -282,9 +291,11 @@ class tvmModel(abc.ABC):
 # Individual Models
 #==============================================================================
 class superRes(tvmModel):
+    preMap = (0,)
+    runMap = (1,)
     postMap = (0,)
-    runMap = 1
     nOutPre = 2
+    nOutRun = 1
     nOutPost = 1
 
     noPost = False
@@ -327,7 +338,7 @@ class superRes(tvmModel):
             plt.imsave(f, canvas.astype(np.uint8), format="png")
             pngBuf = f.getvalue()
 
-        return (pngBuf)
+        return (pngBuf,)
 
 
     @staticmethod
@@ -340,15 +351,14 @@ class superRes(tvmModel):
         if testing:
             # MLperf detects an unatainable SLO pretty fast
             settings.server_target_qps = 3 
-            settings.server_target_latency_ns = 10000
-            # settings.min_duration_ms = 1000
+            settings.server_target_latency_ns = 1000
+        else:
+            # Set this to the lowest qps that any system should be able to get
+            # (benchmarks might fiddle with it to get a real measurement).
+            settings.server_target_qps = 3
 
-        # Set this to the lowest qps that any system should be able to get
-        # (benchmarks might fiddle with it to get a real measurement).
-        settings.server_target_qps = 3
-
-        # This is arbitrary for superRes
-        settings.server_target_latency_ns = 1000000000
+            # This is arbitrary for superRes
+            settings.server_target_latency_ns = 1000000000
 
         return settings
 
@@ -376,13 +386,24 @@ def _resizeWithAspectratio(img, out_height, out_width, scale=87.5, inter_pol=cv2
     img = cv2.resize(img, (w, h), interpolation=inter_pol)
     return img
 
+    preMap = (0,)
+    runMap = (1,)
+    postMap = (0,)
+    nOutPre = 2
+    nOutRun = 1
+    nOutPost = 1
+
+    noPost = False
+
 
 class resnet50(tvmModel):
     noPost = True
+    preMap = (0,)
+    runMap = (0,)
     postMap = (0,)
-    runMap = 0
+    nOutRun = 2
     nOutPre = 1
-    nOutPost = 1
+    nOutPost = nOutRun
 
 
     @staticmethod
@@ -404,7 +425,7 @@ class resnet50(tvmModel):
 
         img = img.transpose([2, 0, 1])
 
-        return [img.tobytes()]
+        return (img.tobytes(),)
 
 
     @staticmethod
@@ -414,14 +435,44 @@ class resnet50(tvmModel):
 
     @staticmethod
     def getMlPerfCfg(testing=False):
+        settings = getDefaultMlPerfCfg()
 
         if testing:
-            settings = getDefaultMlPerfCfg()
-            settings.max_query_count = 100
+            settings.server_target_latency_ns = 1000
+        else:
+            settings.server_target_latency_ns = 1000000000
 
-        # Not sure exactly how to pick this, probably some trial and error. It
-        # doesn't seem to be defined by mlperf.
-        settings.server_target_latency_ns = (100 * 1E6)
+        return settings
+
+
+def maybeResize(img, dims):
+    img = np.array(img, dtype=np.float32)
+    if len(img.shape) < 3 or img.shape[2] != 3:
+        # some images might be grayscale
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if dims != None:
+        im_height, im_width, _ = dims
+        img = cv2.resize(img, (im_width, im_height), interpolation=cv2.INTER_LINEAR)
+    return img
+
+
+class mobilenetSsd(tvmModel):
+    noPost = False
+    postMap = (0,)
+    runMap = 0
+    nOutPre = 1
+    nOutPost = 1
+
+
+    @staticmethod
+    def pre(imgBuf):
+        imgBuf = imgBuf[0]
+        img = cv2.imdecode(np.frombuffer(imgBuf, dtype=np.uint8), flags=cv2.IMREAD_COLOR)
+
+        img = maybeResize(img, [300, 300, 3])
+        img = np.asarray(img, dtype=np.uint8).transpose([2,0,1])
+        return [img.tobytes()]
 
 
 #==============================================================================
