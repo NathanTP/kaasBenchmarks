@@ -16,18 +16,23 @@ def configure(cfg):
 
     config = cfg
 
+    # You must run tools/getModels.py first to get these .so's
     modelSpecs = {
             "superRes" : {
                     "loader"     : infbench.dataset.superResLoader,
-                    "modelPath"  : config['modelDir'] / "super_resolution.onnx",
+                    "modelPath"  : config['modelDir'] / "superres.so",
                     "modelClass" : infbench.model.superRes
                 },
             "resnet50" : {
                     "loader"     : infbench.dataset.imageNetLoader,
-                    "modelPath"  : config['modelDir'] / "resnet50.onnx",
+                    "modelPath"  : config['modelDir'] / "resnet50.so",
                     "modelClass" : infbench.model.resnet50
+                },
+            "ssdMobilenet" : {
+                    "loader"     : infbench.dataset.cocoLoader,
+                    "modelPath"  : config['modelDir'] / "ssdMobilenet.so",
+                    "modelClass" : infbench.model.ssdMobilenet
                 }
-
             }
 
 
@@ -59,9 +64,12 @@ def _runOne(model, inputs):
     return postOut
 
 
-def nShot(modelName, n):
+def nShot(modelName, n, inline=False):
     modelSpec = modelSpecs[modelName]
     loader, models = _getHandlers(modelSpec)
+
+    if inline:
+        print("WARNING: inline does nothing in local mode (it's basically always inline)")
 
     loader.preLoad(list(range( min(n, loader.ndata) )))
     model = models[0]
@@ -79,8 +87,14 @@ def nShot(modelName, n):
 
         times.append(time.time() - start)
         results.append(result)
-        accuracies.append(loader.check(result, idx))
 
+        if loader.checkAvailable:
+            accuracies.append(loader.check(result, idx))
+
+    print("Minimum latency: ")
+    print(np.min(times))
+    print("Maximum latency: ")
+    print(np.max(times))
     print("Average latency: ")
     print(np.mean(times))
     print("Median latency: ")
@@ -88,7 +102,10 @@ def nShot(modelName, n):
     print("99 percentile latency: ")
     print(np.percentile(times, 99))
 
-    print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
+    if loader.checkAvailable:
+        print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
+    else:
+        print("Dataset does not support accuracy calculation")
 
     return results
 

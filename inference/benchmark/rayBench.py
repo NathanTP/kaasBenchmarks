@@ -27,6 +27,11 @@ def configure(cfg):
                     "loader"     : infbench.dataset.imageNetLoader,
                     "modelPath"  : config['modelDir'] / "resnet50.onnx",
                     "modelClass" : infbench.model.resnet50
+                },
+            "ssdMobilenet" : {
+                    "loader"     : infbench.dataset.cocoLoader,
+                    "modelPath"  : config['modelDir'] / "ssdMobilenet.so",
+                    "modelClass" : infbench.model.ssdMobilenet
                 }
             }
 
@@ -214,8 +219,13 @@ def nShot(modelName, n, inline=False):
         res = _transposeBatch(res)
 
         # nShot always uses batch size 1, so just check idx 0
-        accuracies.append(loader.check(res[0], idx))
+        if loader.checkAvailable:
+            accuracies.append(loader.check(res[0], idx))
 
+    print("Minimum latency: ")
+    print(np.min(times))
+    print("Maximum latency: ")
+    print(np.max(times))
     print("Average latency: ")
     print(np.mean(times))
     print("Median latency: ")
@@ -223,7 +233,10 @@ def nShot(modelName, n, inline=False):
     print("99 percentile latency: ")
     print(np.percentile(times, 99))
 
-    print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
+    if loader.checkAvailable:
+        print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
+    else:
+        print("Accuracy checking not supported by this dataset")
 
     return results
 

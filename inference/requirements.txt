@@ -7,3 +7,4 @@ onnx
 matplotlib
 gpuinfo
 onnx-simplifier
+opencv-python

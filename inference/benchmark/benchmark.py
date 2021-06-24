@@ -61,9 +61,11 @@ def runMlperf(modelName):
 def main():
     # sanityCheck()
     # nshot("resnet50")
-    # nshot("superRes")
+    nshot("ssdMobilenet")
+    # nshot("mobilenet-ssd")
     # runMlperf("superRes")
-    runMlperf("resnet50")
+    # runMlperf("resnet50")
     # infbench.model.getOnnxInfo(modelDir / "resnet50.onnx")
+    # infbench.model._loadOnnx(modelDir / "test.onnx", cache=False)
 
 main()

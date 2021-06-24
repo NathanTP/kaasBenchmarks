@@ -10,6 +10,8 @@ import pickle
 from PIL import Image
 import matplotlib.pyplot as plt
 import cv2
+import mxnet
+import gluoncv.data
 
 import mlperf_loadgen
 
@@ -69,9 +71,10 @@ onnxTypes = {
 def getOnnxInfo(onnxDesc):
     """Get metadata from an onnx file or loaded protobuf object. Metadata
        returned includes at least:
-        - inName/outName   : Name of the input/output node
-        - inType/outType   : numpy type of the input/output
-        - inShape/outShape : numpy compatible shape tuple for input/output
+        - inName   : Name of the input/output node
+        - inType   : numpy type of the input/output
+        - inShape  : numpy compatible shape tuple for input/output
+        - outputs : list of dicts of name, type, shape  for outputs (same keys/meanings as for in*)
     """
 
     if isinstance(onnxDesc, str) or isinstance(onnxDesc, pathlib.Path):
@@ -131,7 +134,7 @@ def _loadSo(libraryPath):
     return model, meta
 
 
-def _loadOnnx(onnxPath):
+def _loadOnnx(onnxPath, cache=True):
     onnxModel = onnx.load(onnxPath)
     meta = getOnnxInfo(onnxModel)
 
@@ -144,10 +147,11 @@ def _loadOnnx(onnxPath):
         module = relay.build(mod, tvm.target.cuda(), params=params)
 
     # Cache Results
-    libraryPath, metaPath = getCachePath(onnxPath.stem)
-    module.export_library(libraryPath)
-    with open(metaPath, 'w') as f:
-        json.dump(meta, f)
+    if cache:
+        libraryPath, metaPath = getCachePath(onnxPath.stem)
+        module.export_library(libraryPath)
+        with open(metaPath, 'w') as f:
+            json.dump(meta, f)
 
     model = graph_executor.GraphModule(module['default'](tvm.cuda()))
     return model, meta
@@ -260,8 +264,7 @@ class tvmModel(abc.ABC):
 
         outputs = []
         for i, outMeta in enumerate(self.meta['outputs']):
-            outputs.append(self.model.get_output(i,
-                tvm.nd.empty(outMeta['outShape'], dtype=outMeta['outType'])).asnumpy().tobytes())
+            outputs.append(self.model.get_output(i).numpy().tobytes())
 
         return outputs
 
@@ -445,35 +448,78 @@ class resnet50(tvmModel):
         return settings
 
 
-def maybeResize(img, dims):
-    img = np.array(img, dtype=np.float32)
-    if len(img.shape) < 3 or img.shape[2] != 3:
-        # some images might be grayscale
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    if dims != None:
-        im_height, im_width, _ = dims
-        img = cv2.resize(img, (im_width, im_height), interpolation=cv2.INTER_LINEAR)
-    return img
+cocoClassList = [u'__background__', u'person', u'bicycle', u'car',
+        u'motorcycle', u'airplane', u'bus', u'train', u'truck', u'boat',
+        u'traffic light', u'fire hydrant', u'stop sign', u'parking meter',
+        u'bench', u'bird', u'cat', u'dog', u'horse', u'sheep', u'cow',
+        u'elephant', u'bear', u'zebra', u'giraffe', u'backpack', u'umbrella',
+        u'handbag', u'tie', u'suitcase', u'frisbee', u'skis', u'snowboard',
+        u'sports ball', u'kite', u'baseball bat', u'baseball glove',
+        u'skateboard', u'surfboard', u'tennis racket', u'bottle', u'wine',
+        u'glass', u'cup', u'fork', u'knife', u'spoon', u'bowl', u'banana',
+        u'apple', u'sandwich', u'orange', u'broccoli', u'carrot', u'hot dog',
+        u'pizza', u'donut', u'cake', u'chair', u'couch', u'potted plant',
+        u'bed', u'dining table', u'toilet', u'tv', u'laptop', u'mouse',
+        u'remote', u'keyboard', u'cell phone', u'microwave', u'oven',
+        u'toaster', u'sink', u'refrigerator', u'book', u'clock', u'vase',
+        u'scissors', u'teddy bear', u'hair drier', u'toothbrush']
 
-
-class mobilenetSsd(tvmModel):
-    noPost = False
-    postMap = (0,)
-    runMap = 0
-    nOutPre = 1
-    nOutPost = 1
-
+class ssdMobilenet(tvmModel):
+    noPost = True 
+    preMap = (0,)
+    runMap = (0,)
+    postMap = (1,)
+    nOutPre = 2
+    nOutRun = 3
+    nOutPost = nOutRun 
 
     @staticmethod
     def pre(imgBuf):
         imgBuf = imgBuf[0]
-        img = cv2.imdecode(np.frombuffer(imgBuf, dtype=np.uint8), flags=cv2.IMREAD_COLOR)
+        imgRaw = cv2.imdecode(np.frombuffer(imgBuf, dtype=np.uint8), flags=cv2.IMREAD_COLOR)
+        imgRaw = cv2.cvtColor(imgRaw, cv2.COLOR_BGR2RGB)
 
-        img = maybeResize(img, [300, 300, 3])
-        img = np.asarray(img, dtype=np.uint8).transpose([2,0,1])
-        return [img.tobytes()]
+        imgRaw = cv2.resize(imgRaw, (512, 512), interpolation=cv2.INTER_LINEAR)
 
+        imgRaw = mxnet.nd.array(imgRaw).astype('uint8')
+        imgMod, imgOrig = gluoncv.data.transforms.presets.ssd.transform_test(imgRaw, short=512)
+
+        return (imgMod.asnumpy().tobytes(), imgOrig.tobytes())
+
+
+    @staticmethod
+    def post(modelOuts):
+        cIDs = np.frombuffer(modelOuts[0], shape=(1,100,1), dtype=np.float32)
+        scores = np.frombuffer(modelOuts[1], shape=(1,100,1), dtype=np.float32)
+        bboxes = np.frombuffer(modelOuts[2], shape=(1,100,4), dtype=np.float32)
+
+        ax = utils.viz.plot_bbox(
+            imgOrig, 
+            bboxes[0],
+            scores[0],
+            cIDs[0],
+            class_names=cocoClassList,
+        )
+
+        # Can't figure out how to save to buffer, easier to just trick pyplot
+        with io.BytesIO() as f:
+            plt.savefig(f, format="png")
+            pngBuf = f.getvalue()
+
+        return pngBuf
+
+
+    @staticmethod
+    def getMlPerfCfg(testing=False):
+        settings = getDefaultMlPerfCfg()
+
+        # XXX No idea right now
+        if testing:
+            settings.server_target_latency_ns = 1000
+        else:
+            settings.server_target_latency_ns = 1000000000
+
+        return settings
 
 #==============================================================================
 # MLPERF INFERENCE STUFF

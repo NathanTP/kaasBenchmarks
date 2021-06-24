@@ -6,6 +6,7 @@ import io
 import re
 import cv2
 import abc
+import json
 
 
 class processor():
@@ -60,6 +61,7 @@ class loader(abc.ABC):
 
 class superResLoader(loader):
     ndata = 1
+    checkAvailable = True 
 
     def __init__(self, dataDir):
         imgPath = dataDir / "superRes" / "cat.png"
@@ -81,6 +83,7 @@ class superResLoader(loader):
 
 
 class imageNetLoader(loader):
+    checkAvailable = True 
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / "fake_imagenet"
@@ -135,6 +138,7 @@ class imageNetLoader(loader):
 
 
 class cocoLoader(loader):
+    checkAvailable = False
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / "coco"
@@ -162,6 +166,7 @@ class cocoLoader(loader):
         # At first, these have only metadata, but preLoad() can fill in a 'raw'
         # field to have the actual binary data.
         self.images = [ i for i in images.values() ]
+        self.ndata = len(self.images)
 
 
     def preLoad(self, idxs):
@@ -174,7 +179,7 @@ class cocoLoader(loader):
 
 
     def get(self, idx):
-        return self.images[idx]['raw']
+        return (self.images[idx]['raw'],)
 
 
     def unload(self):
