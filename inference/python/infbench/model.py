@@ -2,7 +2,6 @@ import numpy as np
 import pathlib
 import tempfile
 import os
-import sys
 import io
 import abc
 import json
@@ -11,7 +10,13 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import cv2
 import mxnet
-import gluoncv.data
+
+# Gluoncv throws out some stupid warning about having both mxnet and torch,
+# have to go through this nonsense to suppress it.
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import gluoncv.data
 
 import mlperf_loadgen
 
@@ -22,10 +27,8 @@ if "TEST_DATA_ROOT_PATH" not in os.environ:
 
 import onnx
 import tvm
-from tvm import te
 import tvm.relay as relay
 from tvm.contrib import graph_executor
-from tvm.contrib.download import download_testdata
 
 
 def getCachePath(name):
@@ -48,19 +51,19 @@ def getCachePath(name):
 # I don't know of a nice way to get this, I manually extracted this from the onnx protobuf definition:
 # https://github.com/onnx/onnx/blob/master/onnx/onnx.in.proto#L483-L485
 onnxTypes = {
-        1  : "float32",
-        2  : "uint8",
-        3  : "int8",
-        4  : "uint16",
-        5  : "int16",
-        6  : "int32",
-        7  : "int64",
-        8  : "string",
-        9  : "bool",
-        10 : "float16",
-        11 : "float64",
-        12 : "uint32",
-        13 : "uint64",
+        1:  "float32",
+        2:  "uint8",
+        3:  "int8",
+        4:  "uint16",
+        5:  "int16",
+        6:  "int32",
+        7:  "int64",
+        8:  "string",
+        9:  "bool",
+        10: "float16",
+        11: "float64",
+        12: "uint32",
+        13: "uint64",
         # 14 and 15 are complex numbers, hopefully we don't need those
 }
 
@@ -87,22 +90,26 @@ def getOnnxInfo(onnxDesc):
     # I assume the model has only one input from the host (the first one). I
     # suppose we could validate this somehow by parsing the graph but we're
     # just gonna assume for now.
-    inNode = onnxModel.graph.input[0]
-    info['inName'] = inNode.name
-    info['inType'] = onnxTypes[inNode.type.tensor_type.elem_type]
+    ins = []
+    for inNode in onnxModel.graph.input:
+        inInfo = {}
+        inInfo['name'] = inNode.name
+        inInfo['type'] = onnxTypes[inNode.type.tensor_type.elem_type]
 
-    info['inShape'] = []
-    for dim in inNode.type.tensor_type.shape.dim:
-        info['inShape'].append(dim.dim_value)
-    
+        inInfo['shape'] = []
+        for dim in inNode.type.tensor_type.shape.dim:
+            inInfo['shape'].append(dim.dim_value)
+        ins.append(inInfo)
+    info['inputs'] = ins
+
     outs = []
     for outNode in onnxModel.graph.output:
-        outInfo = { 'outName' : outNode.name,
-                 'outType' : onnxTypes[outNode.type.tensor_type.elem_type]}
+        outInfo = {'name': outNode.name,
+                   'type': onnxTypes[outNode.type.tensor_type.elem_type]}
 
-        outInfo['outShape'] = []
+        outInfo['shape'] = []
         for dim in outNode.type.tensor_type.shape.dim:
-            outInfo['outShape'].append(dim.dim_value)
+            outInfo['shape'].append(dim.dim_value)
         outs.append(outInfo)
 
     info['outputs'] = outs
@@ -165,11 +172,11 @@ def loadModel(modelDesc):
         - Path to precompiled (.so) file: If modelDesc points to a .so,
               loadModel will assume this is a TVM pre-compiled library. It will
               look for a corresponding .json file with model metadata in the same
-              directory as the .so and load from these. 
+              directory as the .so and load from these.
         - Tuple of (bytes, dict): modelDesc can be a pre-loaded raw model. In
               this case bytes is assumed to be the contents of a .so file and dict
               is the corresponding metadata.
-    
+
     Paths are assumed to be pathlib.Path
 
     Returns:
@@ -222,7 +229,7 @@ def dumpModel(graphMod, outputBasePath):
         f.write(graphMod.get_graph_json())
 
     paramPath = outputBasePath.with_suffix(".params.pickle")
-    print("Saving parameters to: ", paramPath )
+    print("Saving parameters to: ", paramPath)
     with open(paramPath, "wb") as f:
         # Can't pickle tvm.ndarray, gotta convert to numpy
         pickle.dump({ k : p.asnumpy() for k,p in graphMod.params.items() }, f)
@@ -239,9 +246,9 @@ def dumpModel(graphMod, outputBasePath):
 class tvmModel(abc.ABC):
     """A generic onnx on tvm model. Concrete models must additionally provide:
         - runMap:  Which output from pre() to pass to run. For now, there can
-                   only be one input to run. 
+                   only be one input to run.
         - postMap: List of indices to pass to post from pre()'s output. post()
-                   will recieve these values, followed by the output of run(). 
+                   will recieve these values, followed by the output of run().
     """
     def __init__(self, modelDesc):
         """See loadModel() for allowable values of modelDesc"""
@@ -326,7 +333,7 @@ class superRes(tvmModel):
         retNp.shape = (1, 1, 672, 672)
         retNp = np.uint8((retNp[0, 0]).clip(0, 255))
 
-        imgPil = Image.frombytes("YCbCr", (224,224), imgPilRaw)
+        imgPil = Image.frombytes("YCbCr", (224, 224), imgPilRaw)
 
         img_y, img_cb, img_cr = imgPil.split()
         out_y = Image.fromarray(retNp, mode="L")
@@ -343,7 +350,6 @@ class superRes(tvmModel):
 
         return (pngBuf,)
 
-
     @staticmethod
     def getMlPerfCfg(testing=False):
         """Return a configuration for mlperf_inference. If testing==True, run a
@@ -353,7 +359,7 @@ class superRes(tvmModel):
 
         if testing:
             # MLperf detects an unatainable SLO pretty fast
-            settings.server_target_qps = 3 
+            settings.server_target_qps = 3
             settings.server_target_latency_ns = 1000
         else:
             # Set this to the lowest qps that any system should be able to get
@@ -408,7 +414,6 @@ class resnet50(tvmModel):
     nOutPre = 1
     nOutPost = nOutRun
 
-
     @staticmethod
     def pre(imgBuf):
         imgBuf = imgBuf[0]
@@ -430,20 +435,19 @@ class resnet50(tvmModel):
 
         return (img.tobytes(),)
 
-
     @staticmethod
     def post(label):
         raise AttributeError("resnet50 has no post-processing")
-
 
     @staticmethod
     def getMlPerfCfg(testing=False):
         settings = getDefaultMlPerfCfg()
 
-        if testing:
-            settings.server_target_latency_ns = 1000
-        else:
-            settings.server_target_latency_ns = 1000000000
+        settings.server_target_qps = 3
+        # if testing:
+        #     settings.server_target_latency_ns = 1000
+        # else:
+        #     settings.server_target_latency_ns = 50000000
 
         return settings
 
@@ -464,14 +468,15 @@ cocoClassList = [u'__background__', u'person', u'bicycle', u'car',
         u'toaster', u'sink', u'refrigerator', u'book', u'clock', u'vase',
         u'scissors', u'teddy bear', u'hair drier', u'toothbrush']
 
+
 class ssdMobilenet(tvmModel):
-    noPost = True 
+    noPost = False
     preMap = (0,)
     runMap = (0,)
     postMap = (1,)
     nOutPre = 2
     nOutRun = 3
-    nOutPost = nOutRun 
+    nOutPost = nOutRun
 
     @staticmethod
     def pre(imgBuf):
@@ -486,15 +491,14 @@ class ssdMobilenet(tvmModel):
 
         return (imgMod.asnumpy().tobytes(), imgOrig.tobytes())
 
-
     @staticmethod
     def post(modelOuts):
-        cIDs = np.frombuffer(modelOuts[0], shape=(1,100,1), dtype=np.float32)
-        scores = np.frombuffer(modelOuts[1], shape=(1,100,1), dtype=np.float32)
-        bboxes = np.frombuffer(modelOuts[2], shape=(1,100,4), dtype=np.float32)
+        cIDs = np.frombuffer(modelOuts[0], shape=(1, 100, 1), dtype=np.float32)
+        scores = np.frombuffer(modelOuts[1], shape=(1, 100, 1), dtype=np.float32)
+        bboxes = np.frombuffer(modelOuts[2], shape=(1, 100, 4), dtype=np.float32)
 
-        ax = utils.viz.plot_bbox(
-            imgOrig, 
+        gluoncv.utils.viz.plot_bbox(
+            imgOrig,
             bboxes[0],
             scores[0],
             cIDs[0],
@@ -508,6 +512,35 @@ class ssdMobilenet(tvmModel):
 
         return pngBuf
 
+    @staticmethod
+    def getMlPerfCfg(testing=False):
+        settings = getDefaultMlPerfCfg()
+
+        # XXX No idea right now
+        if testing:
+            settings.server_target_latency_ns = 1000
+        else:
+            settings.server_target_latency_ns = 1000000000
+
+        return settings
+
+
+class bert(tvmModel):
+    noPost = False
+    preMap = (0,)
+    runMap = (0, 1, 2)
+    postMap = (1,)
+    nOutPre = 3
+    nOutRun = 2
+    nOutPost = nOutRun
+
+    @staticmethod
+    def pre(inputs):
+        pass
+
+    @staticmethod
+    def post(inputs):
+        pass
 
     @staticmethod
     def getMlPerfCfg(testing=False):
@@ -521,25 +554,27 @@ class ssdMobilenet(tvmModel):
 
         return settings
 
-#==============================================================================
+
+# =============================================================================
 # MLPERF INFERENCE STUFF
-#==============================================================================
+# =============================================================================
 
 # Use as nquery argument to mlperf_loadgen.ConstructQSL
-# I'm not 100% sure what this does... 
+# I'm not 100% sure what this does...
 mlperfNquery = 32
 
 
-def getDefaultMlPerfCfg():
+def getDefaultMlPerfCfg(testing=False):
     settings = mlperf_loadgen.TestSettings()
     settings.scenario = mlperf_loadgen.TestScenario.Server
-    settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
 
-    # I don't think these are all that big of a deal, but you can bump them
-    # up if results aren't statistically significant enough.
-    settings.min_query_count = 10
-    # settings.min_query_count = 200
-    settings.min_duration_ms = 10000
+    if testing:
+        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+    else:
+        settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+
+    # Default is 99, keeping it here due to Ray's awful tail
+    settings.server_target_latency_percentile = 0.9
 
     return settings
 
@@ -553,10 +588,9 @@ def flushQueries():
 def processLatencies(latencies):
     """Callback for mlperf to report results"""
     # latencies is a list of latencies for each query issued (in ns).
-    # For now we leave this blank because the benchmarks report the final
-    # results from mlperf's logs. This could be useful for custom analysis or
-    # something, but we don't need it now.
-    pass
+    print("nQuery: ", len(latencies))
+    print("Total Time: ", sum(latencies) / 1E9)
+
 
 def reportMlPerf():
     with open("mlperf_log_summary.txt", 'r') as f:

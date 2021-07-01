@@ -118,6 +118,23 @@ def getSuperRes():
     getOnnx(modelPath, modelDir)
 
 
+def getBert():
+    bertDir = modelDir / 'bert'
+    modelPath = bertDir / 'bert.onnx' 
+    vocabPath = bertDir / 'vocab.txt' 
+
+    if not bertDir.exists():
+        bertDir.mkdir()
+
+    if not modelPath.exists():
+        wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
+    if not vocabPath.exists():
+        wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
+
+    getOnnx(modelPath, bertDir,
+            inputShapeMap={'input_ids' : (1,384), 'input_mask' : (1,384), 'segment_ids' : (1,384),})
+
+
 def getSsdMobilenet():
     block = model_zoo.get_model("ssd_512_mobilenet1.0_coco", pretrained=True)
     mod, params = relay.frontend.from_mxnet(block, {"data": (1, 3, 512, 512)})
@@ -156,9 +173,10 @@ def main():
     if not modelDir.exists():
         modelDir.mkdir(mode=0o700)
 
-    getResnet50()
-    getSuperRes()
-    getSsdMobilenet()
+    getBert()
+    # getResnet50()
+    # getSuperRes()
+    # getSsdMobilenet()
 
 
 main()

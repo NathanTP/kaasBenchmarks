@@ -12,7 +12,7 @@ import json
 class processor():
     """Container for transformations over a dataset. Doesn't hold any complex
     refernces, it's really just a namespace.
-    
+
     Methods may return multiple values, some or all of these values may be
     needed by subsequent steps. To track how things plug together, every
     dataset must have self.preMap and self.postMap fields. These are maps that
@@ -61,7 +61,7 @@ class loader(abc.ABC):
 
 class superResLoader(loader):
     ndata = 1
-    checkAvailable = True 
+    checkAvailable = True
 
     def __init__(self, dataDir):
         imgPath = dataDir / "superRes" / "cat.png"
@@ -83,7 +83,7 @@ class superResLoader(loader):
 
 
 class imageNetLoader(loader):
-    checkAvailable = True 
+    checkAvailable = True
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / "fake_imagenet"
@@ -100,7 +100,7 @@ class imageNetLoader(loader):
             nMissing = 0
             for imgRelPath in f:
                 name, label = re.split(r"\s+", imgRelPath.strip())
-                imgPath = self.dataDir / name 
+                imgPath = self.dataDir / name
 
                 if not imgPath.exists():
                     # OK to ignore missing images
@@ -189,3 +189,12 @@ class cocoLoader(loader):
 
     def check(self, result, idx):
         raise NotImplementedError("Check()")
+
+
+class bertLoader(loader):
+    checkAvailable = False
+
+    def __init__(self, dataDir):
+        self.dataDir = dataDir / 'bert'
+
+

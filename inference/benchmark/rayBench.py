@@ -4,6 +4,7 @@ import infbench
 import threading
 import time
 import numpy as np
+import os
 
 import mlperf_loadgen
 
@@ -73,12 +74,28 @@ def pre(modelName, *batch):
         return _transposeBatch(results)
 
 
+# Not sure how to have a truly per-worker cache, but this dict maps PID to the initialized model (if any).
+# From what I can tell, Ray will create a pool of processes for each unique
+# task. Each task will get its own pool. Since these require a GPU, I would not
+# expect the pool to exceed 2 and I would expect ray to kill workers when more
+# than two unique tasks require a GPU.
+modelCache = {}
+
 @ray.remote(num_gpus=1)
-def run(modelName, modelBuf, *batch, completionQ=None, queryIds=None):
+def run(modelName, modelBuf, *batch, completionQ=None, queryIds=None, cacheModel=False):
     batch = _transposeBatch(batch)
     results = []
 
-    model = models[modelName]['modelClass'](modelBuf)
+    if cacheModel:
+        pid = os.getpid()
+        if pid in modelCache:
+            model = modelCache[pid]
+        else:
+            model = models[modelName]['modelClass'](modelBuf)
+            modelCache[pid] = model
+    else:
+        model = models[modelName]['modelClass'](modelBuf)
+
     for data in batch:
         results.append(model.run(data))
 
@@ -92,7 +109,7 @@ def run(modelName, modelBuf, *batch, completionQ=None, queryIds=None):
     else:
         return results
 
-  
+
 @ray.remote
 def post(modelName, *batch, completionQ=None, queryIds=None):
     batch = _transposeBatch(batch)
@@ -145,7 +162,7 @@ def runInline(modelName, modelBuf, batch, completionQ=None, queryIds=None):
     return results
 
 
-def _runBatch(modelName, modelBuf, batch, inline=False, completionQ=None, queryIds=None):
+def _runBatch(modelName, modelBuf, batch, inline=False, completionQ=None, queryIds=None, cacheModel=False):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     modelSpec = models[modelName]
@@ -160,7 +177,7 @@ def _runBatch(modelName, modelBuf, batch, inline=False, completionQ=None, queryI
             postOut = runInline.options(num_returns=mClass.nOutPost).remote(
                                 modelName, modelBuf, batch)
     else:
-        # Pre 
+        # Pre
         preInp = [ batch[i] for i in mClass.preMap ]
         preOut = pre.options(num_returns=mClass.nOutPre).remote(modelName, *preInp)
         if mClass.nOutPre == 1:
@@ -170,9 +187,9 @@ def _runBatch(modelName, modelBuf, batch, inline=False, completionQ=None, queryI
         runInp = [ preOut[i] for i in mClass.runMap ]
         if completionQ is not None and mClass.noPost:
             runOut = run.options(num_returns=mClass.nOutRun).remote(
-                    modelName, modelBuf, *runInp, completionQ=completionQ, queryIds=queryIds)
+                    modelName, modelBuf, *runInp, completionQ=completionQ, queryIds=queryIds, cacheModel=cacheModel)
         else:
-            runOut = run.options(num_returns=mClass.nOutRun).remote(modelName, modelBuf, *runInp)
+            runOut = run.options(num_returns=mClass.nOutRun).remote(modelName, modelBuf, *runInp, cacheModel=cacheModel)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -251,7 +268,7 @@ def handleCompletion(queue):
     list of query IDs that are now complete. To signal completion, the user
     must push an integer to the queue representing the total number of
     responses to expect (including all those already completed).
-    
+
     Note: For now we ignore return values, the client does not care about the
     result of the prediction in this benchmark."""
 
@@ -292,10 +309,10 @@ class mlperfRunner():
         self.modelSpec = models[modelName]
         self.modelBuf = infbench.model.readModelBuf(self.modelSpec['modelPath'])
         # self.loader = self.modelSpec['loader'](config['dataDir'])
-        self.loader = loader 
+        self.loader = loader
         self.inline = inline
 
-        # Total number of queries issued 
+        # Total number of queries issued
         self.nIssued = 0
 
 
@@ -321,7 +338,7 @@ class mlperfRunner():
             qids.append(q.id)
 
         _runBatch(self.modelName, self.modelBuf, inputs, inline=self.inline,
-                completionQ=self.completionQueue, queryIds=qids)
+                completionQ=self.completionQueue, queryIds=qids, cacheModel=False)
 
         self.nIssued += len(queryBatch)
 

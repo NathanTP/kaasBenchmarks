@@ -174,7 +174,9 @@ def mlperfBench(modelName, testing=False, inline=False):
         qsl = mlperf_loadgen.ConstructQSL(
             loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
+        start = time.time()
         mlperf_loadgen.StartTest(sut, qsl, settings)
+        print("TOOK: ", time.time() - start)
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
     finally:
