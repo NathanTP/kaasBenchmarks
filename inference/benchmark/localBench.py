@@ -9,6 +9,7 @@ from gpuinfo import GPUInfo
 config = {}
 modelSpecs = {}
 
+
 def configure(cfg):
     """Must include dataDir and modelDir fields (pathlib paths)"""
     global config
@@ -18,22 +19,27 @@ def configure(cfg):
 
     # You must run tools/getModels.py first to get these .so's
     modelSpecs = {
-            "superRes" : {
-                    "loader"     : infbench.dataset.superResLoader,
-                    "modelPath"  : config['modelDir'] / "superres.so",
-                    "modelClass" : infbench.model.superRes
-                },
-            "resnet50" : {
-                    "loader"     : infbench.dataset.imageNetLoader,
-                    "modelPath"  : config['modelDir'] / "resnet50.so",
-                    "modelClass" : infbench.model.resnet50
-                },
-            "ssdMobilenet" : {
-                    "loader"     : infbench.dataset.cocoLoader,
-                    "modelPath"  : config['modelDir'] / "ssdMobilenet.so",
-                    "modelClass" : infbench.model.ssdMobilenet
-                }
+        "superRes" : {
+                "loader"     : infbench.dataset.superResLoader,
+                "modelPath"  : config['modelDir'] / "superres.so",
+                "modelClass" : infbench.model.superRes
+            },
+        "resnet50" : {
+                "loader"     : infbench.dataset.imageNetLoader,
+                "modelPath"  : config['modelDir'] / "resnet50.so",
+                "modelClass" : infbench.model.resnet50
+            },
+        "ssdMobilenet" : {
+                "loader"     : infbench.dataset.cocoLoader,
+                "modelPath"  : config['modelDir'] / "ssdMobilenet.so",
+                "modelClass" : infbench.model.ssdMobilenet
+            },
+        "bert" : {
+                "loader"     : infbench.dataset.bertLoader,
+                "modelPath"  : config['modelDir'] / 'bert' / "bert.so",
+                "modelClass" : infbench.model.bertModel
             }
+    }
 
 
 def _getHandlers(modelSpec):
@@ -48,17 +54,26 @@ def _getHandlers(modelSpec):
     return (loader, models)
 
 
-def _runOne(model, inputs):
-    preInp = [ inputs[i] for i in model.preMap ]
+def _getInputs(maps, const=None, inp=None, pre=None, run=None):
+    inputs = []
+    for (argMap, data) in zip(maps, [const, inp, pre, run]):
+        if argMap is not None:
+            assert data is not None
+            inputs.extend([data[i] for i in argMap])
+    return inputs
+
+
+def _runOne(model, constants, inputs):
+    preInp = _getInputs(model.preMap, const=constants, inp=inputs)
     preOut = model.pre(preInp)
 
-    runInp = [ preOut[i] for i in model.runMap ]
+    runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
     modOut = model.run(runInp)
 
     if model.noPost:
         postOut = modOut
     else:
-        postInp = [ preOut[i] for i in model.postMap ] + modOut
+        postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=modOut)
         postOut = model.post(postInp)
 
     return postOut
@@ -71,8 +86,9 @@ def nShot(modelName, n, inline=False):
     if inline:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
 
-    loader.preLoad(list(range( min(n, loader.ndata) )))
+    loader.preLoad(list(range(min(n, loader.ndata))))
     model = models[0]
+    constants = model.getConstants(modelSpec['modelPath'].parent)
 
     times = []
     accuracies = []
@@ -83,7 +99,7 @@ def nShot(modelName, n, inline=False):
 
         start = time.time()
 
-        result = _runOne(model, inputs)
+        result = _runOne(model, constants, inputs)
 
         times.append(time.time() - start)
         results.append(result)

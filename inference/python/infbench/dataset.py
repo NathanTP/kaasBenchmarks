@@ -1,12 +1,10 @@
 import sys
 from PIL import Image
-import numpy as np
-import matplotlib.pyplot as plt
-import io
 import re
 import cv2
 import abc
 import json
+from . import bert
 
 
 class processor():
@@ -34,7 +32,7 @@ class processor():
 
 class loader(abc.ABC):
     """Handle to a dataset, used for reading inputs. Does not pre or post
-    process data at all. Data are typically bytes or bytearrays."""
+    process data at all."""
     # number of individual items in the dataset (the max index you could "get")
     ndata = 0
 
@@ -49,9 +47,8 @@ class loader(abc.ABC):
 
     @abc.abstractmethod
     def get(self, idx):
-        """Returns a single datum at idx"""
+        """Returns a single datum at idx. Datum is of a dataset-dependent type."""
         pass
-
 
     @abc.abstractmethod
     def check(self, result, idx):
@@ -70,13 +67,11 @@ class superResLoader(loader):
         with open(dataDir / 'superRes' / 'catSupered.png', 'rb') as f:
             self.imgRef = f.read()
 
-
     def get(self, idx):
         if idx != 0:
-            raise ArgumentError("The superres dataset has only one datum""")
+            raise ValueError("The superres dataset has only one datum""")
 
         return (self.img,)
-
 
     def check(self, result, idx):
         return result[0] == self.imgRef
@@ -112,13 +107,11 @@ class imageNetLoader(loader):
 
         self.ndata = len(self.imageLabels)
 
-
     def get(self, idx):
         try:
             return (self.images[idx],)
         except KeyError as e:
             raise RuntimeError("Key {} not preloaded".format(e.args)) from e
-
 
     def preLoad(self, idxs):
         for i in idxs:
@@ -126,11 +119,9 @@ class imageNetLoader(loader):
             bImg = cv2.imencode('.jpg', cImg)[1]
             self.images[i] = bImg.tobytes()
 
-
     def unLoad(self, idxs):
         for i in idxs:
             self.images[i] = None
-
 
     def check(self, result, idx):
         # I don't know why it's -1, but it is
@@ -149,11 +140,11 @@ class cocoLoader(loader):
         images = {}
         for img in meta["images"]:
             images[img["id"]] = {"file_name": img["file_name"],
-                               "height": img["height"],
-                               "width": img["width"],
-                               "bbox": [],
-                               "category": [],
-                               'raw': None}
+                                 "height": img["height"],
+                                 "width": img["width"],
+                                 "bbox": [],
+                                 "category": [],
+                                 'raw': None}
 
         for a in meta["annotations"]:
             img = images.get(a["image_id"])
@@ -165,9 +156,8 @@ class cocoLoader(loader):
 
         # At first, these have only metadata, but preLoad() can fill in a 'raw'
         # field to have the actual binary data.
-        self.images = [ i for i in images.values() ]
+        self.images = [i for i in images.values()]
         self.ndata = len(self.images)
-
 
     def preLoad(self, idxs):
         for i in idxs:
@@ -177,15 +167,12 @@ class cocoLoader(loader):
             bImg = cv2.imencode('.jpg', cImg)[1]
             img['raw'] = bImg.tobytes()
 
-
     def get(self, idx):
         return (self.images[idx]['raw'],)
-
 
     def unload(self):
         for img in self.images:
             del img['raw']
-
 
     def check(self, result, idx):
         raise NotImplementedError("Check()")
@@ -197,4 +184,19 @@ class bertLoader(loader):
     def __init__(self, dataDir):
         self.dataDir = dataDir / 'bert'
 
+    def preLoad(self, idxs):
+        # The bert example input is just 4MB, we just load it all, regardless
+        # of idxs
+        self.examples = bert.load(self.dataDir / "bertInputs.json")
+        self.ndata = len(self.examples)
 
+    def get(self, idx):
+        return (self.examples[idx],)
+
+    def unload(self):
+        self.examples = None
+
+    def check(self, result, idx):
+        # XXX I think this would actually be easy to implement. Worst-case
+        # scenario, we compare against the output of the original model.
+        raise NotImplementedError("BERT does not support correctness checking right now")

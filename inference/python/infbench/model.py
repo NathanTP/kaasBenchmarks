@@ -6,6 +6,7 @@ import io
 import abc
 import json
 import pickle
+import collections
 from PIL import Image
 import matplotlib.pyplot as plt
 import cv2
@@ -29,6 +30,8 @@ import onnx
 import tvm
 import tvm.relay as relay
 from tvm.contrib import graph_executor
+
+from . import bert
 
 
 def getCachePath(name):
@@ -218,7 +221,6 @@ def loadModel(modelDesc):
 def dumpModel(graphMod, outputBasePath):
     lib = graphMod.get_lib()
     cudaLib = lib.imported_modules[0]
-    outputName = outputBasePath.name
 
     print("\n")
     print(graphMod.__dir__())
@@ -232,28 +234,30 @@ def dumpModel(graphMod, outputBasePath):
     print("Saving parameters to: ", paramPath)
     with open(paramPath, "wb") as f:
         # Can't pickle tvm.ndarray, gotta convert to numpy
-        pickle.dump({ k : p.asnumpy() for k,p in graphMod.params.items() }, f)
+        pickle.dump({k: p.asnumpy() for k, p in graphMod.params.items()}, f)
 
     srcPath = outputBasePath.with_suffix(".cu")
     print("Saving Raw CUDA Source to: ", srcPath)
     with open(srcPath, 'w') as f:
         f.write(cudaLib.get_source())
 
-    print("Saving CUDA to: {}.ptx and {}.tvm_meta.json:".format(outputBasePath.stem,outputBasePath.stem))
+    print("Saving CUDA to: {}.ptx and {}.tvm_meta.json:".format(outputBasePath.stem, outputBasePath.stem))
     cudaLib.save(str(outputBasePath.with_suffix(".ptx")))
 
 
+# Each field of the input map is a list of indices from that step that should
+# be passed as input.
+inputMap = collections.namedtuple("inputMap", ["const", "inp", "pre", "run"], defaults=[None]*4)
+
+
 class tvmModel(abc.ABC):
-    """A generic onnx on tvm model. Concrete models must additionally provide:
-        - runMap:  Which output from pre() to pass to run. For now, there can
-                   only be one input to run.
-        - postMap: List of indices to pass to post from pre()'s output. post()
-                   will recieve these values, followed by the output of run().
+    """A generic onnx on tvm model. Concrete models must additionally provide
+        - preMap, runMap, postMap: inputMap objects for thepre, run, and post
+        functions. Each function input is a list in order [const,inp,pre,run].
     """
     def __init__(self, modelDesc):
         """See loadModel() for allowable values of modelDesc"""
         self.model, self.meta = loadModel(modelDesc)
-
 
     def run(self, dat):
         """Run the model against input 'dat'. Dat is expected to be a bytes
@@ -275,6 +279,9 @@ class tvmModel(abc.ABC):
 
         return outputs
 
+    @staticmethod
+    def getConstants(modelDir):
+        return None
 
     @staticmethod
     @abc.abstractmethod
@@ -282,13 +289,11 @@ class tvmModel(abc.ABC):
         """Preprocess data and return nOutputPre bytes objects"""
         pass
 
-
     @staticmethod
     @abc.abstractmethod
     def post(data):
         """Postprocess data and return nOutputPost bytes objects"""
         pass
-
 
     @staticmethod
     @abc.abstractmethod
@@ -297,13 +302,13 @@ class tvmModel(abc.ABC):
         pass
 
 
-#==============================================================================
+# =============================================================================
 # Individual Models
-#==============================================================================
+# =============================================================================
 class superRes(tvmModel):
-    preMap = (0,)
-    runMap = (1,)
-    postMap = (0,)
+    preMap = inputMap(inp=(0,))
+    runMap = inputMap(pre=(1,))
+    postMap = inputMap(pre=(0,), run=(0,))
     nOutPre = 2
     nOutRun = 1
     nOutPost = 1
@@ -525,22 +530,46 @@ class ssdMobilenet(tvmModel):
         return settings
 
 
-class bert(tvmModel):
+class bertModel(tvmModel):
     noPost = False
-    preMap = (0,)
-    runMap = (0, 1, 2)
-    postMap = (1,)
-    nOutPre = 3
+    preMap = inputMap(const=(0,), inp=(0,))
+    runMap = inputMap(pre=(0, 1, 2))
+    postMap = inputMap(inp=(0,), pre=(3,), run=(0, 1))
+    nOutPre = 4
     nOutRun = 2
-    nOutPost = nOutRun
+    nOutPost = 1
+
+    @staticmethod
+    def getConstants(modelDir):
+        with open(modelDir / 'vocab.txt', 'rb') as f:
+            vocab = f.read()
+        return [vocab]
 
     @staticmethod
     def pre(inputs):
-        pass
+        vocab = inputs[0]
+        example = inputs[1]
+
+        # featurize() can handle batches, but we only support batch size 1 right
+        # now
+        inputIds, inputMask, segmentIds, otherFeature = bert.featurize([example], vocab)[0]
+        inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :].tobytes()
+        inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :].tobytes()
+        segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :].tobytes()
+        return (inputIds, inputMask, segmentIds, otherFeature)
 
     @staticmethod
     def post(inputs):
-        pass
+        example = inputs[0]
+        feature = inputs[1]
+        startLogits = inputs[2]
+        endLogits = inputs[3]
+
+        startLogits = np.frombuffer(startLogits, dtype=np.float32).tolist()
+        endLogits = np.frombuffer(endLogits, dtype=np.float32).tolist()
+
+        pred = bert.interpret(startLogits, endLogits, example, feature)
+        return pred
 
     @staticmethod
     def getMlPerfCfg(testing=False):

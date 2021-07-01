@@ -16,79 +16,31 @@
 # https://github.com/mlcommons/inference/tree/master/language/bert
 
 import collections
+from dataclasses import dataclass
 import json
+import math
+import tempfile
 import transformers
 from . import tokenization
-import math
 
-
-class SquadExample(object):
-    """A single training/test example for simple sequence classification.
-
-     For examples without an answer, the start and end position are -1.
-    """
-
-    def __init__(self,
-                 qas_id,
-                 question_text,
-                 doc_tokens,
-                 orig_answer_text=None,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=False):
-        self.qas_id = qas_id
-        self.question_text = question_text
-        self.doc_tokens = doc_tokens
-        self.orig_answer_text = orig_answer_text
-        self.start_position = start_position
-        self.end_position = end_position
-        self.is_impossible = is_impossible
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        s = ""
-        s += "qas_id: {}\n".format(self.qas_id)
-        s += ", question_text: {}\n".format(self.question_text)
-        s += ", doc_tokens: [%s]" % (" ".join(self.doc_tokens))
-        if self.start_position:
-            s += ", start_position: %d" % (self.start_position)
-        if self.start_position:
-            s += ", end_position: %d" % (self.end_position)
-        if self.start_position:
-            s += ", is_impossible: %r" % (self.is_impossible)
-        return s
+# SquadExample = collections.namedtuple("SquadExample", ["question", "docTokens"])
+@dataclass
+class SquadExample:
+    question: str
+    docTokens: list
 
 
 class InputFeatures(object):
-    """A single set of features of data."""
+    """A single set of features of data. inputMask, segmentIds, and inputIds
+    are passed separately because they must be passed directly to run()"""
 
     def __init__(self,
-                 unique_id,
-                 example_index,
-                 doc_span_index,
                  tokens,
                  token_to_orig_map,
-                 token_is_max_context,
-                 input_ids,
-                 input_mask,
-                 segment_ids,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=None):
-        self.unique_id = unique_id
-        self.example_index = example_index
-        self.doc_span_index = doc_span_index
+                 token_is_max_context):
         self.tokens = tokens
         self.token_to_orig_map = token_to_orig_map
         self.token_is_max_context = token_is_max_context
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
-        self.start_position = start_position
-        self.end_position = end_position
-        self.is_impossible = is_impossible
 
 
 def load(dataPath):
@@ -126,30 +78,31 @@ def load(dataPath):
                 start_position = None
                 end_position = None
                 orig_answer_text = None
-                is_impossible = False
                 start_position = -1
                 end_position = -1
                 orig_answer_text = ""
 
-                example = SquadExample(
-                        qas_id=qas_id,
-                        question_text=question_text,
-                        doc_tokens=doc_tokens,
-                        orig_answer_text=orig_answer_text,
-                        start_position=start_position,
-                        end_position=end_position,
-                        is_impossible=is_impossible)
+                example = SquadExample(question=question_text, docTokens=doc_tokens)
                 examples.append(example)
 
     return examples
 
 
-def featurize(examples, modelDir, cacheDir=None):
+def featurize(examples, vocab, cacheDir=None):
     """pre-process bert data. If cacheDir is provided, it will be used to read
     data (if available) or used to store cached pre-processed data.
-    Returns: List of InputFeature objects
+    Returns: [(input_ids, input_mask, segment_ids, feature)] - one per example
+
+    Note: The original bert code would return multiple features per example if
+    the input text was long. We leave this part out for simplicity.
     """
-    tokenizer = transformers.BertTokenizer(modelDir / "vocab.txt")
+
+    # This is an annoying limitation of the transformers library. It should
+    # really accept an open file descriptor or bytes object so we can load from
+    # binary data.
+    with tempfile.NamedTemporaryFile(delete=True) as f:
+        f.write(vocab)
+        tokenizer = transformers.BertTokenizer(f.name)
 
     features = convert_examples_to_features(
         examples=examples,
@@ -168,7 +121,12 @@ def interpret(startLogits, stopLogits, example, features):
         example: SquadExample object used as input
         features: featurized version of example
     """
-    return get_prediction(startLogits, stopLogits, example, features)
+    # XXX I've hacked the preprocessor to only ever return one feature per
+    # example. In theory, there could be more, but it complicates things too
+    # much. I've left get_prediction() in its original form that handles
+    # multiple features, but interpret() only takes one, hence making it a list
+    # here.
+    return get_prediction(startLogits, stopLogits, example, [features])
 
 
 def get_final_text(pred_text, orig_text):
@@ -310,7 +268,6 @@ def get_prediction(startLogits, endLogits, example, features):
     for (feature_index, feature) in enumerate(features):
         start_indexes = _get_best_indexes(startLogits, n_best_size)
         end_indexes = _get_best_indexes(endLogits, n_best_size)
-        print(len(start_indexes))
 
         # if we could have irrelevant answers, get the min score of irrelevant
         for start_index in start_indexes:
@@ -358,7 +315,7 @@ def get_prediction(startLogits, endLogits, example, features):
         tok_tokens = feature.tokens[pred.start_index:(pred.end_index + 1)]
         orig_doc_start = feature.token_to_orig_map[pred.start_index]
         orig_doc_end = feature.token_to_orig_map[pred.end_index]
-        orig_tokens = example.doc_tokens[orig_doc_start:(orig_doc_end + 1)]
+        orig_tokens = example.docTokens[orig_doc_start:(orig_doc_end + 1)]
         tok_text = " ".join(tok_tokens)
 
         # De-tokenize WordPieces that have been split off.
@@ -500,13 +457,11 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     """Given a list of raw examples, return a list of feature lists for each
     example"""
 
-    unique_id = 1000000000
-
     # list of lists of features per example
     features = []
 
     for (example_index, example) in enumerate(examples):
-        query_tokens = tokenizer.tokenize(example.question_text)
+        query_tokens = tokenizer.tokenize(example.question)
 
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
@@ -514,7 +469,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         tok_to_orig_index = []
         orig_to_tok_index = []
         all_doc_tokens = []
-        for (i, token) in enumerate(example.doc_tokens):
+        for (i, token) in enumerate(example.docTokens):
             orig_to_tok_index.append(len(all_doc_tokens))
             sub_tokens = tokenizer.tokenize(token)
             for sub_token in sub_tokens:
@@ -531,7 +486,11 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                 "DocSpan", ["start", "length"])
         doc_spans = []
         start_offset = 0
-        while start_offset < len(all_doc_tokens):
+        # XXX Technically, for long documents we need multiple features per
+        # example. This complicates things for us, so I just skip it and only
+        # do one span, no matter what
+        # while start_offset < len(all_doc_tokens):
+        while start_offset < 1:
             length = len(all_doc_tokens) - start_offset
             if length > max_tokens_for_doc:
                 length = max_tokens_for_doc
@@ -586,24 +545,15 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             start_position = None
             end_position = None
             feature = InputFeatures(
-                    unique_id=unique_id,
-                    example_index=example_index,
-                    doc_span_index=doc_span_index,
                     tokens=tokens,
                     token_to_orig_map=token_to_orig_map,
-                    token_is_max_context=token_is_max_context,
-                    input_ids=input_ids,
-                    input_mask=input_mask,
-                    segment_ids=segment_ids,
-                    start_position=start_position,
-                    end_position=end_position,
-                    is_impossible=example.is_impossible)
+                    token_is_max_context=token_is_max_context)
 
             # Run callback
-            exampleFeatures.append(feature)
+            exampleFeatures.append((input_ids, input_mask, segment_ids, feature))
 
-            unique_id += 1
-
-        features.append(exampleFeatures)
+        # XXX See comment above at the doc_span calculation loop
+        # features.append(exampleFeatures)
+        features.append(exampleFeatures[0])
 
     return features

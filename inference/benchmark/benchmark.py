@@ -33,10 +33,10 @@ def sanityCheck():
 
 
 def nshot(modelName):
-    # bench = localBench
-    bench = rayBench
+    bench = localBench
+    # bench = rayBench
     bench.configure({"dataDir": dataDir, "modelDir": modelDir})
-    res = bench.nShot(modelName, 16, inline=True)
+    print(bench.nShot(modelName, 1, inline=True))
 
 
 def runMlperf(modelName):
@@ -67,40 +67,46 @@ def bertRawExample():
     # Examples are a combination of question and input text
     examples = bert.load(dataDir / 'bert' / 'bertInputs.json')[0:3]
 
+    with open(modelDir / 'bert' / 'vocab.txt', 'rb') as f:
+        vocab = f.read()
+
     # Features are tokenized versions of the example. If the example input text
     # is too big, multiple features are generated for it based on a sliding
     # window over the input text.
-    features = infbench.bert.featurize([examples[0]], modelDir / 'bert')
+    features = infbench.bert.featurize([examples[0]], vocab)
 
-    exampleFeatures = features[0]
+    feature = features[0]
     example = examples[0]
 
     model, meta = infbench.model._loadSo(modelDir / 'bert' / 'bert.so')
 
     # The model only runs one feature at a time.
-    feature = exampleFeatures[0]
-    inputIds = np.array(feature.input_ids).astype(np.int64)[np.newaxis, :]
-    inputMask = np.array(feature.input_mask).astype(np.int64)[np.newaxis, :]
-    segmentIds = np.array(feature.segment_ids).astype(np.int64)[np.newaxis, :]
+    inputIds, inputMask, segmentIds, otherFeature = feature
+    inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :]
+    inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :]
+    segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :]
     model.set_input('input_ids', tvm.nd.array(inputIds))
     model.set_input('input_mask', tvm.nd.array(inputMask))
     model.set_input('segment_ids', tvm.nd.array(segmentIds))
 
     model.run()
 
-    startLogits = model.get_output(0).numpy().astype(np.float32)[0].tolist()
+    rawStartLogits = model.get_output(0)
+    bOut = rawStartLogits.numpy().tobytes()
+    startLogits = np.frombuffer(bOut, dtype=np.float32)
+    startLogits = startLogits.tolist()
     endLogits = model.get_output(1).numpy().astype(np.float32)[0].tolist()
 
     # Post-processing requires all features, even though the prediction used
     # only one feature.
-    pred = bert.interpret(startLogits, endLogits, example, exampleFeatures)
+    pred = bert.interpret(startLogits, endLogits, example, otherFeature)
     print("Final Prediction:")
     pprint(pred)
 
 
 def main():
-    sanityCheck()
-    # nshot("resnet50")
+    # sanityCheck()
+    nshot("bert")
     # nshot("ssdMobilenet")
     # nshot("mobilenet-ssd")
     # runMlperf("superRes")
