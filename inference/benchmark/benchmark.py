@@ -36,7 +36,7 @@ def nshot(modelName):
     # bench = localBench
     bench = rayBench
     bench.configure({"dataDir": dataDir, "modelDir": modelDir})
-    bench.nShot(modelName, 1, inline=False)
+    bench.nShot(modelName, 32, inline=False)
 
 
 def runMlperf(modelName):
@@ -106,11 +106,11 @@ def bertRawExample():
 
 def main():
     # sanityCheck()
-    nshot("bert")
+    # nshot("bert")
     # nshot("superRes")
     # nshot("resnet50")
     # nshot("ssdMobilenet")
-    # runMlperf("superRes")
+    runMlperf("bert")
     # runMlperf("resnet50")
 
 

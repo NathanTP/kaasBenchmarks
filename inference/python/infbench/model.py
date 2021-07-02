@@ -321,9 +321,9 @@ class superRes(tvmModel):
         # mode and size were manually read from the png (used Image.open and then
         # inspected the img.mode and img.size attributes). We're gonna just go with
         # this for now.
-        img = Image.frombytes("RGB", (256,256), raw)
+        img = Image.frombytes("RGB", (256, 256), raw)
 
-        imgProcessed = img.resize((224,224)).convert("YCbCr")
+        imgProcessed = img.resize((224, 224)).convert("YCbCr")
         img_y, img_cb, img_cr = imgProcessed.split()
         imgNp = (np.array(img_y)[np.newaxis, np.newaxis, :, :]).astype("float32")
 
@@ -575,11 +575,12 @@ class bertModel(tvmModel):
     def getMlPerfCfg(testing=False):
         settings = getDefaultMlPerfCfg()
 
-        # XXX No idea right now
-        if testing:
-            settings.server_target_latency_ns = 1000
-        else:
-            settings.server_target_latency_ns = 1000000000
+        settings.server_target_qps = 0.3
+        # if testing:
+        #     # settings.server_target_qps = 0.3
+        #     settings.server_target_latency_ns = 1000
+        # else:
+        #     settings.server_target_latency_ns = 1000000000
 
         return settings
 

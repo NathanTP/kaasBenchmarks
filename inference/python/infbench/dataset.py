@@ -183,14 +183,20 @@ class bertLoader(loader):
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / 'bert'
-
-    def preLoad(self, idxs):
         # The bert example input is just 4MB, we just load it all, regardless
         # of idxs
         self.examples = bert.load(self.dataDir / "bertInputs.json")
         self.ndata = len(self.examples)
 
+    def preLoad(self, idxs):
+        # We preload during init so we can get ndata early. Other datasets have
+        # easily read metadata, but ndata isn't easily known without loading
+        pass
+
     def get(self, idx):
+        if self.examples is None:
+            raise RuntimeError("Index {} not yet loaded!".format(idx))
+
         return (self.examples[idx],)
 
     def unload(self):

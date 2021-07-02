@@ -359,12 +359,12 @@ def handleCompletion(queue):
 
 
 class mlperfRunner():
-    def __init__(self, modelName, loader, inline=False):
+    def __init__(self, modelName, loader, constantRefs, inline=False):
         self.modelName = modelName
         self.modelSpec = models[modelName]
         self.modelBuf = infbench.model.readModelBuf(self.modelSpec['modelPath'])
-        # self.loader = self.modelSpec['loader'](config['dataDir'])
         self.loader = loader
+        self.constants = constantRefs
         self.inline = inline
 
         # Total number of queries issued
@@ -376,12 +376,12 @@ class mlperfRunner():
                 target=handleCompletion, args=[self.completionQueue])
         self.completionHandler.start()
 
-        # This is very important for Ray because the cold start is like 1s and
-        # mlperf is based on SLOs which we violate immediately.
+        # This is very important for Ray because the cold start is multiple
+        # seconds and mlperf is based on SLOs which we violate immediately.
         if preWarm:
             self.loader.preLoad([0])
             inputs = [self.loader.get(0)]
-            res = _runBatch(self.modelName, self.modelBuf, inputs, inline=self.inline)
+            res = _runBatch(self.modelName, self.modelBuf, self.constants, inputs, inline=self.inline)
             ray.get(res)
 
     def runBatch(self, queryBatch):
@@ -391,8 +391,8 @@ class mlperfRunner():
             inputs.append(self.loader.get(q.index))
             qids.append(q.id)
 
-        _runBatch(self.modelName, self.modelBuf, inputs, inline=self.inline,
-                  completionQ=self.completionQueue, queryIds=qids, cacheModel=False)
+        _runBatch(self.modelName, self.modelBuf, self.constants, inputs, inline=self.inline,
+                  completionQ=self.completionQueue, queryIds=qids, cacheModel=True)
 
         self.nIssued += len(queryBatch)
 
@@ -404,13 +404,22 @@ class mlperfRunner():
 
 def mlperfBench(modelName, testing=False, inline=False):
     """Run the mlperf loadgen version"""
+    ray.init()
+
     modelSpec = models[modelName]
     settings = modelSpec['modelClass'].getMlPerfCfg(testing=testing)
     loader = modelSpec['loader'](config['dataDir'])
 
-    runner = mlperfRunner(modelName, loader, inline=inline)
+    constants = modelSpec['modelClass'].getConstants(modelSpec['modelPath'].parent)
+    if constants is None:
+        constRefs = None
+    else:
+        constRefs = []
+        for const in constants:
+            constRefs.append(ray.put(const))
 
-    ray.init()
+    runner = mlperfRunner(modelName, loader, constRefs, inline=inline)
+
     runner.start(preWarm=True)
     sut = mlperf_loadgen.ConstructSUT(
         runner.runBatch, infbench.model.flushQueries, infbench.model.processLatencies)

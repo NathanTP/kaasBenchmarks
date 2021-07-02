@@ -19,25 +19,25 @@ def configure(cfg):
 
     # You must run tools/getModels.py first to get these .so's
     modelSpecs = {
-        "superRes" : {
-                "loader"     : infbench.dataset.superResLoader,
-                "modelPath"  : config['modelDir'] / "superres.so",
-                "modelClass" : infbench.model.superRes
+        "superRes": {
+                "loader": infbench.dataset.superResLoader,
+                "modelPath": config['modelDir'] / "superres.so",
+                "modelClass": infbench.model.superRes
             },
-        "resnet50" : {
-                "loader"     : infbench.dataset.imageNetLoader,
-                "modelPath"  : config['modelDir'] / "resnet50.so",
-                "modelClass" : infbench.model.resnet50
+        "resnet50": {
+                "loader": infbench.dataset.imageNetLoader,
+                "modelPath": config['modelDir'] / "resnet50.so",
+                "modelClass": infbench.model.resnet50
             },
-        "ssdMobilenet" : {
-                "loader"     : infbench.dataset.cocoLoader,
-                "modelPath"  : config['modelDir'] / "ssdMobilenet.so",
-                "modelClass" : infbench.model.ssdMobilenet
+        "ssdMobilenet": {
+                "loader": infbench.dataset.cocoLoader,
+                "modelPath": config['modelDir'] / "ssdMobilenet.so",
+                "modelClass": infbench.model.ssdMobilenet
             },
-        "bert" : {
-                "loader"     : infbench.dataset.bertLoader,
-                "modelPath"  : config['modelDir'] / 'bert' / "bert.so",
-                "modelClass" : infbench.model.bertModel
+        "bert": {
+                "loader": infbench.dataset.bertLoader,
+                "modelPath": config['modelDir'] / 'bert' / "bert.so",
+                "modelClass": infbench.model.bertModel
             }
     }
 
@@ -119,23 +119,24 @@ def nShot(modelName, n, inline=False):
     print(np.percentile(times, 99))
 
     if loader.checkAvailable:
-        print("Accuracy = ", sum([ int(res) for res in accuracies ]) / n)
+        print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
         print("Dataset does not support accuracy calculation")
 
     return results
 
 
-#==============================================================================
+# =============================================================================
 # MLPERF INFERENCE STUFF
-#==============================================================================
+# =============================================================================
 
 class mlperfRunner():
 
-    def __init__(self, loader, models):
+    def __init__(self, loader, constants, models):
         self.loader = loader
         self.models = models
         self.queue = queue.SimpleQueue()
+        self.constants = constants
 
     def start(self):
         for model in self.models:
@@ -155,14 +156,12 @@ class mlperfRunner():
             responses = []
             for query in batch:
                 inputs = self.loader.get(query.index)
-                result = _runOne(model, inputs)
+                _runOne(model, self.constants, inputs)
 
-                # XXX I really don't know what the last two args are for. The first
-                # is the memory address of the response, the second is the length
-                # (in bytes) of the response. I don't know what mlperf does with
-                # these, hopefully leaving them out doesn't break anything. You can
-                # see the mlperf vision examples to see an example of actually
-                # providing them.
+                # The last two args are supposed to be for the result data
+                # (it's a C pointer and length). These are then logged by
+                # loadgen in certain configurations (for accuracy checking
+                # mostly). We don't need that feature so we just skip it.
                 responses.append(mlperf_loadgen.QuerySampleResponse(query.id, 0, 0))
 
             mlperf_loadgen.QuerySamplesComplete(responses)
@@ -178,11 +177,13 @@ def mlperfBench(modelName, testing=False, inline=False):
 
     modelSpec = modelSpecs[modelName]
     loader, models = _getHandlers(modelSpec)
+    constants = models[0].getConstants(modelSpec['modelPath'].parent)
 
     settings = models[0].getMlPerfCfg(testing=testing)
 
-    runner = mlperfRunner(loader, models)
+    runner = mlperfRunner(loader, constants, models)
     runner.start()
+
     try:
         sut = mlperf_loadgen.ConstructSUT(
             runner.runOne, infbench.model.flushQueries, infbench.model.processLatencies)
@@ -190,9 +191,7 @@ def mlperfBench(modelName, testing=False, inline=False):
         qsl = mlperf_loadgen.ConstructQSL(
             loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
-        start = time.time()
         mlperf_loadgen.StartTest(sut, qsl, settings)
-        print("TOOK: ", time.time() - start)
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
     finally:
