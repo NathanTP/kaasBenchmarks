@@ -474,7 +474,7 @@ class ssdMobilenet(tvmModel):
     postMap = inputMap(pre=(1,), run=(0, 1, 2))
     nOutPre = 2
     nOutRun = 3
-    nOutPost = nOutRun
+    nOutPost = 1
 
     @staticmethod
     def pre(imgBuf):
@@ -533,6 +533,8 @@ class bertModel(tvmModel):
     preMap = inputMap(const=(0,), inp=(0,))
     runMap = inputMap(pre=(0, 1, 2))
     postMap = inputMap(inp=(0,), pre=(3,), run=(0, 1))
+
+    nConst = 1
     nOutPre = 4
     nOutRun = 2
     nOutPost = 1
@@ -554,7 +556,7 @@ class bertModel(tvmModel):
         inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :].tobytes()
         inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :].tobytes()
         segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :].tobytes()
-        return (inputIds, inputMask, segmentIds, otherFeature)
+        return [inputIds, inputMask, segmentIds, otherFeature]
 
     @staticmethod
     def post(inputs):

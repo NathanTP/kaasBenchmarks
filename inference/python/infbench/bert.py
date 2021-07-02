@@ -23,7 +23,6 @@ import tempfile
 import transformers
 from . import tokenization
 
-# SquadExample = collections.namedtuple("SquadExample", ["question", "docTokens"])
 @dataclass
 class SquadExample:
     question: str

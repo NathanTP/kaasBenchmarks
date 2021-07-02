@@ -33,16 +33,14 @@ def sanityCheck():
 
 
 def nshot(modelName):
-    bench = localBench
-    # bench = rayBench
+    # bench = localBench
+    bench = rayBench
     bench.configure({"dataDir": dataDir, "modelDir": modelDir})
-    res = bench.nShot(modelName, 16, inline=True)
-    with open("test.png", "wb") as f:
-        f.write(res[3])
+    bench.nShot(modelName, 1, inline=False)
 
 
 def runMlperf(modelName):
-    testing = False
+    testing = True
     inline = False
     backend = "ray"
     # backend = "local"
@@ -108,10 +106,10 @@ def bertRawExample():
 
 def main():
     # sanityCheck()
-    # nshot("bert")
+    nshot("bert")
     # nshot("superRes")
     # nshot("resnet50")
-    nshot("ssdMobilenet")
+    # nshot("ssdMobilenet")
     # runMlperf("superRes")
     # runMlperf("resnet50")
 
