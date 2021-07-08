@@ -295,12 +295,6 @@ class Model(abc.ABC):
         """Number of constants returned by getConstants"""
         ...
 
-    @abc.abstractmethod
-    def run(self, dat):
-        """Run the model against input 'dat'. The format of dat is dependent on
-        the concrete model type."""
-        ...
-
     @staticmethod
     def getConstants(modelDir):
         return None
@@ -310,6 +304,12 @@ class Model(abc.ABC):
     def pre(data):
         """Preprocess data and return nOutputPre bytes objects"""
         pass
+
+    @abc.abstractmethod
+    def run(self, dat):
+        """Run the model against input 'dat'. The format of dat is dependent on
+        the concrete model type."""
+        ...
 
     @staticmethod
     @abc.abstractmethod

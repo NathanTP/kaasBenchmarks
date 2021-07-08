@@ -33,14 +33,25 @@ class processor():
 class loader(abc.ABC):
     """Handle to a dataset, used for reading inputs. Does not pre or post
     process data at all."""
-    # number of individual items in the dataset (the max index you could "get")
-    ndata = 0
 
+    @property
+    @abc.abstractmethod
+    def ndata(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def checkAvailable(self):
+        """Is the check() function defined?"""
+        pass
+
+    @abc.abstractmethod
     def preLoad(self, idxs):
         """Some datasets are too big to fit in RAM in their entirety, preload
         will load a subset of data based on the indexes in idxs"""
         pass
 
+    @abc.abstractmethod
     def unLoad(self, idxs):
         """Free memory associated with idxs"""
         pass
@@ -80,6 +91,13 @@ class superResLoader(loader):
 class imageNetLoader(loader):
     checkAvailable = True
 
+    @property
+    def ndata(self):
+        try:
+            return len(self.imageLabels)
+        except AttributeError:
+            raise RuntimeError("Accessed ndata before initialization")
+
     def __init__(self, dataDir):
         self.dataDir = dataDir / "fake_imagenet"
 
@@ -105,8 +123,6 @@ class imageNetLoader(loader):
                 self.imagePaths.append(imgPath)
                 self.imageLabels.append(int(label))
 
-        self.ndata = len(self.imageLabels)
-
     def get(self, idx):
         try:
             return (self.images[idx],)
@@ -130,6 +146,13 @@ class imageNetLoader(loader):
 
 class cocoLoader(loader):
     checkAvailable = False
+
+    @property
+    def ndata(self):
+        try:
+            return len(self.images)
+        except AttributeError:
+            raise RuntimeError("Accessed ndata before initialization")
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / "coco"
@@ -157,7 +180,6 @@ class cocoLoader(loader):
         # At first, these have only metadata, but preLoad() can fill in a 'raw'
         # field to have the actual binary data.
         self.images = [i for i in images.values()]
-        self.ndata = len(self.images)
 
     def preLoad(self, idxs):
         for i in idxs:
@@ -180,6 +202,13 @@ class cocoLoader(loader):
 
 class bertLoader(loader):
     checkAvailable = True
+
+    @property
+    def ndata(self):
+        try:
+            return len(self.examples)
+        except AttributeError:
+            raise RuntimeError("Accessed ndata before initialization")
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / 'bert'

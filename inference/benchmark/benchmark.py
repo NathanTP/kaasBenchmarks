@@ -9,7 +9,16 @@ modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
 # bigger impact than others.
 def getModelSpec(modelName):
     # You must run tools/getModels.py first to get these .so's
-    if modelName == "superRes":
+    if modelName == "testModel":
+        import infbench.testModel
+        return {
+            "name": "testModel",
+            "loader": infbench.testModel.testLoader,
+            "dataDir": dataDir,
+            "modelPath": modelDir,
+            "modelClass": infbench.testModel.testModel
+        }
+    elif modelName == "superRes":
         import infbench.superres
         return {
             "name": "superRes",
@@ -82,7 +91,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("ssdMobileNet")
+    spec = getModelSpec("testModel")
 
     import localBench
     backend = localBench
@@ -91,7 +100,7 @@ def main():
     # backend = rayBench
 
     # sanityCheck()
-    nshot(spec, 16, backend)
+    nshot(spec, 1, backend)
     # runMlperf(spec, backend)
 
 
