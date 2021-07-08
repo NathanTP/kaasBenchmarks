@@ -36,6 +36,7 @@ class resnet50(model.tvmModel):
     nOutRun = 2
     nOutPre = 1
     nOutPost = nOutRun
+    nConst = 0
 
     @staticmethod
     def pre(imgBuf):

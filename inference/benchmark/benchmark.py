@@ -1,9 +1,5 @@
 import pathlib
 
-import localBench
-import rayBench
-
-
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
 
@@ -53,16 +49,13 @@ def getModelSpec(modelName):
         raise ValueError("Unrecognized model: ", modelName)
 
 
-def sanityCheck():
+def sanityCheck(backend):
     """Basic check to make sure nothing is obviously broken. This is meant to
     be manually fiddled with to spot check stuff. It will run the superres
     model and write the output to test.png, it should be the superres output (a
     small cat next to a big cat in a figure)."""
-    bench = localBench
-    # bench = rayBench
-
     spec = getModelSpec("superRes")
-    res = bench.nShot(spec, 1)
+    res = backend.nShot(spec, 1)
 
     with open("test.png", "wb") as f:
         f.write(res[0][0])
@@ -77,7 +70,7 @@ def nshot(modelSpec, n, backend):
 
 def runMlperf(modelSpec, backend):
     testing = True
-    inline = False
+    inline = True
 
     print("Starting MLPerf Benchmark: ")
     print("\tModel: ", modelSpec['name'])
@@ -89,8 +82,12 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("superRes")
+    spec = getModelSpec("bert")
+
+    # import localBench
     # backend = localBench
+
+    import rayBench
     backend = rayBench
 
     # sanityCheck()

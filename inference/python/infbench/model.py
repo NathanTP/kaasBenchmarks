@@ -236,11 +236,51 @@ def dumpModel(graphMod, outputBasePath):
 inputMap = collections.namedtuple("inputMap", ["const", "inp", "pre", "run"], defaults=[None]*4)
 
 
-class tvmModel(abc.ABC):
+class tvmModel(metaclass=abc.ABCMeta):
     """A generic onnx on tvm model. Concrete models must additionally provide
         - preMap, runMap, postMap: inputMap objects for thepre, run, and post
         functions. Each function input is a list in order [const,inp,pre,run].
     """
+    @property
+    @abc.abstractmethod
+    def preMap(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def runMap(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def postMap(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def nOutPre(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def nOutRun(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def nOutPost(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def noPost(self):
+        ...
+
+    @property
+    @abc.abstractmethod
+    def nConst(self):
+        ...
+
     def __init__(self, modelDesc):
         """See loadModel() for allowable values of modelDesc"""
         self.model, self.meta = loadModel(modelDesc)

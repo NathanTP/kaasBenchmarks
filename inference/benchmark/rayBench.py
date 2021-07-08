@@ -179,7 +179,12 @@ def _runBatch(modelSpec, specRef, modelBuf, constRefs, batch, inline=False, comp
         # statically determine the dataflow. All refs have to be first-class
         # arguments so we pack them all into a list and then expand it with
         # *varArgs
-        varArgs = (list(constRefs) + list(batch))
+        varArgs = batch
+        if constRefs is None:
+            varArgs = batch
+        else:
+            varArgs = list(constRefs) + batch
+
         if completionQ is not None:
             runInline.options(num_returns=mClass.nOutPost).remote(
                     specRef, modelBuf, *varArgs, completionQ=completionQ, queryIds=queryIds)
@@ -190,6 +195,7 @@ def _runBatch(modelSpec, specRef, modelBuf, constRefs, batch, inline=False, comp
     else:
         # Pre
         preInp = _getInputs(mClass.preMap, const=constRefs, inp=batch)
+
         preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
         if mClass.nOutPre == 1:
             preOut = [preOut]

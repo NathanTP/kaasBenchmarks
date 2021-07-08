@@ -15,6 +15,7 @@ class superRes(model.tvmModel):
     nOutPost = 1
 
     noPost = False
+    nConst = 0
 
     @staticmethod
     def pre(data):

@@ -41,6 +41,7 @@ class ssdMobilenet(model.tvmModel):
     nOutPre = 2
     nOutRun = 3
     nOutPost = 1
+    nConst = 0
 
     @staticmethod
     def pre(imgBuf):
