@@ -6,44 +6,9 @@ import threading
 import queue
 from gpuinfo import GPUInfo
 
-config = {}
-modelSpecs = {}
-
-
-def configure(cfg):
-    """Must include dataDir and modelDir fields (pathlib paths)"""
-    global config
-    global modelSpecs
-
-    config = cfg
-
-    # You must run tools/getModels.py first to get these .so's
-    modelSpecs = {
-        "superRes": {
-                "loader": infbench.dataset.superResLoader,
-                "modelPath": config['modelDir'] / "superres.so",
-                "modelClass": infbench.model.superRes
-            },
-        "resnet50": {
-                "loader": infbench.dataset.imageNetLoader,
-                "modelPath": config['modelDir'] / "resnet50.so",
-                "modelClass": infbench.model.resnet50
-            },
-        "ssdMobilenet": {
-                "loader": infbench.dataset.cocoLoader,
-                "modelPath": config['modelDir'] / "ssdMobilenet.so",
-                "modelClass": infbench.model.ssdMobilenet
-            },
-        "bert": {
-                "loader": infbench.dataset.bertLoader,
-                "modelPath": config['modelDir'] / 'bert' / "bert.so",
-                "modelClass": infbench.model.bertModel
-            }
-    }
-
 
 def _getHandlers(modelSpec):
-    loader = modelSpec['loader'](config['dataDir'])
+    loader = modelSpec['loader'](modelSpec['dataDir'])
 
     # Create as many models as we have GPUs to get some concurrency. The local
     # mode doesn't independently scale pre/post/run.
@@ -79,8 +44,8 @@ def _runOne(model, constants, inputs):
     return postOut
 
 
-def nShot(modelName, n, inline=False):
-    modelSpec = modelSpecs[modelName]
+def nShot(modelSpec, n, inline=False):
+    # modelSpec = getModelSpec(modelName)
     loader, models = _getHandlers(modelSpec)
 
     if inline:
@@ -169,13 +134,12 @@ class mlperfRunner():
             batch = queue.get()
 
 
-def mlperfBench(modelName, testing=False, inline=False):
+def mlperfBench(modelSpec, testing=False, inline=False):
     """Run the mlperf loadgen version"""
 
     if inline:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
 
-    modelSpec = modelSpecs[modelName]
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec['modelPath'].parent)
 

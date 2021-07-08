@@ -15,13 +15,17 @@
 # Many of the routines in this file are taken from:
 # https://github.com/mlcommons/inference/tree/master/language/bert
 
+from . import tokenization
+from . import model
+
 import collections
 from dataclasses import dataclass
 import json
 import math
 import tempfile
 import transformers
-from . import tokenization
+import numpy as np
+
 
 @dataclass
 class SquadExample:
@@ -72,14 +76,7 @@ def load(dataPath):
                 char_to_word_offset.append(len(doc_tokens) - 1)
 
             for qa in paragraph["qas"]:
-                qas_id = qa["id"]
                 question_text = qa["question"]
-                start_position = None
-                end_position = None
-                orig_answer_text = None
-                start_position = -1
-                end_position = -1
-                orig_answer_text = ""
 
                 example = SquadExample(question=question_text, docTokens=doc_tokens)
                 examples.append(example)
@@ -373,7 +370,7 @@ def get_prediction(startLogits, endLogits, example, features):
 
 
 def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
-                                                 orig_answer_text):
+                         orig_answer_text):
     """Returns tokenized answer spans that better match the annotated answer."""
 
     # The SQuAD annotations are character based. We first project them to
@@ -541,8 +538,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             assert len(input_mask) == max_seq_length
             assert len(segment_ids) == max_seq_length
 
-            start_position = None
-            end_position = None
             feature = InputFeatures(
                     tokens=tokens,
                     token_to_orig_map=token_to_orig_map,
@@ -556,3 +551,60 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         features.append(exampleFeatures[0])
 
     return features
+
+
+class bertModel(model.tvmModel):
+    noPost = False
+    preMap = model.inputMap(const=(0,), inp=(0,))
+    runMap = model.inputMap(pre=(0, 1, 2))
+    postMap = model.inputMap(inp=(0,), pre=(3,), run=(0, 1))
+
+    nConst = 1
+    nOutPre = 4
+    nOutRun = 2
+    nOutPost = 1
+
+    @staticmethod
+    def getConstants(modelDir):
+        with open(modelDir / 'vocab.txt', 'rb') as f:
+            vocab = f.read()
+        return [vocab]
+
+    @staticmethod
+    def pre(inputs):
+        vocab = inputs[0]
+        example = inputs[1]
+
+        # featurize() can handle batches, but we only support batch size 1 right
+        # now
+        inputIds, inputMask, segmentIds, otherFeature = featurize([example], vocab)[0]
+        inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :].tobytes()
+        inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :].tobytes()
+        segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :].tobytes()
+        return [inputIds, inputMask, segmentIds, otherFeature]
+
+    @staticmethod
+    def post(inputs):
+        example = inputs[0]
+        feature = inputs[1]
+        startLogits = inputs[2]
+        endLogits = inputs[3]
+
+        startLogits = np.frombuffer(startLogits, dtype=np.float32).tolist()
+        endLogits = np.frombuffer(endLogits, dtype=np.float32).tolist()
+
+        pred = interpret(startLogits, endLogits, example, feature)
+        return pred
+
+    @staticmethod
+    def getMlPerfCfg(testing=False):
+        settings = model.getDefaultMlPerfCfg()
+
+        settings.server_target_qps = 0.3
+        # if testing:
+        #     # settings.server_target_qps = 0.3
+        #     settings.server_target_latency_ns = 1000
+        # else:
+        #     settings.server_target_latency_ns = 1000000000
+
+        return settings

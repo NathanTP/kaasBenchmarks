@@ -8,40 +8,6 @@ import os
 
 import mlperf_loadgen
 
-config = {}
-models = {}
-
-
-def configure(cfg):
-    """Must include dataDir and modelDir fields (pathlib paths)"""
-    global config
-    global models
-
-    config = cfg
-
-    models = {
-        "superRes": {
-                "loader": infbench.dataset.superResLoader,
-                "modelClass": infbench.model.superRes,
-                "modelPath": config['modelDir'] / "super_resolution.onnx"
-            },
-        "resnet50": {
-                "loader": infbench.dataset.imageNetLoader,
-                "modelPath": config['modelDir'] / "resnet50.onnx",
-                "modelClass": infbench.model.resnet50
-            },
-        "ssdMobilenet": {
-                "loader": infbench.dataset.cocoLoader,
-                "modelPath": config['modelDir'] / "ssdMobilenet.so",
-                "modelClass": infbench.model.ssdMobilenet
-            },
-        "bert": {
-                "loader": infbench.dataset.bertLoader,
-                "modelPath": config['modelDir'] / 'bert' / "bert.so",
-                "modelClass": infbench.model.bertModel
-            }
-    }
-
 
 # Each phase (pre,run,post) accepts and returns multiple values. Each value is
 # itself a list/tuple representing the batch. This facilitates ray.get()'ing a
@@ -78,8 +44,8 @@ def _unMarshalArgs(argMap, args):
 
 
 @ray.remote
-def pre(modelName, *batch):
-    mClass = models[modelName]['modelClass']
+def pre(modelSpec, *batch):
+    mClass = modelSpec['modelClass']
     constants, batch = _unMarshalArgs(mClass.preMap, batch)
 
     batch = _transposeBatch(batch)
@@ -106,8 +72,8 @@ modelCache = {}
 
 
 @ray.remote(num_gpus=1)
-def run(modelName, modelBuf, *batch, completionQ=None, queryIds=None, cacheModel=False):
-    mClass = models[modelName]['modelClass']
+def run(modelSpec, modelBuf, *batch, completionQ=None, queryIds=None, cacheModel=False):
+    mClass = modelSpec['modelClass']
     constants, batch = _unMarshalArgs(mClass.runMap, batch)
 
     batch = _transposeBatch(batch)
@@ -118,10 +84,10 @@ def run(modelName, modelBuf, *batch, completionQ=None, queryIds=None, cacheModel
         if pid in modelCache:
             model = modelCache[pid]
         else:
-            model = models[modelName]['modelClass'](modelBuf)
+            model = modelSpec['modelClass'](modelBuf)
             modelCache[pid] = model
     else:
-        model = models[modelName]['modelClass'](modelBuf)
+        model = modelSpec['modelClass'](modelBuf)
 
     for data in batch:
         results.append(model.run(constants + list(data)))
@@ -139,15 +105,15 @@ def run(modelName, modelBuf, *batch, completionQ=None, queryIds=None, cacheModel
 
 
 @ray.remote
-def post(modelName, *batch, completionQ=None, queryIds=None):
-    mClass = models[modelName]['modelClass']
+def post(modelSpec, *batch, completionQ=None, queryIds=None):
+    mClass = modelSpec['modelClass']
     constants, batch = _unMarshalArgs(mClass.runMap, batch)
 
     batch = _transposeBatch(batch)
 
     results = []
     for data in batch:
-        results.append(models[modelName]['modelClass'].post(constants + list(data)))
+        results.append(modelSpec['modelClass'].post(constants + list(data)))
 
     results = _transposeBatch(results)
 
@@ -163,10 +129,8 @@ def post(modelName, *batch, completionQ=None, queryIds=None):
 
 
 @ray.remote(num_gpus=1)
-def runInline(modelName, modelBuf, *refs, completionQ=None, queryIds=None):
+def runInline(modelSpec, modelBuf, *refs, completionQ=None, queryIds=None):
     """Run model with inlined pre and post-processing"""
-    modelSpec = models[modelName]
-
     model = modelSpec['modelClass'](modelBuf)
 
     constants = refs[:model.nConst]
@@ -205,10 +169,9 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runBatch(modelName, modelBuf, constRefs, batch, inline=False, completionQ=None, queryIds=None, cacheModel=False):
+def _runBatch(modelSpec, specRef, modelBuf, constRefs, batch, inline=False, completionQ=None, queryIds=None, cacheModel=False):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
-    modelSpec = models[modelName]
     mClass = modelSpec['modelClass']
 
     if inline:
@@ -219,15 +182,15 @@ def _runBatch(modelName, modelBuf, constRefs, batch, inline=False, completionQ=N
         varArgs = (list(constRefs) + list(batch))
         if completionQ is not None:
             runInline.options(num_returns=mClass.nOutPost).remote(
-                    modelName, modelBuf, *varArgs, completionQ=completionQ, queryIds=queryIds)
+                    specRef, modelBuf, *varArgs, completionQ=completionQ, queryIds=queryIds)
             postOut = None
         else:
             postOut = runInline.options(num_returns=mClass.nOutPost).remote(
-                                modelName, modelBuf, *varArgs)
+                                specRef, modelBuf, *varArgs)
     else:
         # Pre
         preInp = _getInputs(mClass.preMap, const=constRefs, inp=batch)
-        preOut = pre.options(num_returns=mClass.nOutPre).remote(modelName, *preInp)
+        preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
         if mClass.nOutPre == 1:
             preOut = [preOut]
 
@@ -235,9 +198,9 @@ def _runBatch(modelName, modelBuf, constRefs, batch, inline=False, completionQ=N
         runInp = _getInputs(mClass.runMap, const=constRefs, inp=batch, pre=preOut)
         if completionQ is not None and mClass.noPost:
             runOut = run.options(num_returns=mClass.nOutRun).remote(
-                    modelName, modelBuf, *runInp, completionQ=completionQ, queryIds=queryIds, cacheModel=cacheModel)
+                    specRef, modelBuf, *runInp, completionQ=completionQ, queryIds=queryIds, cacheModel=cacheModel)
         else:
-            runOut = run.options(num_returns=mClass.nOutRun).remote(modelName, modelBuf, *runInp, cacheModel=cacheModel)
+            runOut = run.options(num_returns=mClass.nOutRun).remote(specRef, modelBuf, *runInp, cacheModel=cacheModel)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -248,7 +211,7 @@ def _runBatch(modelName, modelBuf, constRefs, batch, inline=False, completionQ=N
         else:
             postInp = _getInputs(mClass.postMap, const=constRefs, inp=batch, pre=preOut, run=runOut)
             postOut = post.options(num_returns=mClass.nOutPost).remote(
-                    modelName, *postInp, completionQ=completionQ, queryIds=queryIds)
+                    specRef, *postInp, completionQ=completionQ, queryIds=queryIds)
 
             if mClass.nOutPost == 1:
                 postOut = [postOut]
@@ -256,12 +219,13 @@ def _runBatch(modelName, modelBuf, constRefs, batch, inline=False, completionQ=N
     return postOut
 
 
-def nShot(modelName, n, inline=False):
+def nShot(modelSpec, n, inline=False):
     ray.init()
 
-    modelSpec = models[modelName]
+    specRef = ray.put(modelSpec)
+
     modelBuf = infbench.model.readModelBuf(modelSpec['modelPath'])
-    loader = modelSpec['loader'](config['dataDir'])
+    loader = modelSpec['loader'](modelSpec['dataDir'])
 
     loader.preLoad(range(min(n, loader.ndata)))
     constants = modelSpec['modelClass'].getConstants(modelSpec['modelPath'].parent)
@@ -282,7 +246,7 @@ def nShot(modelName, n, inline=False):
         batch = _transposeBatch([inp])
 
         start = time.time()
-        res = _runBatch(modelName, modelBuf, constRefs, batch, inline=inline)
+        res = _runBatch(modelSpec, specRef, modelBuf, constRefs, batch, inline=inline)
         res = ray.get(res)
         results.append(res[0])
 
@@ -359,9 +323,8 @@ def handleCompletion(queue):
 
 
 class mlperfRunner():
-    def __init__(self, modelName, loader, constantRefs, inline=False):
-        self.modelName = modelName
-        self.modelSpec = models[modelName]
+    def __init__(self, modelSpec, loader, constantRefs, inline=False):
+        self.modelSpec = modelSpec
         self.modelBuf = infbench.model.readModelBuf(self.modelSpec['modelPath'])
         self.loader = loader
         self.constants = constantRefs
@@ -369,6 +332,8 @@ class mlperfRunner():
 
         # Total number of queries issued
         self.nIssued = 0
+
+        self.specRef = ray.put(self.modelSpec)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -381,7 +346,8 @@ class mlperfRunner():
         if preWarm:
             self.loader.preLoad([0])
             inputs = [self.loader.get(0)]
-            res = _runBatch(self.modelName, self.modelBuf, self.constants, inputs, inline=self.inline)
+            res = _runBatch(self.modelSpec, self.specRef, self.modelBuf,
+                            self.constants, inputs, inline=self.inline)
             ray.get(res)
 
     def runBatch(self, queryBatch):
@@ -391,8 +357,10 @@ class mlperfRunner():
             inputs.append(self.loader.get(q.index))
             qids.append(q.id)
 
-        _runBatch(self.modelName, self.modelBuf, self.constants, inputs, inline=self.inline,
-                  completionQ=self.completionQueue, queryIds=qids, cacheModel=True)
+        _runBatch(self.modelSpec, self.specRef, self.modelBuf,
+                  self.constants, inputs, inline=self.inline,
+                  completionQ=self.completionQueue, queryIds=qids,
+                  cacheModel=True)
 
         self.nIssued += len(queryBatch)
 
@@ -402,13 +370,12 @@ class mlperfRunner():
         self.completionHandler.join()
 
 
-def mlperfBench(modelName, testing=False, inline=False):
+def mlperfBench(modelSpec, testing=False, inline=False):
     """Run the mlperf loadgen version"""
     ray.init()
 
-    modelSpec = models[modelName]
     settings = modelSpec['modelClass'].getMlPerfCfg(testing=testing)
-    loader = modelSpec['loader'](config['dataDir'])
+    loader = modelSpec['loader'](modelSpec['dataDir'])
 
     constants = modelSpec['modelClass'].getConstants(modelSpec['modelPath'].parent)
     if constants is None:
@@ -418,7 +385,7 @@ def mlperfBench(modelName, testing=False, inline=False):
         for const in constants:
             constRefs.append(ray.put(const))
 
-    runner = mlperfRunner(modelName, loader, constRefs, inline=inline)
+    runner = mlperfRunner(modelSpec, loader, constRefs, inline=inline)
 
     runner.start(preWarm=True)
     sut = mlperf_loadgen.ConstructSUT(

@@ -1,10 +1,4 @@
 import pathlib
-from pprint import pprint
-
-import infbench
-import infbench.bert as bert
-import numpy as np
-import tvm
 
 import localBench
 import rayBench
@@ -12,6 +6,51 @@ import rayBench
 
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
+
+
+# This is implemented this way to ensure that models are only imported if
+# necessary. Imports have a large impact on performance, and some models have a
+# bigger impact than others.
+def getModelSpec(modelName):
+    # You must run tools/getModels.py first to get these .so's
+    if modelName == "superRes":
+        import infbench.superres
+        return {
+            "name": "superRes",
+            "loader": infbench.dataset.superResLoader,
+            "dataDir": dataDir,
+            "modelPath": modelDir / "superres.so",
+            "modelClass": infbench.superres.superRes
+        }
+    elif modelName == "resnet50":
+        import infbench.resnet50
+        return {
+            "name": "resnet50",
+            "loader": infbench.dataset.imageNetLoader,
+            "dataDir": dataDir,
+            "modelPath": modelDir / "resnet50.so",
+            "modelClass": infbench.resnet50.resnet50
+        }
+    elif modelName == "ssdMobilenet":
+        import infbench.ssdmobilenet
+        return {
+            "name": "ssdMobileNet",
+            "loader": infbench.dataset.cocoLoader,
+            "dataDir": dataDir,
+            "modelPath": modelDir / "ssdMobilenet.so",
+            "modelClass": infbench.ssdmobilenet.ssdMobilenet
+        }
+    elif modelName == "bert":
+        import infbench.bert
+        return {
+            "name": "bert",
+            "loader": infbench.dataset.bertLoader,
+            "dataDir": dataDir,
+            "modelPath": modelDir / 'bert' / "bert.so",
+            "modelClass": infbench.bert.bertModel
+        }
+    else:
+        raise ValueError("Unrecognized model: ", modelName)
 
 
 def sanityCheck():
@@ -22,8 +61,8 @@ def sanityCheck():
     bench = localBench
     # bench = rayBench
 
-    bench.configure({"dataDir": dataDir, "modelDir": modelDir})
-    res = bench.nShot("superRes", 1)
+    spec = getModelSpec("superRes")
+    res = bench.nShot(spec, 1)
 
     with open("test.png", "wb") as f:
         f.write(res[0][0])
@@ -32,87 +71,31 @@ def sanityCheck():
     print("Output available at ./test.png")
 
 
-def nshot(modelName):
-    # bench = localBench
-    bench = rayBench
-    bench.configure({"dataDir": dataDir, "modelDir": modelDir})
-    bench.nShot(modelName, 32, inline=False)
+def nshot(modelSpec, n, backend):
+    backend.nShot(modelSpec, n, inline=False)
 
 
-def runMlperf(modelName):
+def runMlperf(modelSpec, backend):
     testing = True
     inline = False
-    backend = "ray"
-    # backend = "local"
-
-    if backend == 'ray':
-        bench = rayBench
-    elif backend == 'local':
-        bench = localBench
-    else:
-        raise ValueError("Unrecognized backend: ", backend)
-
-    bench.configure({"dataDir": dataDir, "modelDir": modelDir})
 
     print("Starting MLPerf Benchmark: ")
-    print("\tModel: ", modelName)
-    print("\tBackend: ", backend)
+    print("\tModel: ", modelSpec['name'])
+    print("\tBackend: ", backend.__name__)
     print("\tTesting: ", testing)
     print("\tInline: ", inline)
 
-    bench.mlperfBench(modelName, testing=testing, inline=inline)
-
-
-def bertRawExample():
-    # Examples are a combination of question and input text
-    examples = bert.load(dataDir / 'bert' / 'bertInputs.json')[0:3]
-
-    with open(modelDir / 'bert' / 'vocab.txt', 'rb') as f:
-        vocab = f.read()
-
-    # Features are tokenized versions of the example. If the example input text
-    # is too big, multiple features are generated for it based on a sliding
-    # window over the input text.
-    features = infbench.bert.featurize([examples[0]], vocab)
-
-    feature = features[0]
-    example = examples[0]
-
-    model, meta = infbench.model._loadSo(modelDir / 'bert' / 'bert.so')
-
-    # The model only runs one feature at a time.
-    inputIds, inputMask, segmentIds, otherFeature = feature
-    inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :]
-    inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :]
-    segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :]
-    model.set_input('input_ids', tvm.nd.array(inputIds))
-    model.set_input('input_mask', tvm.nd.array(inputMask))
-    model.set_input('segment_ids', tvm.nd.array(segmentIds))
-
-    model.run()
-
-    rawStartLogits = model.get_output(0)
-    bOut = rawStartLogits.numpy().tobytes()
-    startLogits = np.frombuffer(bOut, dtype=np.float32)
-    startLogits = startLogits.tolist()
-    endLogits = model.get_output(1).numpy().astype(np.float32)[0].tolist()
-
-    # Post-processing requires all features, even though the prediction used
-    # only one feature.
-    pred = bert.interpret(startLogits, endLogits, example, otherFeature)
-    print("Final Prediction:")
-    pprint(pred)
+    backend.mlperfBench(modelSpec, testing=testing, inline=inline)
 
 
 def main():
+    spec = getModelSpec("superRes")
+    # backend = localBench
+    backend = rayBench
+
     # sanityCheck()
-    # nshot("bert")
-    # nshot("superRes")
-    # nshot("resnet50")
-    # nshot("ssdMobilenet")
-    runMlperf("bert")
-    # runMlperf("resnet50")
+    # nshot(spec, 1, backend)
+    runMlperf(spec, backend)
 
 
 main()
-# bertRawExample()
