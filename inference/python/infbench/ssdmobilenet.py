@@ -1,10 +1,12 @@
 from . import model
+from . import dataset
 
 import cv2
 import numpy as np
 import io
 import matplotlib.pyplot as plt
 import mxnet
+import json
 
 # Gluoncv throws out some stupid warning about having both mxnet and torch,
 # have to go through this nonsense to suppress it.
@@ -93,3 +95,59 @@ class ssdMobilenet(model.tvmModel):
             settings.server_target_latency_ns = 1000000000
 
         return settings
+
+
+class cocoLoader(dataset.loader):
+    checkAvailable = False
+
+    @property
+    def ndata(self):
+        try:
+            return len(self.images)
+        except AttributeError:
+            raise RuntimeError("Accessed ndata before initialization")
+
+    def __init__(self, dataDir):
+        self.dataDir = dataDir / "coco"
+
+        with open(self.dataDir / "annotations/instances_val2017.json", "r") as f:
+            meta = json.load(f)
+
+        images = {}
+        for img in meta["images"]:
+            images[img["id"]] = {"file_name": img["file_name"],
+                                 "height": img["height"],
+                                 "width": img["width"],
+                                 "bbox": [],
+                                 "category": [],
+                                 'raw': None}
+
+        for a in meta["annotations"]:
+            img = images.get(a["image_id"])
+            if img is None:
+                continue
+            catagory_ids = a.get("category_id")
+            img["category"].append(catagory_ids)
+            img["bbox"].append(a.get("bbox"))
+
+        # At first, these have only metadata, but preLoad() can fill in a 'raw'
+        # field to have the actual binary data.
+        self.images = [i for i in images.values()]
+
+    def preLoad(self, idxs):
+        for i in idxs:
+            img = self.images[i]
+            imgPath = self.dataDir / 'val2017' / img['file_name']
+            cImg = cv2.imread(str(imgPath))
+            bImg = cv2.imencode('.jpg', cImg)[1]
+            img['raw'] = bImg.tobytes()
+
+    def get(self, idx):
+        return (self.images[idx]['raw'],)
+
+    def unLoad(self):
+        for img in self.images:
+            del img['raw']
+
+    def check(self, result, idx):
+        raise NotImplementedError("Check()")

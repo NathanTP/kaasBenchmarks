@@ -1,7 +1,10 @@
 from . import model
+from . import dataset
 
 import cv2
 import numpy as np
+import re
+import sys
 
 
 def _centerCrop(img, out_height, out_width):
@@ -74,3 +77,59 @@ class resnet50(model.tvmModel):
         #     settings.server_target_latency_ns = 50000000
 
         return settings
+
+
+class imageNetLoader(dataset.loader):
+    checkAvailable = True
+
+    @property
+    def ndata(self):
+        try:
+            return len(self.imageLabels)
+        except AttributeError:
+            raise RuntimeError("Accessed ndata before initialization")
+
+    def __init__(self, dataDir):
+        self.dataDir = dataDir / "fake_imagenet"
+
+        # { imageID -> rawImage }
+        # Loaded on-demand by preLoad
+        self.images = {}
+
+        # Dataset metadata, we only load actual data in preLoad (to avoid
+        # loading all of a potentially large dataset)
+        self.imagePaths = []
+        self.imageLabels = []
+        with open(self.dataDir / "val_map.txt", 'r') as f:
+            nMissing = 0
+            for imgRelPath in f:
+                name, label = re.split(r"\s+", imgRelPath.strip())
+                imgPath = self.dataDir / name
+
+                if not imgPath.exists():
+                    # OK to ignore missing images
+                    nMissing += 1
+                    continue
+
+                self.imagePaths.append(imgPath)
+                self.imageLabels.append(int(label))
+
+    def get(self, idx):
+        try:
+            return (self.images[idx],)
+        except KeyError as e:
+            raise RuntimeError("Key {} not preloaded".format(e.args)) from e
+
+    def preLoad(self, idxs):
+        for i in idxs:
+            cImg = cv2.imread(str(self.imagePaths[i]))
+            bImg = cv2.imencode('.jpg', cImg)[1]
+            self.images[i] = bImg.tobytes()
+
+    def unLoad(self, idxs):
+        for i in idxs:
+            self.images[i] = None
+
+    def check(self, result, idx):
+        # I don't know why it's -1, but it is
+        return (int.from_bytes(result[0], sys.byteorder) - 1) == self.imageLabels[idx]

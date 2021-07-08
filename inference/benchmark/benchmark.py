@@ -22,7 +22,7 @@ def getModelSpec(modelName):
         import infbench.superres
         return {
             "name": "superRes",
-            "loader": infbench.dataset.superResLoader,
+            "loader": infbench.superres.superResLoader,
             "dataDir": dataDir,
             "modelPath": modelDir / "superres.so",
             "modelClass": infbench.superres.superRes
@@ -31,7 +31,7 @@ def getModelSpec(modelName):
         import infbench.resnet50
         return {
             "name": "resnet50",
-            "loader": infbench.dataset.imageNetLoader,
+            "loader": infbench.resnet50.imageNetLoader,
             "dataDir": dataDir,
             "modelPath": modelDir / "resnet50.so",
             "modelClass": infbench.resnet50.resnet50
@@ -40,7 +40,7 @@ def getModelSpec(modelName):
         import infbench.ssdmobilenet
         return {
             "name": "ssdMobileNet",
-            "loader": infbench.dataset.cocoLoader,
+            "loader": infbench.ssdmobilenet.cocoLoader,
             "dataDir": dataDir,
             "modelPath": modelDir / "ssdMobilenet.so",
             "modelClass": infbench.ssdmobilenet.ssdMobilenet
@@ -49,7 +49,7 @@ def getModelSpec(modelName):
         import infbench.bert
         return {
             "name": "bert",
-            "loader": infbench.dataset.bertLoader,
+            "loader": infbench.bert.bertLoader,
             "dataDir": dataDir,
             "modelPath": modelDir / 'bert' / "bert.so",
             "modelClass": infbench.bert.bertModel

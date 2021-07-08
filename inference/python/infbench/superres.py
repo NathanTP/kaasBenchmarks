@@ -1,4 +1,5 @@
 from . import model
+from . import dataset
 
 from PIL import Image
 import numpy as np
@@ -77,3 +78,35 @@ class superRes(model.tvmModel):
             settings.server_target_latency_ns = 1000000000
 
         return settings
+
+
+class superResLoader(dataset.loader):
+    ndata = 1
+    checkAvailable = True
+
+    def __init__(self, dataDir):
+        self.preLoaded = False
+        imgPath = dataDir / "superRes" / "cat.png"
+        self.img = Image.open(imgPath).tobytes()
+
+        with open(dataDir / 'superRes' / 'catSupered.png', 'rb') as f:
+            self.imgRef = f.read()
+
+    def preLoad(self, idxs):
+        self.preLoaded = True
+
+    def unLoad(self, idxs):
+        self.preLoaded = False
+        pass
+
+    def get(self, idx):
+        if not self.preLoaded:
+            raise RuntimeError("Called get before preloading")
+
+        if idx != 0:
+            raise ValueError("The superres dataset has only one datum""")
+
+        return (self.img,)
+
+    def check(self, result, idx):
+        return result[0] == self.imgRef

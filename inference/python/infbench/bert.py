@@ -17,6 +17,7 @@
 
 from . import tokenization
 from . import model
+from . import dataset
 
 import collections
 from dataclasses import dataclass
@@ -639,3 +640,38 @@ class bertModel(model.tvmModel):
         #     settings.server_target_latency_ns = 1000000000
 
         return settings
+
+
+class bertLoader(dataset.loader):
+    checkAvailable = True
+
+    @property
+    def ndata(self):
+        try:
+            return len(self.examples)
+        except AttributeError:
+            raise RuntimeError("Accessed ndata before initialization")
+
+    def __init__(self, dataDir):
+        self.dataDir = dataDir / 'bert'
+        # The bert example input is just 4MB, we just load it all, regardless
+        # of idxs
+        self.examples = load(self.dataDir / "bertInputs.json")
+
+    def preLoad(self, idxs):
+        # We preload during init so we can get ndata early. Other datasets have
+        # easily read metadata, but ndata isn't easily known without loading
+        pass
+
+    def get(self, idx):
+        if self.examples is None:
+            raise RuntimeError("Index {} not yet loaded!".format(idx))
+
+        return (self.examples[idx][0],)
+
+    def unLoad(self):
+        self.examples = None
+
+    def check(self, result, idx):
+        origData = self.examples[idx][1]
+        return check(result, origData)
