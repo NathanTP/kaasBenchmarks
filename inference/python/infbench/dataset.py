@@ -179,7 +179,7 @@ class cocoLoader(loader):
 
 
 class bertLoader(loader):
-    checkAvailable = False
+    checkAvailable = True
 
     def __init__(self, dataDir):
         self.dataDir = dataDir / 'bert'
@@ -197,12 +197,11 @@ class bertLoader(loader):
         if self.examples is None:
             raise RuntimeError("Index {} not yet loaded!".format(idx))
 
-        return (self.examples[idx],)
+        return (self.examples[idx][0],)
 
     def unload(self):
         self.examples = None
 
     def check(self, result, idx):
-        # XXX I think this would actually be easy to implement. Worst-case
-        # scenario, we compare against the output of the original model.
-        raise NotImplementedError("BERT does not support correctness checking right now")
+        origData = self.examples[idx][1]
+        return bert.check(result, origData)

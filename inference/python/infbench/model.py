@@ -74,6 +74,10 @@ def getOnnxInfo(onnxDesc):
     else:
         onnxModel = onnxDesc
 
+    initializers = []
+    for node in onnxModel.graph.initializer:
+        initializers.append(node.name)
+
     info = {}
 
     # I assume the model has only one input from the host (the first one). I
@@ -81,6 +85,12 @@ def getOnnxInfo(onnxDesc):
     # just gonna assume for now.
     ins = []
     for inNode in onnxModel.graph.input:
+        # Some onnx graphs (like superRes) have explicit inputs for
+        # initializers (weights). We only want to record dynamic inputs. Most
+        # models don't do this.
+        if inNode.name in initializers:
+            continue
+
         inInfo = {}
         inInfo['name'] = inNode.name
         inInfo['type'] = onnxTypes[inNode.type.tensor_type.elem_type]
@@ -236,74 +246,60 @@ def dumpModel(graphMod, outputBasePath):
 inputMap = collections.namedtuple("inputMap", ["const", "inp", "pre", "run"], defaults=[None]*4)
 
 
-class tvmModel(metaclass=abc.ABCMeta):
-    """A generic onnx on tvm model. Concrete models must additionally provide
-        - preMap, runMap, postMap: inputMap objects for thepre, run, and post
-        functions. Each function input is a list in order [const,inp,pre,run].
-    """
+class Model(abc.ABC):
     @property
     @abc.abstractmethod
-    def preMap(self):
+    def preMap(self) -> inputMap:
+        """Input map for preprocessing"""
         ...
 
     @property
     @abc.abstractmethod
-    def runMap(self):
+    def runMap(self) -> inputMap:
+        """Input map for the model"""
         ...
 
     @property
     @abc.abstractmethod
-    def postMap(self):
+    def postMap(self) -> inputMap:
+        """Input map for postprocessing"""
         ...
 
     @property
     @abc.abstractmethod
     def nOutPre(self):
+        """Number of outputs from preprocessing"""
         ...
 
     @property
     @abc.abstractmethod
     def nOutRun(self):
+        """Number of outputs from the model"""
         ...
 
     @property
     @abc.abstractmethod
     def nOutPost(self):
+        """Number of outputs from postprocessing"""
         ...
 
     @property
     @abc.abstractmethod
-    def noPost(self):
+    def noPost(self) -> bool:
+        """Does the model support post-processing?"""
         ...
 
     @property
     @abc.abstractmethod
     def nConst(self):
+        """Number of constants returned by getConstants"""
         ...
 
-    def __init__(self, modelDesc):
-        """See loadModel() for allowable values of modelDesc"""
-        self.model, self.meta = loadModel(modelDesc)
-
+    @abc.abstractmethod
     def run(self, dat):
-        """Run the model against input 'dat'. Dat is expected to be a bytes
-       object that can be converted to numpy/tvm and passed to the model as
-       input."""
-
-        # XXX Assuming only one input for run
-        dat = dat[0]
-
-        datNp = np.frombuffer(dat, dtype=self.meta['inType'])
-        datNp.shape = self.meta['inShape']
-
-        self.model.set_input(self.meta['inName'], tvm.nd.array(datNp))
-        self.model.run()
-
-        outputs = []
-        for i, outMeta in enumerate(self.meta['outputs']):
-            outputs.append(self.model.get_output(i).numpy().tobytes())
-
-        return outputs
+        """Run the model against input 'dat'. The format of dat is dependent on
+        the concrete model type."""
+        ...
 
     @staticmethod
     def getConstants(modelDir):
@@ -326,6 +322,35 @@ class tvmModel(metaclass=abc.ABCMeta):
     def getMlPerfCfg(testing=False):
         """Return a mlperf settings object for this model"""
         pass
+
+
+class tvmModel(Model):
+    """A generic onnx on tvm model. Concrete models must additionally provide
+        - preMap, runMap, postMap: inputMap objects for thepre, run, and post
+        functions. Each function input is a list in order [const,inp,pre,run].
+    """
+    def __init__(self, modelDesc):
+        """See loadModel() for allowable values of modelDesc"""
+        self.model, self.meta = loadModel(modelDesc)
+
+    def run(self, dat):
+        """Run the model against input 'dat'. Dat is expected to be a bytes
+       object that can be converted to numpy/tvm and passed to the model as
+       input."""
+
+        for idx, inpMeta in enumerate(self.meta['inputs']):
+            inputDat = dat[idx]
+            datNp = np.frombuffer(inputDat, dtype=inpMeta['type'])
+            datNp.shape = inpMeta['shape']
+            self.model.set_input(inpMeta['name'], tvm.nd.array(datNp))
+
+        self.model.run()
+
+        outputs = []
+        for i, outMeta in enumerate(self.meta['outputs']):
+            outputs.append(self.model.get_output(i).numpy().tobytes())
+
+        return outputs
 
 
 # =============================================================================

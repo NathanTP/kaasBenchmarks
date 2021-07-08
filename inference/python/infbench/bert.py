@@ -25,6 +25,8 @@ import math
 import tempfile
 import transformers
 import numpy as np
+import string
+import re
 
 
 @dataclass
@@ -47,8 +49,10 @@ class InputFeatures(object):
 
 
 def load(dataPath):
-    """Raw loading of input data with minimal preprocessing (runs on the client and is untimed).
-    Read a SQuAD json file into a list of SquadExample."""
+    """Raw loading of input data with minimal preprocessing (runs on the client
+    and is untimed).  Read a SQuAD json file into a list of (SquadExample, raw)
+    where SquadExample is a parsed input to the preprocessor and raw is the raw
+    dataset dictionary."""
     with open(dataPath, "r") as reader:
         input_data = json.load(reader)["data"]
 
@@ -79,7 +83,7 @@ def load(dataPath):
                 question_text = qa["question"]
 
                 example = SquadExample(question=question_text, docTokens=doc_tokens)
-                examples.append(example)
+                examples.append((example, qa))
 
     return examples
 
@@ -551,6 +555,33 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         features.append(exampleFeatures[0])
 
     return features
+
+
+def normalize_answer(text):
+    """Lower text and remove punctuation, articles and extra whitespace."""
+    exclude = set(string.punctuation)
+
+    text = text.lower()
+    text = ''.join(ch for ch in text if ch not in exclude)
+    text = re.sub(r'\b(a|an|the)\b', ' ', text)
+    text = ' '.join(text.split())
+    return text
+
+
+def check(pred, origData):
+    """Validate prediction based on exact match. origData is the original entry
+    in the dataset with all metadata, pred is the output of the
+    post-processor."""
+
+    groundTruths = list(map(lambda x: x['text'], origData['answers']))
+
+    matches = []
+    for truth in groundTruths:
+        pred = normalize_answer(pred)
+        truth = normalize_answer(truth)
+        matches.append(pred == truth)
+
+    return max(matches)
 
 
 class bertModel(model.tvmModel):

@@ -27,7 +27,7 @@ def getModelSpec(modelName):
             "modelPath": modelDir / "resnet50.so",
             "modelClass": infbench.resnet50.resnet50
         }
-    elif modelName == "ssdMobilenet":
+    elif modelName == "ssdMobileNet":
         import infbench.ssdmobilenet
         return {
             "name": "ssdMobileNet",
@@ -82,17 +82,17 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("bert")
+    spec = getModelSpec("ssdMobileNet")
 
-    # import localBench
-    # backend = localBench
+    import localBench
+    backend = localBench
 
-    import rayBench
-    backend = rayBench
+    # import rayBench
+    # backend = rayBench
 
     # sanityCheck()
-    # nshot(spec, 1, backend)
-    runMlperf(spec, backend)
+    nshot(spec, 16, backend)
+    # runMlperf(spec, backend)
 
 
 main()
