@@ -7,7 +7,7 @@ import io
 import matplotlib.pyplot as plt
 
 
-class superRes(model.tvmModel):
+class superResBase():
     preMap = model.inputMap(inp=(0,))
     runMap = model.inputMap(pre=(1,))
     postMap = model.inputMap(pre=(0,), run=(0,))
@@ -78,6 +78,10 @@ class superRes(model.tvmModel):
             settings.server_target_latency_ns = 1000000000
 
         return settings
+
+
+class superResTvm(superResBase, model.tvmModel):
+    pass
 
 
 class superResLoader(dataset.loader):

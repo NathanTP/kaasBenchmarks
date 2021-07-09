@@ -25,7 +25,7 @@ def getModelSpec(modelName):
             "loader": infbench.superres.superResLoader,
             "dataDir": dataDir,
             "modelPath": modelDir / "superres.so",
-            "modelClass": infbench.superres.superRes
+            "modelClass": infbench.superres.superResTvm
         }
     elif modelName == "resnet50":
         import infbench.resnet50
@@ -91,7 +91,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("testModel")
+    spec = getModelSpec("superRes")
 
     import localBench
     backend = localBench

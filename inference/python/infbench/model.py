@@ -4,10 +4,14 @@ import tempfile
 import os
 import abc
 import json
+import yaml
 import pickle
 import collections
+import copy
 
 import mlperf_loadgen
+
+import libff.kaas as kaas
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -247,6 +251,8 @@ inputMap = collections.namedtuple("inputMap", ["const", "inp", "pre", "run"], de
 
 
 class Model(abc.ABC):
+    """Base class for all models. The benchmark expects this interface."""
+
     @property
     @abc.abstractmethod
     def preMap(self) -> inputMap:
@@ -325,12 +331,9 @@ class Model(abc.ABC):
 
 
 class tvmModel(Model):
-    """A generic onnx on tvm model. Concrete models must additionally provide
-        - preMap, runMap, postMap: inputMap objects for thepre, run, and post
-        functions. Each function input is a list in order [const,inp,pre,run].
-    """
+    """A generic tvm model. Should be initialized with a precompiled .so"""
+
     def __init__(self, modelDesc):
-        """See loadModel() for allowable values of modelDesc"""
         self.model, self.meta = loadModel(modelDesc)
 
     def run(self, dat):
@@ -351,6 +354,30 @@ class tvmModel(Model):
             outputs.append(self.model.get_output(i).numpy().tobytes())
 
         return outputs
+
+
+class kaasModel(Model):
+    """A generic KaaS model."""
+    def __init__(self, modelDir, baseName, framework="ray"):
+        self.cubin = modelDir / (baseName + ".cubin")
+        with open(modelDir / (baseName + "_model" + ".yaml"), 'r') as f:
+            self.reqTemplate = json.load(f)
+
+        with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
+            self.meta = json.load(f)
+
+    def run(self, dat):
+        """Unlike other Models, kaas accepts keys or references to inputs in
+        dat rather than actual values. Run here will submit the model to KaaS
+        via the framework configured in init and returns a list of
+        references/keys to the outputs."""
+        constants = dat[:self.nConstant]
+        inputs = dat[self.nConsant:]
+
+        req = kaas.kaasReq.fromDict(self.reqTemplate)
+        for kern in req:
+            updatedArgs = []
+            for arg in kern.arguments:
 
 
 # =============================================================================
