@@ -35,7 +35,7 @@ kernels:
     name: inputB
     size: 65536
   kernel: sgemm
-  library: /scratch/nathanp/kaasBenchmarks/inference/kaasSources/sgemm/kerns/sgemm.cubin
+  library: /scratch/nathanp/kaasBenchmarks/inference/kaasSources/sgemm/sgemm.cubin
   literals: []
   outputs:
   - const: false
@@ -85,7 +85,7 @@ kernels:
     name: intermediate0B
     size: 65536
   kernel: sgemm
-  library: /scratch/nathanp/kaasBenchmarks/inference/kaasSources/sgemm/kerns/sgemm.cubin
+  library: /scratch/nathanp/kaasBenchmarks/inference/kaasSources/sgemm/sgemm.cubin
   literals: []
   outputs:
   - const: false
@@ -135,7 +135,7 @@ kernels:
     name: outputB
     size: 65536
   kernel: sgemm
-  library: /scratch/nathanp/kaasBenchmarks/inference/kaasSources/sgemm/kerns/sgemm.cubin
+  library: /scratch/nathanp/kaasBenchmarks/inference/kaasSources/sgemm/sgemm.cubin
   literals: []
   outputs:
   - const: false

@@ -8,13 +8,13 @@ from gpuinfo import GPUInfo
 
 
 def _getHandlers(modelSpec):
-    loader = modelSpec['loader'](modelSpec['dataDir'])
+    loader = modelSpec.loader(modelSpec.dataDir)
 
     # Create as many models as we have GPUs to get some concurrency. The local
     # mode doesn't independently scale pre/post/run.
     models = []
     for i in range(len(GPUInfo.check_empty())):
-        models.append(modelSpec['modelClass'](modelSpec['modelPath']))
+        models.append(modelSpec.modelClass(modelSpec.getModelArg()))
 
     return (loader, models)
 
@@ -45,7 +45,6 @@ def _runOne(model, constants, inputs):
 
 
 def nShot(modelSpec, n, inline=False):
-    # modelSpec = getModelSpec(modelName)
     loader, models = _getHandlers(modelSpec)
 
     if inline:
@@ -53,7 +52,7 @@ def nShot(modelSpec, n, inline=False):
 
     loader.preLoad(list(range(min(n, loader.ndata))))
     model = models[0]
-    constants = model.getConstants(modelSpec['modelPath'].parent)
+    constants = model.getConstants(modelSpec.modelPath.parent)
 
     times = []
     accuracies = []
@@ -141,7 +140,7 @@ def mlperfBench(modelSpec, testing=False, inline=False):
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
 
     loader, models = _getHandlers(modelSpec)
-    constants = models[0].getConstants(modelSpec['modelPath'].parent)
+    constants = models[0].getConstants(modelSpec.modelPath.parent)
 
     settings = models[0].getMlPerfCfg(testing=testing)
 

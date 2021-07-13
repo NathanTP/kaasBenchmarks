@@ -1,12 +1,19 @@
+#!/usr/bin/env python
+
 import yaml
 import argparse
 import sys
+import subprocess as sp
+import shutil
+import pathlib
 
 import libff.kaas as kaas
 
 
+srcDir = pathlib.Path(__file__).parent.resolve()
+
+libraryName = "sgemm.cubin"
 mmKern = "sgemm"
-library = "kerns/sgemm.cubin"
 
 tile_tb_height = 8
 tileN = 16
@@ -36,7 +43,9 @@ def generateLayer(namePrefix, inputName, outputLayer=False, inputLayer=False):
                  (bBuf, 'i'),
                  (cBuf, 'o')]
 
-    kern = kaas.kernelSpec(library, mmKern,
+    # libraryName will be overwritten by the client when it loads
+    # the model, as will the buffer keys
+    kern = kaas.kernelSpec(libraryName, mmKern,
                            gridDim, blockDim, sharedSize,
                            literals=[],
                            arguments=arguments)
@@ -65,23 +74,33 @@ def metaFromReq(req):
     shape = (sideLength, sideLength)
     dtype = "float32"
 
+    constants = []
     inputs = []
     outputs = []
     for kern in req.kernels:
         for buf in kern.inputs:
             if not buf.ephemeral:
-                inputs.append({"name": buf.name, "type": dtype, "shape": shape})
+                if buf.const:
+                    constants.append({"name": buf.name, "type": dtype, "shape": shape})
+                else:
+                    inputs.append({"name": buf.name, "type": dtype, "shape": shape})
         for buf in kern.outputs:
             if not buf.ephemeral:
                 outputs.append({"name": buf.name, "type": dtype, "shape": shape})
 
-    return {"inputs": inputs, "outputs": outputs}
+    return {"constants": constants, "inputs": inputs, "outputs": outputs}
+
+
+def generateCubin(outputPath):
+    sp.run(["make"], cwd="kerns/")
+    shutil.copy("kerns/sgemm.cubin", outputPath)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--depth', type=int, default=3, help="How many layers of sgemm to generate")
-    parser.add_argument('outputPath', type=str, help="File to write model to")
+    parser.add_argument('-n', '--name', type=str, default="sgemm", help="Base name for outputs")
+    parser.add_argument('-o', '--output', type=pathlib.Path, default=srcDir, help="Output Directory")
 
     args = parser.parse_args()
 
@@ -89,11 +108,15 @@ if __name__ == "__main__":
         print("Depth must be >= 3")
         sys.exit(1)
 
+    if not args.output.exists():
+        args.output.mkdir(mode=0o700, parents=True)
+
     req = generateModel(args.depth)
-    with open(args.outputPath + "_model.yaml", 'w') as f:
+    with open(args.output / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
-    # meta = generateMeta(args.depth)
     meta = metaFromReq(req)
-    with open(args.outputPath + "_meta.yaml", 'w') as f:
+    with open(args.output / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta, f)
+
+    generateCubin(args.output / (args.name + ".cubin"))

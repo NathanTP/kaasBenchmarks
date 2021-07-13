@@ -1,16 +1,17 @@
-inputs:
-- name: inputA
+constants:
+- name: inputB
   shape: &id001
   - 128
   - 128
-  type: float32
-- name: inputB
-  shape: *id001
   type: float32
 - name: intermediate0B
   shape: *id001
   type: float32
 - name: outputB
+  shape: *id001
+  type: float32
+inputs:
+- name: inputA
   shape: *id001
   type: float32
 outputs:
