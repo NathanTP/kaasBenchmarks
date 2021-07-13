@@ -98,15 +98,15 @@ def sanityCheck(backend):
 
 
 def nshot(modelSpec, n, backend):
-    backend.nShot(modelSpec, n, inline=False)
+    backend.nShot(modelSpec, n, inline=True)
 
 
 def runMlperf(modelSpec, backend):
     testing = True
-    inline = True
+    inline = False
 
     print("Starting MLPerf Benchmark: ")
-    print("\tModel: ", modelSpec['name'])
+    print("\tModel: ", modelSpec.name)
     print("\tBackend: ", backend.__name__)
     print("\tTesting: ", testing)
     print("\tInline: ", inline)
@@ -115,7 +115,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("testModelKaas")
+    spec = getModelSpec("resnet50")
 
     # import localBench
     # backend = localBench

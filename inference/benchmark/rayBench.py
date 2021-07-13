@@ -9,25 +9,14 @@ import os
 import mlperf_loadgen
 
 
-# Each phase (pre,run,post) accepts and returns multiple values. Each value is
-# itself a list/tuple representing the batch. This facilitates ray.get()'ing a
-# subset of the inputs:
-# [ [A0, A1], [B0, B1], ... ]
-#
-# Inside functions, it is often more convenient to use the transpose of this (a
-# batch of tuples of inputs):
-# [ (A0, B0), (A1, B1), ... ]
-def _transposeBatch(batch):
-    return list(zip(*batch))
-
-# All steps (pre/run/post) take in multiple arguments as described in
-# _transposeBatch. If we passed a list of futures, we would need to ray.get()
-# each one seperately. This would prevent Ray from doing full lazy evaluation,
-# it would instantiate a million functions each waiting on ray.get(), wasting a
-# ton of resources and eventually crashing. Instead, we pass each input
-# directly as an argument using the *batch syntax (this groups remaining
-# function arguments into a list). This way Ray waits until all inputs are
-# ready before instantiating the function.
+# All steps (pre/run/post) take in multiple arguments (even if there's one
+# argument, it's passed as a tuple). If we passed a list of futures, we would
+# need to ray.get() each one seperately. This would prevent Ray from doing full
+# lazy evaluation, it would instantiate a million functions each waiting on
+# ray.get(), wasting a ton of resources and eventually crashing. Instead, we
+# pass each input directly as an argument using the *batch syntax (this groups
+# remaining function arguments into a list). This way Ray waits until all
+# inputs are ready before instantiating the function.
 
 
 def _unMarshalArgs(argMap, args):
@@ -44,51 +33,43 @@ def _unMarshalArgs(argMap, args):
 
 
 @ray.remote
-def pre(modelSpec, *batch):
+def pre(modelSpec, *inputs):
     mClass = modelSpec.modelClass
-    constants, batch = _unMarshalArgs(mClass.preMap, batch)
+    constants, data = _unMarshalArgs(mClass.preMap, inputs)
 
-    batch = _transposeBatch(batch)
-
-    results = []
-    for data in batch:
-        results.append(mClass.pre(constants + list(data)))
-
-    # If there are multiple returns, ray will return a tuple. If there is only
-    # one return, it will return it as a reference to a tuple so we have to
-    # unpack it here before returning.
-    if len(results[0]) == 1:
-        return _transposeBatch(results)[0]
+    res = mClass.pre(constants + list(data))
+    if len(res) == 1:
+        return res[0]
     else:
-        return _transposeBatch(results)
+        return res
 
 
-def runKaas(modelSpec, modelArg, *batch, completionQ=None, queryIds=None, cacheModel=False):
-    """Run a kaasModel. kaasModels handle Ray interaction internally so this
-    function should be called natively on the client."""
-    # KaaS models live on the client, so the argument should be a kaasModel
-    # instance
-    model = modelArg
-
-    constants, batch = _unMarshalArgs(modelSpec.modelClass.runMap, batch)
-
-    batch = _transposeBatch(batch)
-
-    results = []
-    for data in batch:
-        results.append(model.run(data))
-
-    results = _transposeBatch(results)
-
-    if completionQ is not None:
-        completionQ.put((results, queryIds))
-
-    # Ray will interpret the return value as tuple if there are multiple
-    # returns, but if there is one return, it will treat it as a scalar.
-    if len(results) == 1:
-        return results[0]
-    else:
-        return results
+# def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
+#     """Run a kaasModel. kaasModels handle Ray interaction internally so this
+#     function should be called natively on the client."""
+#     # KaaS models live on the client, so the argument should be a kaasModel
+#     # instance
+#     model = modelArg
+#
+#     constants, data = _unMarshalArgs(modelSpec.modelClass.runMap, batch)
+#
+#     batch = _transposeBatch(batch)
+#
+#     results = []
+#     for data in batch:
+#         results.append(model.run(data))
+#
+#     results = _transposeBatch(results)
+#
+#     if completionQ is not None:
+#         completionQ.put((results, queryId))
+#
+#     # Ray will interpret the return value as tuple if there are multiple
+#     # returns, but if there is one return, it will treat it as a scalar.
+#     if len(results) == 1:
+#         return results[0]
+#     else:
+#         return results
 
 
 # Not sure how to have a truly per-worker cache, but this dict maps PID to the initialized model (if any).
@@ -100,12 +81,8 @@ modelCache = {}
 
 
 @ray.remote(num_gpus=1)
-def run(modelSpec, modelArg, *batch, completionQ=None, queryIds=None, cacheModel=False):
+def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
     mClass = modelSpec.modelClass
-    constants, batch = _unMarshalArgs(mClass.runMap, batch)
-
-    batch = _transposeBatch(batch)
-    results = []
 
     if cacheModel:
         pid = os.getpid()
@@ -117,14 +94,12 @@ def run(modelSpec, modelArg, *batch, completionQ=None, queryIds=None, cacheModel
     else:
         model = modelSpec.modelClass(modelArg)
 
-    for data in batch:
-        results.append(model.run(constants + list(data)))
-        # results.append(model.run(data))
+    constants, data = _unMarshalArgs(mClass.runMap, inputs)
 
-    results = _transposeBatch(results)
+    results = model.run(constants + list(data))
 
     if completionQ is not None:
-        completionQ.put((results, queryIds))
+        completionQ.put((results, queryId))
 
     # Ray will interpret the return value as tuple if there are multiple
     # returns, but if there is one return, it will treat it as a scalar.
@@ -135,22 +110,16 @@ def run(modelSpec, modelArg, *batch, completionQ=None, queryIds=None, cacheModel
 
 
 @ray.remote
-def post(modelSpec, *batchAll, completionQ=None, queryIds=None):
+def post(modelSpec, *inputs, completionQ=None, queryId=None):
     mClass = modelSpec.modelClass
-    constants, batch = _unMarshalArgs(mClass.postMap, batchAll)
+    constants, data = _unMarshalArgs(mClass.postMap, inputs)
 
-    batch = _transposeBatch(batch)
-
-    results = []
-    for data in batch:
-        results.append(modelSpec.modelClass.post(constants + list(data)))
-
-    results = _transposeBatch(results)
+    results = modelSpec.modelClass.post(constants + list(data))
 
     # In mlperf mode, we need to asynchronously report completions to a worker
     # through this queue. Otherwise we can return a ray future.
     if completionQ is not None:
-        completionQ.put((results, queryIds))
+        completionQ.put((results, queryId))
 
     if len(results) == 1:
         return results[0]
@@ -159,35 +128,29 @@ def post(modelSpec, *batchAll, completionQ=None, queryIds=None):
 
 
 @ray.remote(num_gpus=1)
-def runInline(modelSpec, modelArg, *refs, completionQ=None, queryIds=None):
+def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
     """Run model with inlined pre and post-processing"""
     model = modelSpec.modelClass(modelArg)
 
     constants = refs[:model.nConst]
-    batch = refs[model.nConst:]
+    inputs = refs[model.nConst:]
 
-    results = []
-    batch = _transposeBatch(batch)
-    for inputs in batch:
-        preInp = _getInputs(model.preMap, const=constants, inp=inputs)
-        preOut = model.pre(preInp)
+    preInp = _getInputs(model.preMap, const=constants, inp=inputs)
+    preOut = model.pre(preInp)
 
-        runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
-        modOut = model.run(runInp)
+    runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
+    modOut = model.run(runInp)
 
-        if model.noPost:
-            postOut = modOut
-        else:
-            postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=modOut)
-            postOut = model.post(postInp)
+    if model.noPost:
+        postOut = modOut
+    else:
+        postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=modOut)
+        postOut = model.post(postInp)
 
-        results.append(postOut)
-
-    results = _transposeBatch(results)
     if completionQ is not None:
-        completionQ.put((results, queryIds))
+        completionQ.put((postOut, queryId))
 
-    return results
+    return postOut
 
 
 def _getInputs(maps, const=None, inp=None, pre=None, run=None):
@@ -199,7 +162,7 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runBatch(modelSpec, specRef, modelArg, constRefs, batch, inline=False, completionQ=None, queryIds=None, cacheModel=False):
+def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     mClass = modelSpec.modelClass
@@ -209,22 +172,21 @@ def _runBatch(modelSpec, specRef, modelArg, constRefs, batch, inline=False, comp
         # statically determine the dataflow. All refs have to be first-class
         # arguments so we pack them all into a list and then expand it with
         # *varArgs
-        varArgs = batch
         if constRefs is None:
-            varArgs = batch
+            varArgs = inputRefs
         else:
-            varArgs = list(constRefs) + batch
+            varArgs = list(constRefs) + inputRefs
 
         if completionQ is not None:
             runInline.options(num_returns=mClass.nOutPost).remote(
-                    specRef, modelArg, *varArgs, completionQ=completionQ, queryIds=queryIds)
+                    specRef, modelArg, *varArgs, completionQ=completionQ, queryId=queryId)
             postOut = None
         else:
             postOut = runInline.options(num_returns=mClass.nOutPost).remote(
                                 specRef, modelArg, *varArgs)
     else:
         # Pre
-        preInp = _getInputs(mClass.preMap, const=constRefs, inp=batch)
+        preInp = _getInputs(mClass.preMap, const=constRefs, inp=inputRefs)
 
         preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
         if mClass.nOutPre == 1:
@@ -238,10 +200,10 @@ def _runBatch(modelSpec, specRef, modelArg, constRefs, batch, inline=False, comp
             runner = run.options(num_returns=mClass.nOutRun).remote
             specArg = specRef
 
-        runInp = _getInputs(mClass.runMap, const=constRefs, inp=batch, pre=preOut)
+        runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
         if completionQ is not None and mClass.noPost:
             runOut = runner(specArg, modelArg, *runInp,
-                            completionQ=completionQ, queryIds=queryIds, cacheModel=cacheModel)
+                            completionQ=completionQ, queryId=queryId, cacheModel=cacheModel)
         else:
             runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
 
@@ -252,9 +214,9 @@ def _runBatch(modelSpec, specRef, modelArg, constRefs, batch, inline=False, comp
         if mClass.noPost:
             postOut = runOut
         else:
-            postInp = _getInputs(mClass.postMap, const=constRefs, inp=batch, pre=preOut, run=runOut)
+            postInp = _getInputs(mClass.postMap, const=constRefs, inp=inputRefs, pre=preOut, run=runOut)
             postOut = post.options(num_returns=mClass.nOutPost).remote(
-                    specRef, *postInp, completionQ=completionQ, queryIds=queryIds)
+                    specRef, *postInp, completionQ=completionQ, queryId=queryId)
 
             if mClass.nOutPost == 1:
                 postOut = [postOut]
@@ -286,21 +248,20 @@ def nShot(modelSpec, n, inline=False):
         idx = i % loader.ndata
         inp = loader.get(idx)
 
-        batch = _transposeBatch([inp])
+        # batch = _transposeBatch([inp])
 
         start = time.time()
-        res = _runBatch(modelSpec, specRef, modelArg, constRefs, batch, inline=inline)
+        res = _runOne(modelSpec, specRef, modelArg, constRefs, inp, inline=inline)
         res = ray.get(res)
 
-        results.append(res[0])
+        results.append(res)
 
         times.append(time.time() - start)
 
-        res = _transposeBatch(res)
+        # res = _transposeBatch(res)
 
-        # nShot always uses batch size 1, so just check idx 0
         if loader.checkAvailable:
-            accuracies.append(loader.check(res[0], idx))
+            accuracies.append(loader.check(res, idx))
 
     print("Minimum latency: ")
     print(np.min(times))
@@ -343,15 +304,15 @@ def handleCompletion(queue):
     wrapItUp = False
     while not wrapItUp or ncomplete != targetComplete:
         # One batch at a time
-        resps, qids = queue.get()
+        resp, qid = queue.get()
 
         # if ncomplete % 10 == 0:
         #     print("Query {} Finished".format(ncomplete))
 
-        if isinstance(resps, int):
+        if isinstance(resp, int):
             # The driver is asking us to wrap up and exit after we've seen
             # 'resps' many responses.
-            targetComplete = resps
+            targetComplete = resp
 
             if ncomplete == targetComplete:
                 break
@@ -359,10 +320,12 @@ def handleCompletion(queue):
                 wrapItUp = True
         else:
             # Normal completion message from a worker
-            completions = []
-            for i in qids:
-                completions.append(mlperf_loadgen.QuerySampleResponse(i, 0, 0))
-            mlperf_loadgen.QuerySamplesComplete(completions)
+            completion = mlperf_loadgen.QuerySampleResponse(qid, 0, 0)
+            mlperf_loadgen.QuerySamplesComplete([completion])
+            # completions = []
+            # for i in qids:
+            #     completions.append(mlperf_loadgen.QuerySampleResponse(i, 0, 0))
+            # mlperf_loadgen.QuerySamplesComplete(completions)
             ncomplete += 1
 
 
@@ -389,22 +352,21 @@ class mlperfRunner():
         # seconds and mlperf is based on SLOs which we violate immediately.
         if preWarm:
             self.loader.preLoad([0])
-            inputs = [self.loader.get(0)]
-            res = _runBatch(self.modelSpec, self.specRef, self.modelArg,
-                            self.constants, inputs, inline=self.inline)
+            inputs = self.loader.get(0)
+            res = _runOne(self.modelSpec, self.specRef, self.modelArg,
+                          self.constants, inputs, inline=self.inline)
             ray.get(res)
 
     def runBatch(self, queryBatch):
-        inputs = []
-        qids = []
         for q in queryBatch:
-            inputs.append(self.loader.get(q.index))
-            qids.append(q.id)
+            # inputs.append(self.loader.get(q.index))
+            # qids.append(q.id)
+            inp = self.loader.get(q.index)
 
-        _runBatch(self.modelSpec, self.specRef, self.modelArg,
-                  self.constants, inputs, inline=self.inline,
-                  completionQ=self.completionQueue, queryIds=qids,
-                  cacheModel=True)
+            _runOne(self.modelSpec, self.specRef, self.modelArg,
+                    self.constants, inp, inline=self.inline,
+                    completionQ=self.completionQueue, queryId=q.id,
+                    cacheModel=True)
 
         self.nIssued += len(queryBatch)
 
