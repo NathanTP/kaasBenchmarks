@@ -44,32 +44,27 @@ def pre(modelSpec, *inputs):
         return res
 
 
-# def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
-#     """Run a kaasModel. kaasModels handle Ray interaction internally so this
-#     function should be called natively on the client."""
-#     # KaaS models live on the client, so the argument should be a kaasModel
-#     # instance
-#     model = modelArg
-#
-#     constants, data = _unMarshalArgs(modelSpec.modelClass.runMap, batch)
-#
-#     batch = _transposeBatch(batch)
-#
-#     results = []
-#     for data in batch:
-#         results.append(model.run(data))
-#
-#     results = _transposeBatch(results)
-#
-#     if completionQ is not None:
-#         completionQ.put((results, queryId))
-#
-#     # Ray will interpret the return value as tuple if there are multiple
-#     # returns, but if there is one return, it will treat it as a scalar.
-#     if len(results) == 1:
-#         return results[0]
-#     else:
-#         return results
+def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
+    """Run a kaasModel. kaasModels handle Ray interaction internally so this
+    function should be called natively on the client."""
+    # KaaS models live on the client, so the argument should be a kaasModel
+    # instance
+    model = modelArg
+
+    # constants, data = _unMarshalArgs(modelSpec.modelClass.runMap, inputs)
+
+    results = model.run(inputs)
+
+    if completionQ is not None:
+        completionQ.put((results, queryId))
+
+    return results
+    # Ray will interpret the return value as tuple if there are multiple
+    # returns, but if there is one return, it will treat it as a scalar.
+    # if len(results) == 1:
+    #     return results[0]
+    # else:
+    #     return results
 
 
 # Not sure how to have a truly per-worker cache, but this dict maps PID to the initialized model (if any).
@@ -173,9 +168,9 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
         # arguments so we pack them all into a list and then expand it with
         # *varArgs
         if constRefs is None:
-            varArgs = inputRefs
+            varArgs = list(inputRefs)
         else:
-            varArgs = list(constRefs) + inputRefs
+            varArgs = list(constRefs) + list(inputRefs)
 
         if completionQ is not None:
             runInline.options(num_returns=mClass.nOutPost).remote(
@@ -206,6 +201,15 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
                             completionQ=completionQ, queryId=queryId, cacheModel=cacheModel)
         else:
             runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
+
+        #XXX
+        # The problem here is that kaasRay needs to return a reference to
+        # something in the obj store, but when it returns a value it gets
+        # wrapped in its own reference ( kaasRayRef(actualOutputRef) ). I'm not
+        # sure how to 'pass-through' a reference though. Putting a ray.get
+        # somewhere would just serialize execution or it would trigger that
+        # fork-bomb issue...
+        runOut = ray.get(runOut)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]

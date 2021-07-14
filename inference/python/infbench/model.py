@@ -253,6 +253,9 @@ inputMap = collections.namedtuple("inputMap", ["const", "inp", "pre", "run"], de
 class Model(abc.ABC):
     """Base class for all models. The benchmark expects this interface."""
 
+    def __init__(self, *args, **kwargs):
+        pass
+
     @property
     @abc.abstractmethod
     def preMap(self) -> inputMap:
@@ -396,11 +399,6 @@ class kaasModel(Model):
         for idx, inp in enumerate(self.meta['inputs']):
             renameMap[inp['name']] = inputs[idx]
 
-        #XXX
-        print("\n\n")
-        from pprint import pprint
-        pprint(renameMap)
-        print("\n\n")
         # In theory, we should also remap the output keys but ray doesn't
         # support setting the output key anyway and kaasBench isn't set up to
         # pick them. If we end up supporting a libff backend, we'll need to

@@ -40,7 +40,9 @@ class testModel():
         with the 1-indexed index"""
         consts = []
         for i in range(depth):
-            consts.append(np.full((matSize, matSize), i+1, dtype=np.float32))
+            const = np.zeros((matSize, matSize), dtype=np.float32)
+            np.fill_diagonal(const, i+1)
+            consts.append(const)
         return consts
 
     @staticmethod
@@ -50,7 +52,11 @@ class testModel():
 
     @staticmethod
     def post(data):
-        result = data[1] - 1
+        inputArr = data[1]
+        inputArr.dtype = np.float32
+        inputArr.shape = (matSize, matSize)
+        result = inputArr - 1
+
         return (result,)
 
     @staticmethod
@@ -108,6 +114,7 @@ class testLoader(dataset.loader):
 
     def check(self, result, idx):
         result = result[0]
+
         expect = self.data[idx]
         constants = testModel.getConstants(None)
 
@@ -116,7 +123,7 @@ class testLoader(dataset.loader):
 
         # run
         expect = np.matmul(expect, constants[0])
-        for i in range(1, depth - 1):
+        for i in range(1, depth):
             expect = np.matmul(expect, constants[i])
 
         # post
