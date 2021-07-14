@@ -63,7 +63,7 @@ class testModel():
     def getMlPerfCfg(testing=False):
         settings = model.getDefaultMlPerfCfg()
 
-        totalDelay = sum(preTime, runTime, postTime)
+        totalDelay = sum([preTime, runTime, postTime])
         if totalDelay == 0:
             settings.server_target_qps = 100
         else:

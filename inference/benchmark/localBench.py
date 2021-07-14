@@ -47,6 +47,9 @@ def _runOne(model, constants, inputs):
 def nShot(modelSpec, n, inline=False):
     loader, models = _getHandlers(modelSpec)
 
+    if modelSpec.modelType == "kaas":
+        raise NotImplementedError("KaaS not supported in local mode")
+
     if inline:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
 

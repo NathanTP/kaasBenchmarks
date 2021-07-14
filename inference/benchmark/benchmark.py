@@ -117,15 +117,15 @@ def runMlperf(modelSpec, backend):
 def main():
     spec = getModelSpec("testModelKaas")
 
-    # import localBench
-    # backend = localBench
+    import localBench
+    backend = localBench
 
-    import rayBench
-    backend = rayBench
+    # import rayBench
+    # backend = rayBench
 
     # sanityCheck()
-    nshot(spec, 1, backend)
-    # runMlperf(spec, backend)
+    # nshot(spec, 1, backend)
+    runMlperf(spec, backend)
 
 
 main()
