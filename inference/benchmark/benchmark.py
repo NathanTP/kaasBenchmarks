@@ -1,7 +1,31 @@
+#!/usr/bin/env python
+
 import pathlib
+import infbench.model
 
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
+
+
+class ModelSpec():
+    def __init__(self, name, loader, modelPath, modelClass, dataDir=dataDir, modelType='tvm'):
+        self.name = name
+        self.loader = loader
+        self.dataDir = dataDir
+        self.modelPath = modelPath
+        self.modelClass = modelClass
+        self.modelType = modelType
+
+    def getModelArg(self):
+        if self.modelType == 'tvm':
+            return infbench.model.readModelBuf(self.modelPath)
+        elif self.modelType == 'kaas':
+            # KaaS models live on the client so we only need one
+            return self.modelClass(self.modelPath)
+        elif self.modelType == "direct":
+            return None
+        else:
+            raise ValueError("Unrecognized model type: ", self.modelType)
 
 
 # This is implemented this way to ensure that models are only imported if
@@ -9,51 +33,51 @@ modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
 # bigger impact than others.
 def getModelSpec(modelName):
     # You must run tools/getModels.py first to get these .so's
-    if modelName == "testModel":
+    if modelName == "testModelKaas":
         import infbench.testModel
-        return {
-            "name": "testModel",
-            "loader": infbench.testModel.testLoader,
-            "dataDir": dataDir,
-            "modelPath": modelDir,
-            "modelClass": infbench.testModel.testModel
-        }
+        return ModelSpec(name="testModelKaas",
+                         loader=infbench.testModel.testLoader,
+                         modelPath=modelDir / "sgemm",
+                         modelClass=infbench.testModel.testModelKaas,
+                         modelType="kaas")
+
+    elif modelName == "testModelNP":
+        import infbench.testModel
+        return ModelSpec(name="testModelNP",
+                         loader=infbench.testModel.testLoader,
+                         modelPath=modelDir,
+                         modelClass=infbench.testModel.testModelNP,
+                         modelType="direct")
+
     elif modelName == "superRes":
         import infbench.superres
-        return {
-            "name": "superRes",
-            "loader": infbench.superres.superResLoader,
-            "dataDir": dataDir,
-            "modelPath": modelDir / "superres.so",
-            "modelClass": infbench.superres.superRes
-        }
+        return ModelSpec(name="superRes",
+                         loader=infbench.superres.superResLoader,
+                         modelPath=modelDir / "superres.so",
+                         modelClass=infbench.superres.superResTvm)
+
     elif modelName == "resnet50":
         import infbench.resnet50
-        return {
-            "name": "resnet50",
-            "loader": infbench.resnet50.imageNetLoader,
-            "dataDir": dataDir,
-            "modelPath": modelDir / "resnet50.so",
-            "modelClass": infbench.resnet50.resnet50
-        }
+        return ModelSpec(name="resnet50",
+                         loader=infbench.resnet50.imageNetLoader,
+                         modelPath=modelDir / "resnet50.so",
+                         modelClass=infbench.resnet50.resnet50)
+
     elif modelName == "ssdMobileNet":
         import infbench.ssdmobilenet
-        return {
-            "name": "ssdMobileNet",
-            "loader": infbench.ssdmobilenet.cocoLoader,
-            "dataDir": dataDir,
-            "modelPath": modelDir / "ssdMobilenet.so",
-            "modelClass": infbench.ssdmobilenet.ssdMobilenet
-        }
+        return ModelSpec(name="ssdMobileNet",
+                         loader=infbench.ssdmobilenet.cocoLoader,
+                         modelPath=modelDir / "ssdMobilenet.so",
+                         modelClass=infbench.ssdmobilenet.ssdMobilenet)
+
     elif modelName == "bert":
         import infbench.bert
-        return {
-            "name": "bert",
-            "loader": infbench.bert.bertLoader,
-            "dataDir": dataDir,
-            "modelPath": modelDir / 'bert' / "bert.so",
-            "modelClass": infbench.bert.bertModel
-        }
+        return ModelSpec(name="bert",
+                         loader=infbench.bert.bertLoader,
+                         dataDir=dataDir,
+                         modelPath=modelDir / 'bert' / "bert.so",
+                         modelClass=infbench.bert.bertModel)
+
     else:
         raise ValueError("Unrecognized model: ", modelName)
 
@@ -79,10 +103,10 @@ def nshot(modelSpec, n, backend):
 
 def runMlperf(modelSpec, backend):
     testing = True
-    inline = True
+    inline = False
 
     print("Starting MLPerf Benchmark: ")
-    print("\tModel: ", modelSpec['name'])
+    print("\tModel: ", modelSpec.name)
     print("\tBackend: ", backend.__name__)
     print("\tTesting: ", testing)
     print("\tInline: ", inline)
@@ -91,7 +115,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("testModel")
+    spec = getModelSpec("testModelKaas")
 
     import localBench
     backend = localBench
@@ -100,8 +124,8 @@ def main():
     # backend = rayBench
 
     # sanityCheck()
-    nshot(spec, 1, backend)
-    # runMlperf(spec, backend)
+    # nshot(spec, 1, backend)
+    runMlperf(spec, backend)
 
 
 main()

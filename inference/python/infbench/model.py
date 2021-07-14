@@ -4,10 +4,14 @@ import tempfile
 import os
 import abc
 import json
+import yaml
 import pickle
 import collections
 
 import mlperf_loadgen
+
+import libff.kaas as kaas
+import libff.kaas.kaasRay as kaasRay
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -247,6 +251,11 @@ inputMap = collections.namedtuple("inputMap", ["const", "inp", "pre", "run"], de
 
 
 class Model(abc.ABC):
+    """Base class for all models. The benchmark expects this interface."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
     @property
     @abc.abstractmethod
     def preMap(self) -> inputMap:
@@ -325,12 +334,9 @@ class Model(abc.ABC):
 
 
 class tvmModel(Model):
-    """A generic onnx on tvm model. Concrete models must additionally provide
-        - preMap, runMap, postMap: inputMap objects for thepre, run, and post
-        functions. Each function input is a list in order [const,inp,pre,run].
-    """
+    """A generic tvm model. Should be initialized with a precompiled .so"""
+
     def __init__(self, modelDesc):
-        """See loadModel() for allowable values of modelDesc"""
         self.model, self.meta = loadModel(modelDesc)
 
     def run(self, dat):
@@ -351,6 +357,58 @@ class tvmModel(Model):
             outputs.append(self.model.get_output(i).numpy().tobytes())
 
         return outputs
+
+
+class kaasModel(Model):
+    """A generic KaaS model."""
+    def __init__(self, modelArg):
+        """Can be initialized either by an existing kaasModel or by a path to a
+        KaaS model. If a path is passed, it should be a directory containing:
+        name.cubin, name_meta.yaml, and name_model.yaml (where name is the
+        name of the directory)."""
+        # In some cases, it's easier to pass a pre-initialized model as an
+        # argument, typically to keep abstractions clean on the client side.
+        if isinstance(modelArg, kaasModel):
+            self.cubin = modelArg.cubin
+            self.reqTemplate = modelArg.reqTemplate
+            self.meta = modelArg.meta
+        else:
+            modelDir = modelArg
+
+            baseName = modelDir.stem
+            self.cubin = modelDir / (baseName + ".cubin")
+            with open(modelDir / (baseName + "_model" + ".yaml"), 'r') as f:
+                self.reqTemplate = yaml.safe_load(f)
+
+            with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
+                self.meta = yaml.safe_load(f)
+
+    def run(self, dat):
+        """Unlike other Models, kaas accepts keys or references to inputs in
+        dat rather than actual values. Run here will submit the model to KaaS
+        and returns a list of references/keys to the outputs."""
+        constants = dat[:self.nConst]
+        inputs = dat[self.nConst:]
+
+        req = kaas.kaasReq.fromDict(self.reqTemplate)
+
+        renameMap = {}
+        for idx, const in enumerate(self.meta['constants']):
+            renameMap[const['name']] = constants[idx]
+
+        for idx, inp in enumerate(self.meta['inputs']):
+            renameMap[inp['name']] = inputs[idx]
+
+        # In theory, we should also remap the output keys but ray doesn't
+        # support setting the output key anyway and kaasBench isn't set up to
+        # pick them. If we end up supporting a libff backend, we'll need to
+        # solve this
+        req.reKey(renameMap)
+
+        outs = kaasRay.kaasServeRay.options(
+            num_returns=len(self.meta['outputs'])).remote(req.toDict())
+
+        return outs
 
 
 # =============================================================================

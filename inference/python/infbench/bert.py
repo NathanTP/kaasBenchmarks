@@ -578,8 +578,8 @@ def check(pred, origData):
 
     matches = []
     for truth in groundTruths:
-        pred = normalize_answer(pred)
         truth = normalize_answer(truth)
+        pred = normalize_answer(pred)
         matches.append(pred == truth)
 
     return max(matches)
@@ -626,7 +626,7 @@ class bertModel(model.tvmModel):
         endLogits = np.frombuffer(endLogits, dtype=np.float32).tolist()
 
         pred = interpret(startLogits, endLogits, example, feature)
-        return pred
+        return (pred,)
 
     @staticmethod
     def getMlPerfCfg(testing=False):
@@ -674,4 +674,5 @@ class bertLoader(dataset.loader):
 
     def check(self, result, idx):
         origData = self.examples[idx][1]
+        result = result[0]
         return check(result, origData)
