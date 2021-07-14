@@ -28,9 +28,6 @@ np.fill_diagonal(const1, 2)
 const2 = np.zeros(shape, dtype=np.float32)
 np.fill_diagonal(const2, 3)
 
-#XXX
-inputA += 1
-
 ctx.kv.put("inputA", inputA)
 ctx.kv.put("inputB", const0)
 ctx.kv.put("intermediate0B", const1)
@@ -41,9 +38,6 @@ kaasHandle.Invoke(req.toDict())
 cRaw = ctx.kv.get('outputC')
 cArr = np.frombuffer(cRaw, dtype=np.float32)
 testRes = cArr.reshape(128, 128)
-
-#XXX
-print(testRes - 1)
 
 expect = np.matmul(inputA, const0)
 expect = np.matmul(expect, const1)

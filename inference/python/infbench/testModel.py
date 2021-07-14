@@ -82,7 +82,7 @@ class testModelNP(testModel, model.Model):
         time.sleep(runTime)
 
         expect = np.matmul(inputs[0], constants[0])
-        for i in range(1, depth - 1):
+        for i in range(1, depth):
             expect = np.matmul(expect, constants[i])
 
         return (expect,)

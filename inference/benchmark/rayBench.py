@@ -109,6 +109,12 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
     mClass = modelSpec.modelClass
     constants, data = _unMarshalArgs(mClass.postMap, inputs)
 
+    # KaaS will place the result directly into the object store and return a
+    # reference to it. It should be fine to ray.get this reference because the
+    # data is already in the obj store before we get called here.
+    if modelSpec.modelType == "kaas":
+        data = ray.get(data)
+
     results = modelSpec.modelClass.post(constants + list(data))
 
     # In mlperf mode, we need to asynchronously report completions to a worker
@@ -201,15 +207,6 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
                             completionQ=completionQ, queryId=queryId, cacheModel=cacheModel)
         else:
             runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
-
-        #XXX
-        # The problem here is that kaasRay needs to return a reference to
-        # something in the obj store, but when it returns a value it gets
-        # wrapped in its own reference ( kaasRayRef(actualOutputRef) ). I'm not
-        # sure how to 'pass-through' a reference though. Putting a ray.get
-        # somewhere would just serialize execution or it would trigger that
-        # fork-bomb issue...
-        runOut = ray.get(runOut)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
