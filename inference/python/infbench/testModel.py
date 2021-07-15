@@ -35,17 +35,6 @@ class testModel():
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def getConstants(modelDir):
-        """For easy debugging, constants for the test are just a matrix filled
-        with the 1-indexed index"""
-        consts = []
-        for i in range(depth):
-            const = np.zeros((matSize, matSize), dtype=np.float32)
-            np.fill_diagonal(const, i+1)
-            consts.append(const)
-        return consts
-
-    @staticmethod
     def pre(data):
         result = data[1] + 1
         return (result,)
@@ -74,6 +63,17 @@ class testModel():
 
 class testModelNP(testModel, model.Model):
     """A numpy-based model"""
+
+    @staticmethod
+    def getConstants(modelDir):
+        """For easy debugging, constants for the test are just a matrix filled
+        with the 1-indexed index"""
+        consts = []
+        for i in range(depth):
+            const = np.zeros((matSize, matSize), dtype=np.float32)
+            np.fill_diagonal(const, i+1)
+            consts.append(const)
+        return consts
 
     def run(self, data):
         constants = data[:self.nConst]
@@ -116,7 +116,7 @@ class testLoader(dataset.loader):
         result = result[0]
 
         expect = self.data[idx]
-        constants = testModel.getConstants(None)
+        constants = testModelNP.getConstants(None)
 
         # pre
         expect += 1

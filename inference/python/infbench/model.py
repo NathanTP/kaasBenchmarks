@@ -373,7 +373,7 @@ class kaasModel(Model):
             self.reqTemplate = modelArg.reqTemplate
             self.meta = modelArg.meta
         else:
-            modelDir = modelArg
+            modelDir = modelArg.parent
 
             baseName = modelDir.stem
             self.cubin = modelDir / (baseName + ".cubin")
@@ -382,6 +382,15 @@ class kaasModel(Model):
 
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
+
+    @staticmethod
+    def getConstants(modelDir):
+        """Default constant loader assumes the kaasModel simply pickled their
+        constants and we can load them directly."""
+        baseName = modelDir.stem
+        with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
+            constants = pickle.load(f)
+        return constants
 
     def run(self, dat):
         """Unlike other Models, kaas accepts keys or references to inputs in

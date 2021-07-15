@@ -249,8 +249,6 @@ def nShot(modelSpec, n, inline=False):
         idx = i % loader.ndata
         inp = loader.get(idx)
 
-        # batch = _transposeBatch([inp])
-
         start = time.time()
         res = _runOne(modelSpec, specRef, modelArg, constRefs, inp, inline=inline)
         res = ray.get(res)
@@ -258,8 +256,6 @@ def nShot(modelSpec, n, inline=False):
         results.append(res)
 
         times.append(time.time() - start)
-
-        # res = _transposeBatch(res)
 
         if loader.checkAvailable:
             accuracies.append(loader.check(res, idx))
