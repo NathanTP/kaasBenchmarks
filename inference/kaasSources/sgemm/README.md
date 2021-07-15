@@ -3,8 +3,7 @@ documentation for KaaS in infbench. It corresponds to the testModel in infbench
 (python/infbench/testModel.py).
 
 # KaaS Model Overview
-A KaaS model for infbench consists of three files: NAME\_meta.yaml,
-NAME\_model.yaml, and NAME.cubin.
+A KaaS model for infbench consists of several files (all are required):
 
 * NAME.cubin: A precompiled library of the necessary kernels
 * NAME\_model.yaml: A serialized KaaSReq object to serve as a template for
@@ -14,6 +13,8 @@ NAME\_model.yaml, and NAME.cubin.
   invocation. Note that buffer names and buffer keys are distinct in KaaS
   BufferSpecs, NAME\_meta.yaml has only names, infbench will generate keys and
   remap as necessary. 
+* NAME\_params.pkl: Should contain a pickled list of constants (the params) to
+  be loaded by the model.
 
 # Example SGEMM Application
 This example is a chained matrix multiply with constant arrays. The number of

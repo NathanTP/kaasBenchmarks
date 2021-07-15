@@ -37,7 +37,7 @@ def getModelSpec(modelName):
         import infbench.testModel
         return ModelSpec(name="testModelKaas",
                          loader=infbench.testModel.testLoader,
-                         modelPath=modelDir / "sgemm",
+                         modelPath=modelDir / "sgemm" / "sgemm_model.yaml",
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
 
@@ -45,7 +45,7 @@ def getModelSpec(modelName):
         import infbench.testModel
         return ModelSpec(name="testModelNP",
                          loader=infbench.testModel.testLoader,
-                         modelPath=modelDir,
+                         modelPath=modelDir,  # testModelNP is completely self-contained, modelDir is unused
                          modelClass=infbench.testModel.testModelNP,
                          modelType="direct")
 
@@ -117,15 +117,15 @@ def runMlperf(modelSpec, backend):
 def main():
     spec = getModelSpec("testModelKaas")
 
-    import localBench
-    backend = localBench
+    # import localBench
+    # backend = localBench
 
-    # import rayBench
-    # backend = rayBench
+    import rayBench
+    backend = rayBench
 
     # sanityCheck()
-    # nshot(spec, 1, backend)
-    runMlperf(spec, backend)
+    nshot(spec, 1, backend)
+    # runMlperf(spec, backend)
 
 
 main()

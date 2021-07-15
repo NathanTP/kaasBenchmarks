@@ -6,6 +6,8 @@ import sys
 import subprocess as sp
 import shutil
 import pathlib
+import numpy as np
+import pickle
 
 import libff.kaas as kaas
 
@@ -96,6 +98,15 @@ def generateCubin(outputPath):
     shutil.copy("kerns/sgemm.cubin", outputPath)
 
 
+def generateConstants(depth):
+    consts = []
+    for i in range(depth):
+        const = np.zeros((sideLength, sideLength), dtype=np.float32)
+        np.fill_diagonal(const, i+1)
+        consts.append(const)
+    return consts
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--depth', type=int, default=3, help="How many layers of sgemm to generate")
@@ -118,5 +129,9 @@ if __name__ == "__main__":
     meta = metaFromReq(req)
     with open(args.output / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta, f)
+
+    consts = generateConstants(args.depth)
+    with open(args.output / (args.name + "_params.pkl"), 'wb') as f:
+        pickle.dump(consts, f)
 
     generateCubin(args.output / (args.name + ".cubin"))
