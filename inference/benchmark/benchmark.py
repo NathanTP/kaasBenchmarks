@@ -41,6 +41,14 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
 
+    elif modelName == "superResKaas":
+        import infbench.superres
+        return ModelSpec(name="superResKaas",
+                        loader=infbench.superres.superResLoader,
+                        modelPath=modelDir / "superRes" / "superRes_model.yaml",
+                        modelClass=infbench.superres.superResKaas,
+                        modelType="kaas")
+
     elif modelName == "testModelNP":
         import infbench.testModel
         return ModelSpec(name="testModelNP",
@@ -50,6 +58,9 @@ def getModelSpec(modelName):
                          modelType="direct")
 
     elif modelName == "superRes":
+        modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
+
+        
         import infbench.superres
         return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
@@ -115,7 +126,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("testModelKaas")
+    spec = getModelSpec("superRes")
 
     # import localBench
     # backend = localBench

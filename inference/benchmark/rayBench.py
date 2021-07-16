@@ -113,7 +113,9 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
     # reference to it. It should be fine to ray.get this reference because the
     # data is already in the obj store before we get called here.
     if modelSpec.modelType == "kaas":
-        data = ray.get(data)
+        data = list(data)
+        temp_data = data[1]
+        data[1] = ray.get(temp_data)
 
     results = modelSpec.modelClass.post(constants + list(data))
 
