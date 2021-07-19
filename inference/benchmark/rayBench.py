@@ -5,8 +5,15 @@ import threading
 import time
 import numpy as np
 import os
+import pickle
+
+from tornado.ioloop import IOLoop
+import zmq
+from zmq.eventloop.zmqstream import ZMQStream
 
 import mlperf_loadgen
+
+import util
 
 
 # All steps (pre/run/post) take in multiple arguments (even if there's one
@@ -319,10 +326,6 @@ def handleCompletion(queue):
             # Normal completion message from a worker
             completion = mlperf_loadgen.QuerySampleResponse(qid, 0, 0)
             mlperf_loadgen.QuerySamplesComplete([completion])
-            # completions = []
-            # for i in qids:
-            #     completions.append(mlperf_loadgen.QuerySampleResponse(i, 0, 0))
-            # mlperf_loadgen.QuerySamplesComplete(completions)
             ncomplete += 1
 
 
@@ -404,3 +407,95 @@ def mlperfBench(modelSpec, testing=False, inline=False):
     runner.stop()
 
     infbench.model.reportMlPerf()
+
+
+# =============================================================================
+# Server Mode
+# =============================================================================
+
+
+class clientState():
+    def __init__(self, modelName):
+        self.modelSpec = util.getModelSpec(modelName)
+        self.specRef = ray.put(self.modelSpec)
+        self.modelArg = self.modelSpec.getModelArg()
+
+        constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
+        if constants is None:
+            constRefs = None
+        else:
+            constRefs = []
+            for const in constants:
+                constRefs.append(ray.put(const))
+        self.constRefs = constRefs
+
+
+# { clientID -> clientState }
+# For now, we only support one model per client
+clients = {}
+
+
+class serverLoop():
+    """ServerTask"""
+    def __init__(self, clientSock):
+        self.loop = IOLoop.instance()
+
+        self.clientStream = ZMQStream(clientSock)
+        self.clientStream.on_recv(self.handleClients)
+
+        IOLoop.current().add_callback(self.handleWorker)
+
+        self.rayQ = ray.util.queue.Queue()
+
+    async def handleWorker(self):
+        print("handleWorker waiting on Q")
+        result, reqData = await self.rayQ.get_async()
+        clientID = reqData[0]
+        reqID = reqData[1]
+        print(f"Got Ray Worker Response {clientID}:{reqID}")
+
+        self.clientStream.send_multipart([clientID, reqID, pickle.dumps(result)])
+        IOLoop.current().add_callback(self.handleWorker)
+
+    def handleClients(self, msg):
+        clientID, reqID, data = msg
+
+        print(f"Recieved message from {clientID}")
+        cState = clients.get(clientID, None)
+
+        # Registration
+        if cState is None:
+            print("Registering ", clientID)
+            modelName = reqID.decode('utf-8')
+            cState = clientState(modelName)
+            clients[clientID] = cState
+        else:
+            print(f"Recieved request {clientID}:{reqID}")
+            # XXX ray.put is just going to re-pickle the data. We should really
+            # require models to only pass bytes as inputs and outputs.
+            data = pickle.loads(data)
+
+            _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
+                    cState.constRefs, data, completionQ=self.rayQ,
+                    queryId=(clientID, reqID))
+
+
+def serveRequests():
+    ray.init()
+    context = zmq.Context()
+
+    clientSock = context.socket(zmq.ROUTER)
+    clientSock.bind(util.clientUrl)
+
+    # print("Waiting for message:")
+    # clientID, reqID, data = clientSock.recv_multipart()
+    # msg = clientSock.recv_multipart()
+    # print(f"Got message: {msg}")
+    # print(f"Got message: {clientID}:{reqID}")
+
+    # IOLoop uses a global context, when you instantiate a serverLoop object,
+    # it registers itself with IOLoop. The returned object isn't used here.
+    serverLoop(clientSock)
+
+    print("Beginning serving loop")
+    IOLoop.instance().start()
