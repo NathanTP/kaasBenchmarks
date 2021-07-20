@@ -80,20 +80,26 @@ def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
 # task. Each task will get its own pool. Since these require a GPU, I would not
 # expect the pool to exceed 2 and I would expect ray to kill workers when more
 # than two unique tasks require a GPU.
+# We assume that clients can only register one model.
+# {pid -> {clientID -> model}}
 modelCache = {}
 
 
 @ray.remote(num_gpus=1)
-def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
+def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
     mClass = modelSpec.modelClass
 
     if cacheModel:
         pid = os.getpid()
-        if pid in modelCache:
-            model = modelCache[pid]
+        if pid not in modelCache:
+            modelCache[pid] = {}
+
+        nodeCache = modelCache[pid]
+        if pid in nodeCache:
+            model = nodeCache[clientID]
         else:
             model = modelSpec.modelClass(modelArg)
-            modelCache[pid] = model
+            nodeCache[clientID] = model
     else:
         model = modelSpec.modelClass(modelArg)
 
@@ -171,7 +177,7 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False):
+def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False, clientID=False):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     mClass = modelSpec.modelClass
@@ -212,7 +218,8 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
         runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
         if completionQ is not None and mClass.noPost:
             runOut = runner(specArg, modelArg, *runInp,
-                            completionQ=completionQ, queryId=queryId, cacheModel=cacheModel)
+                            completionQ=completionQ, queryId=queryId,
+                            cacheModel=cacheModel, clientID=clientID)
         else:
             runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
 
@@ -472,7 +479,7 @@ class serverLoop():
 
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
-                    queryId=(clientID, reqID))
+                    queryId=(clientID, reqID), cacheModel=True, clientID=clientID)
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
@@ -490,7 +497,7 @@ def serveRequests():
     # it registers itself with IOLoop. The returned object isn't used here.
     looper = serverLoop(clientSock)
 
-    signal.signal(signal.SIGINT, lambda s,f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
+    signal.signal(signal.SIGINT, lambda s, f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
 
     print("Beginning serving loop")
     IOLoop.instance().start()
