@@ -6,6 +6,7 @@ import time
 import numpy as np
 import os
 import pickle
+import signal
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -359,8 +360,6 @@ class mlperfRunner():
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
-            # inputs.append(self.loader.get(q.index))
-            # qids.append(q.id)
             inp = self.loader.get(q.index)
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
@@ -448,11 +447,9 @@ class serverLoop():
         self.rayQ = ray.util.queue.Queue()
 
     async def handleWorker(self):
-        print("handleWorker waiting on Q")
         result, reqData = await self.rayQ.get_async()
         clientID = reqData[0]
         reqID = reqData[1]
-        print(f"Got Ray Worker Response {clientID}:{reqID}")
 
         self.clientStream.send_multipart([clientID, reqID, pickle.dumps(result)])
         IOLoop.current().add_callback(self.handleWorker)
@@ -460,7 +457,6 @@ class serverLoop():
     def handleClients(self, msg):
         clientID, reqID, data = msg
 
-        print(f"Recieved message from {clientID}")
         cState = clients.get(clientID, None)
 
         # Registration
@@ -470,7 +466,6 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
-            print(f"Recieved request {clientID}:{reqID}")
             # XXX ray.put is just going to re-pickle the data. We should really
             # require models to only pass bytes as inputs and outputs.
             data = pickle.loads(data)
@@ -478,6 +473,10 @@ class serverLoop():
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID))
+
+    def shutdown(self):
+        self.clientStream.stop_on_recv()
+        IOLoop.instance().stop()
 
 
 def serveRequests():
@@ -487,15 +486,12 @@ def serveRequests():
     clientSock = context.socket(zmq.ROUTER)
     clientSock.bind(util.clientUrl)
 
-    # print("Waiting for message:")
-    # clientID, reqID, data = clientSock.recv_multipart()
-    # msg = clientSock.recv_multipart()
-    # print(f"Got message: {msg}")
-    # print(f"Got message: {clientID}:{reqID}")
-
     # IOLoop uses a global context, when you instantiate a serverLoop object,
     # it registers itself with IOLoop. The returned object isn't used here.
-    serverLoop(clientSock)
+    looper = serverLoop(clientSock)
+
+    signal.signal(signal.SIGINT, lambda s,f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
 
     print("Beginning serving loop")
     IOLoop.instance().start()
+    print("Server Exiting")

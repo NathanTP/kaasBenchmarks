@@ -23,7 +23,7 @@ def nshot(modelSpec, n, backend):
 
 
 def runMlperf(modelSpec, backend):
-    testing = True
+    testing = False
     inline = False
 
     print("Starting MLPerf Benchmark: ")
@@ -36,7 +36,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = util.getModelSpec("testModelNP")
+    spec = util.getModelSpec("superRes")
 
     # import localBench
     # backend = localBench
