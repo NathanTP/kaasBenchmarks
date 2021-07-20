@@ -5,8 +5,16 @@ import threading
 import time
 import numpy as np
 import os
+import pickle
+import signal
+
+from tornado.ioloop import IOLoop
+import zmq
+from zmq.eventloop.zmqstream import ZMQStream
 
 import mlperf_loadgen
+
+import util
 
 
 # All steps (pre/run/post) take in multiple arguments (even if there's one
@@ -72,20 +80,26 @@ def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
 # task. Each task will get its own pool. Since these require a GPU, I would not
 # expect the pool to exceed 2 and I would expect ray to kill workers when more
 # than two unique tasks require a GPU.
+# We assume that clients can only register one model.
+# {pid -> {clientID -> model}}
 modelCache = {}
 
 
 @ray.remote(num_gpus=1)
-def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
+def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
     mClass = modelSpec.modelClass
 
     if cacheModel:
         pid = os.getpid()
-        if pid in modelCache:
-            model = modelCache[pid]
+        if pid not in modelCache:
+            modelCache[pid] = {}
+
+        nodeCache = modelCache[pid]
+        if pid in nodeCache:
+            model = nodeCache[clientID]
         else:
             model = modelSpec.modelClass(modelArg)
-            modelCache[pid] = model
+            nodeCache[clientID] = model
     else:
         model = modelSpec.modelClass(modelArg)
 
@@ -163,7 +177,7 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False):
+def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False, clientID=False):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     mClass = modelSpec.modelClass
@@ -204,7 +218,8 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
         runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
         if completionQ is not None and mClass.noPost:
             runOut = runner(specArg, modelArg, *runInp,
-                            completionQ=completionQ, queryId=queryId, cacheModel=cacheModel)
+                            completionQ=completionQ, queryId=queryId,
+                            cacheModel=cacheModel, clientID=clientID)
         else:
             runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
 
@@ -319,10 +334,6 @@ def handleCompletion(queue):
             # Normal completion message from a worker
             completion = mlperf_loadgen.QuerySampleResponse(qid, 0, 0)
             mlperf_loadgen.QuerySamplesComplete([completion])
-            # completions = []
-            # for i in qids:
-            #     completions.append(mlperf_loadgen.QuerySampleResponse(i, 0, 0))
-            # mlperf_loadgen.QuerySamplesComplete(completions)
             ncomplete += 1
 
 
@@ -356,8 +367,6 @@ class mlperfRunner():
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
-            # inputs.append(self.loader.get(q.index))
-            # qids.append(q.id)
             inp = self.loader.get(q.index)
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
@@ -404,3 +413,92 @@ def mlperfBench(modelSpec, testing=False, inline=False):
     runner.stop()
 
     infbench.model.reportMlPerf()
+
+
+# =============================================================================
+# Server Mode
+# =============================================================================
+
+
+class clientState():
+    def __init__(self, modelName):
+        self.modelSpec = util.getModelSpec(modelName)
+        self.specRef = ray.put(self.modelSpec)
+        self.modelArg = self.modelSpec.getModelArg()
+
+        constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
+        if constants is None:
+            constRefs = None
+        else:
+            constRefs = []
+            for const in constants:
+                constRefs.append(ray.put(const))
+        self.constRefs = constRefs
+
+
+# { clientID -> clientState }
+# For now, we only support one model per client
+clients = {}
+
+
+class serverLoop():
+    """ServerTask"""
+    def __init__(self, clientSock):
+        self.loop = IOLoop.instance()
+
+        self.clientStream = ZMQStream(clientSock)
+        self.clientStream.on_recv(self.handleClients)
+
+        IOLoop.current().add_callback(self.handleWorker)
+
+        self.rayQ = ray.util.queue.Queue()
+
+    async def handleWorker(self):
+        result, reqData = await self.rayQ.get_async()
+        clientID = reqData[0]
+        reqID = reqData[1]
+
+        self.clientStream.send_multipart([clientID, reqID, pickle.dumps(result)])
+        IOLoop.current().add_callback(self.handleWorker)
+
+    def handleClients(self, msg):
+        clientID, reqID, data = msg
+
+        cState = clients.get(clientID, None)
+
+        # Registration
+        if cState is None:
+            print("Registering ", clientID)
+            modelName = reqID.decode('utf-8')
+            cState = clientState(modelName)
+            clients[clientID] = cState
+        else:
+            # XXX ray.put is just going to re-pickle the data. We should really
+            # require models to only pass bytes as inputs and outputs.
+            data = pickle.loads(data)
+
+            _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
+                    cState.constRefs, data, completionQ=self.rayQ,
+                    queryId=(clientID, reqID), cacheModel=True, clientID=clientID)
+
+    def shutdown(self):
+        self.clientStream.stop_on_recv()
+        IOLoop.instance().stop()
+
+
+def serveRequests():
+    ray.init()
+    context = zmq.Context()
+
+    clientSock = context.socket(zmq.ROUTER)
+    clientSock.bind(util.clientUrl)
+
+    # IOLoop uses a global context, when you instantiate a serverLoop object,
+    # it registers itself with IOLoop. The returned object isn't used here.
+    looper = serverLoop(clientSock)
+
+    signal.signal(signal.SIGINT, lambda s, f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
+
+    print("Beginning serving loop")
+    IOLoop.instance().start()
+    print("Server Exiting")
