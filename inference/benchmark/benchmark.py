@@ -36,13 +36,13 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = util.getModelSpec("superRes")
+    # spec = util.getModelSpec("superRes")
 
     # import localBench
     # backend = localBench
 
     import rayBench
-    backend = rayBench
+    # backend = rayBench
     rayBench.serveRequests()
 
     # sanityCheck()

@@ -479,7 +479,8 @@ class serverLoop():
 
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
-                    queryId=(clientID, reqID), cacheModel=True, clientID=clientID)
+                    queryId=(clientID, reqID), clientID=clientID,
+                    cacheModel=True, inline=True)
 
     def shutdown(self):
         self.clientStream.stop_on_recv()

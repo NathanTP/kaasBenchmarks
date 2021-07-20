@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 import argparse
 import pickle
@@ -5,6 +7,7 @@ import threading
 from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
+import time
 
 import mlperf_loadgen
 
@@ -65,10 +68,12 @@ def nShot(modelName, clientID, n):
 
 
 class mlperfRunner(threading.Thread):
-    def __init__(self, clientID, modelName, zmqContext, testing=False):
+    def __init__(self, clientID, modelName, zmqContext, testing=False, scale=1.0):
         self.zmqContext = zmqContext
         self.testing = testing
         self.modelName = modelName
+        self.clientID = clientID
+        self.scale = scale
 
         threading.Thread.__init__(self)
 
@@ -80,7 +85,9 @@ class mlperfRunner(threading.Thread):
     def preWarm(self):
         self.loader.preLoad([0])
         inputs = self.loader.get(0)
-        self.sutSock.send_multipart([bytes(1), pickle.dumps(inputs)])
+        for i in range(10):
+            self.sutSock.send_multipart([bytes(1), pickle.dumps(inputs)])
+        time.sleep(20)
 
     def run(self):
         modelSpec = util.getModelSpec(self.modelName)
@@ -89,16 +96,21 @@ class mlperfRunner(threading.Thread):
         self.sutSock = self.zmqContext.socket(zmq.PAIR)
         self.sutSock.connect(sutSockUrl)
 
-        self.preWarm()
+        # self.preWarm()
 
-        settings = modelSpec.modelClass.getMlPerfCfg(testing=self.testing)
+        runSettings = modelSpec.modelClass.getMlPerfCfg(testing=self.testing)
+        runSettings.server_target_qps = runSettings.server_target_qps * self.scale
+
+        logSettings = mlperf_loadgen.LogSettings()
+        logSettings.log_output.prefix = self.clientID.decode("utf-8") + "_"
+
         sut = mlperf_loadgen.ConstructSUT(
             self.runBatch, infbench.model.flushQueries, infbench.model.processLatencies)
 
         qsl = mlperf_loadgen.ConstructQSL(
             self.loader.ndata, infbench.model.mlperfNquery, self.loader.preLoad, self.loader.unLoad)
 
-        mlperf_loadgen.StartTest(sut, qsl, settings)
+        mlperf_loadgen.StartTestWithLogSettings(sut, qsl, runSettings, logSettings)
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
 
@@ -123,6 +135,16 @@ class mlperfLoop():
         # Register with the benchmark server
         self.serverSocket.send_multipart([modelName.encode('utf-8'), b''])
 
+        # PreWarm
+        modelSpec = util.getModelSpec(modelName)
+        loader = modelSpec.loader(modelSpec.dataDir)
+        loader.preLoad([0])
+        inputs = loader.get(0)
+        for i in range(10):
+            self.serverSocket.send_multipart([bytes(1), pickle.dumps(inputs)])
+        for i in range(10):
+            self.serverSocket.recv_multipart()
+
     def handleSut(self, msg):
         """Handle requests from mlperf, we simply proxy requests to serverSocket"""
         if msg[0] == b'':
@@ -144,28 +166,33 @@ class mlperfLoop():
             mlperf_loadgen.QuerySamplesComplete([completion])
 
 
-def mlperfBench(modelName, clientID):
+def mlperfBench(modelName, clientID, scale=1.0):
     context = zmq.Context()
 
-    testRunner = mlperfRunner(clientID, modelName, context, testing=False)
+    print("Registering and prewarming", modelName)
+    mlperfLoop(clientID, modelName, context)
+
+    testRunner = mlperfRunner(clientID, modelName, context, testing=False, scale=scale)
+
+    print("Beginning loadgen run")
     testRunner.start()
 
-    mlperfLoop(clientID, modelName, context)
     IOLoop.instance().start()
 
-    infbench.model.reportMlPerf()
+    infbench.model.reportMlPerf(prefix=clientID.decode("utf-8") + "_")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", default="testModelNP", help="Model name")
     parser.add_argument("-n", "--name", type=str, default="client0", help="Unique identifier for this client")
+    parser.add_argument("-s", "--scale", type=float, default=1.0, help="Scale the request rate of the model. 1.0 corresponds to approximately the maximum supported arrival rate in isolation.")
 
     args = parser.parse_args()
 
     clientID = args.name.encode("utf-8")
     # nShot(args.model, clientID, 1)
-    mlperfBench(args.model, clientID)
+    mlperfBench(args.model, clientID, scale=args.scale)
 
 
 if __name__ == "__main__":

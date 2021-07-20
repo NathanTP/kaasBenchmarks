@@ -54,10 +54,9 @@ class testModel():
 
         totalDelay = sum([preTime, runTime, postTime])
         if totalDelay == 0:
-            settings.server_target_qps = 100
+            settings.server_target_qps = 50
         else:
             settings.server_target_qps = (1 / (preTime + runTime + postTime)) / 2
-        settings.server_target_qps = 100
 
         return settings
 
