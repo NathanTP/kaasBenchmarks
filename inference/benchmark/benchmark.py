@@ -32,7 +32,7 @@ def runMlperf(modelSpec, backend):
     print("\tTesting: ", testing)
     print("\tInline: ", inline)
 
-    backend.mlperfBench(modelSpec, testing=testing, inline=inline)
+    backend.mlperfBench(modelSpec, testing=testing, inline=inline, useActors=True)
 
 
 def main():
@@ -46,8 +46,8 @@ def main():
     # rayBench.serveRequests()
 
     # sanityCheck()
-    nshot(spec, 1, backend)
-    # runMlperf(spec, backend)
+    # nshot(spec, 16, backend)
+    runMlperf(spec, backend)
 
 
 main()

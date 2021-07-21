@@ -28,6 +28,16 @@ import util
 # inputs are ready before instantiating the function.
 
 
+def getNGpu():
+    """Returns the number of available GPUs on this machine"""
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        return len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
+    else:
+        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+                      stdout=sp.PIPE, text=True, check=True)
+        return proc.stdout.count('\n')
+
+
 def _unMarshalArgs(argMap, args):
     """Due to Ray's requirement that all references be passed as arguments, we
     are forced to marshal all variable-length arguments into a single list.
@@ -211,13 +221,9 @@ class runActor():
 
 
 class runnerPool():
-    def __init__(self):
-        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
-                      stdout=sp.PIPE, text=True, check=True)
-        nGPU = proc.stdout.count('\n')
-
+    def __init__(self, nRunner):
         self.actors = []
-        for i in range(nGPU):
+        for i in range(nRunner):
             self.actors.append(runActor.remote())
 
         self.policy = self._roundRobin
@@ -326,7 +332,7 @@ def nShot(modelSpec, n, inline=False, useActors=False):
             constRefs.append(ray.put(const))
 
     if useActors:
-        pool = runnerPool()
+        pool = runnerPool(getNGpu())
     else:
         pool = None
 
@@ -412,7 +418,7 @@ def handleCompletion(queue):
 
 
 class mlperfRunner():
-    def __init__(self, modelSpec, loader, constantRefs, inline=False):
+    def __init__(self, modelSpec, loader, constantRefs, inline=False, useActors=False):
         self.modelSpec = modelSpec
         self.modelArg = modelSpec.getModelArg()
         self.loader = loader
@@ -423,6 +429,13 @@ class mlperfRunner():
         self.nIssued = 0
 
         self.specRef = ray.put(self.modelSpec)
+
+        self.nGpu = getNGpu()
+
+        if useActors:
+            self.pool = runnerPool(self.nGpu)
+        else:
+            self.pool = None
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -435,9 +448,17 @@ class mlperfRunner():
         if preWarm:
             self.loader.preLoad([0])
             inputs = self.loader.get(0)
-            res = _runOne(self.modelSpec, self.specRef, self.modelArg,
-                          self.constants, inputs, inline=self.inline)
-            ray.get(res)
+            results = []
+
+            # We don't control how ray handles workers, but we assume that
+            # sending a burst of nGpu*2 should be enough to trigger all the
+            # cold starts.
+            for i in range(self.nGpu*2):
+                results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
+                               self.constants, inputs, inline=self.inline,
+                               runPool=self.pool))
+            for res in results:
+                ray.get(res)
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
@@ -446,7 +467,7 @@ class mlperfRunner():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inp, inline=self.inline,
                     completionQ=self.completionQueue, queryId=q.id,
-                    cacheModel=True)
+                    cacheModel=True, runPool=self.pool)
 
         self.nIssued += len(queryBatch)
 
@@ -456,7 +477,7 @@ class mlperfRunner():
         self.completionHandler.join()
 
 
-def mlperfBench(modelSpec, testing=False, inline=False):
+def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     """Run the mlperf loadgen version"""
     ray.init()
 
@@ -471,7 +492,7 @@ def mlperfBench(modelSpec, testing=False, inline=False):
         for const in constants:
             constRefs.append(ray.put(const))
 
-    runner = mlperfRunner(modelSpec, loader, constRefs, inline=inline)
+    runner = mlperfRunner(modelSpec, loader, constRefs, inline=inline, useActors=useActors)
 
     runner.start(preWarm=True)
     sut = mlperf_loadgen.ConstructSUT(
