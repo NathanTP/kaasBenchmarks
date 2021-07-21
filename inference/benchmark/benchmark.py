@@ -19,7 +19,7 @@ def sanityCheck(backend):
 
 
 def nshot(modelSpec, n, backend):
-    backend.nShot(modelSpec, n, inline=False)
+    backend.nShot(modelSpec, n, inline=False, useActors=True)
 
 
 def runMlperf(modelSpec, backend):
@@ -36,17 +36,17 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    # spec = util.getModelSpec("superRes")
+    spec = util.getModelSpec("superRes")
 
     # import localBench
     # backend = localBench
 
     import rayBench
-    # backend = rayBench
-    rayBench.serveRequests()
+    backend = rayBench
+    # rayBench.serveRequests()
 
     # sanityCheck()
-    # nshot(spec, 1, backend)
+    nshot(spec, 1, backend)
     # runMlperf(spec, backend)
 
 

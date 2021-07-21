@@ -7,6 +7,7 @@ import numpy as np
 import os
 import pickle
 import signal
+import subprocess as sp
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -59,20 +60,12 @@ def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
     # instance
     model = modelArg
 
-    # constants, data = _unMarshalArgs(modelSpec.modelClass.runMap, inputs)
-
     results = model.run(inputs)
 
     if completionQ is not None:
         completionQ.put((results, queryId))
 
     return results
-    # Ray will interpret the return value as tuple if there are multiple
-    # returns, but if there is one return, it will treat it as a scalar.
-    # if len(results) == 1:
-    #     return results[0]
-    # else:
-    #     return results
 
 
 # Not sure how to have a truly per-worker cache, but this dict maps PID to the initialized model (if any).
@@ -85,9 +78,27 @@ def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
 modelCache = {}
 
 
+def _run(model, inputs, completionQ=None, queryId=None):
+    """Internal run function"""
+    constants, data = _unMarshalArgs(model.runMap, inputs)
+
+    results = model.run(constants + list(data))
+
+    if completionQ is not None:
+        completionQ.put((results, queryId))
+
+    # Ray will interpret the return value as tuple if there are multiple
+    # returns, but if there is one return, it will treat it as a scalar.
+    if len(results) == 1:
+        return results[0]
+    else:
+        return results
+
+
 @ray.remote(num_gpus=1)
-def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
-    mClass = modelSpec.modelClass
+def runTask(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
+    """Run the request as a Ray task"""
+    # mClass = modelSpec.modelClass
 
     if cacheModel:
         pid = os.getpid()
@@ -103,19 +114,20 @@ def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel
     else:
         model = modelSpec.modelClass(modelArg)
 
-    constants, data = _unMarshalArgs(mClass.runMap, inputs)
-
-    results = model.run(constants + list(data))
-
-    if completionQ is not None:
-        completionQ.put((results, queryId))
-
-    # Ray will interpret the return value as tuple if there are multiple
-    # returns, but if there is one return, it will treat it as a scalar.
-    if len(results) == 1:
-        return results[0]
-    else:
-        return results
+    return _run(model, inputs, completionQ, queryId)
+    # constants, data = _unMarshalArgs(mClass.runMap, inputs)
+    #
+    # results = model.run(constants + list(data))
+    #
+    # if completionQ is not None:
+    #     completionQ.put((results, queryId))
+    #
+    # # Ray will interpret the return value as tuple if there are multiple
+    # # returns, but if there is one return, it will treat it as a scalar.
+    # if len(results) == 1:
+    #     return results[0]
+    # else:
+    #     return results
 
 
 @ray.remote
@@ -177,7 +189,56 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False, clientID=False):
+@ray.remote(num_gpus=1)
+class runActor():
+    """A persistent actor for running model requests. Actors will cache models
+    as needed and run them natively. It is possible to run out of GPU memory
+    with actors since they cache every model they are passed."""
+    def __init__(self):
+        self.modelCache = {}
+
+    def run(self, modelSpec, modelArg, *inputs, cacheModel=False, completionQ=None, queryId=None, clientID=None):
+        # The runActor must cache the model, if you wan't to reset, you must
+        # kill and restart the actor. cacheModel is kept for consistency with
+        # runTask but is ignored here.
+        if clientID in self.modelCache:
+            model = self.modelCache[clientID]
+        else:
+            model = modelSpec.modelClass(modelArg)
+            self.modelCache[clientID] = model
+
+        return _run(model, inputs, completionQ, queryId)
+
+
+class runnerPool():
+    def __init__(self):
+        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+                      stdout=sp.PIPE, text=True, check=True)
+        nGPU = proc.stdout.count('\n')
+
+        self.actors = []
+        for i in range(nGPU):
+            self.actors.append(runActor.remote())
+
+        self.policy = self._roundRobin
+        self.last = 0
+
+    def _roundRobin(self, clientID):
+        """A simple round-robin policy with no affinity"""
+        self.last = (self.last + 1) % len(self.actors)
+        return self.last
+
+    def getRunner(self, clientID):
+        """Return an actor suitable for running a request from clientID.
+        Callers should call the returned actor exactly once per call to
+        getRunner (do not cache the return value of getRunner)."""
+        runnerIdx = self.policy(clientID)
+        return self.actors[runnerIdx]
+
+
+def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
+            completionQ=None, queryId=None, cacheModel=False, clientID=False,
+            runPool=None):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     mClass = modelSpec.modelClass
@@ -209,10 +270,17 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
 
         # Run
         if modelSpec.modelType == "kaas":
+            # XXX Should KaaS work with the runnerPool? Some of the policies
+            # will make sense there but we can also handle that policy in
+            # libff...
             runner = runKaas
             specArg = modelSpec
         else:
-            runner = run.options(num_returns=mClass.nOutRun).remote
+            if runPool is not None:
+                runActor = runPool.getRunner(clientID)
+                runner = runActor.run.options(num_returns=mClass.nOutRun).remote
+            else:
+                runner = runTask.options(num_returns=mClass.nOutRun).remote
             specArg = specRef
 
         runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
@@ -240,7 +308,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
     return postOut
 
 
-def nShot(modelSpec, n, inline=False):
+def nShot(modelSpec, n, inline=False, useActors=False):
     ray.init()
 
     specRef = ray.put(modelSpec)
@@ -257,6 +325,11 @@ def nShot(modelSpec, n, inline=False):
         for const in constants:
             constRefs.append(ray.put(const))
 
+    if useActors:
+        pool = runnerPool()
+    else:
+        pool = None
+
     times = []
     accuracies = []
     results = []
@@ -265,7 +338,8 @@ def nShot(modelSpec, n, inline=False):
         inp = loader.get(idx)
 
         start = time.time()
-        res = _runOne(modelSpec, specRef, modelArg, constRefs, inp, inline=inline)
+        res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
+                      inline=inline, runPool=pool)
         res = ray.get(res)
 
         results.append(res)
