@@ -36,7 +36,7 @@ def addToKV(kv, node_num, arr, const=True, ephemeral=False):
     return buff 
 
 def loadParams():
-    params = pickle.load(open("params.pkl", 'rb'))
+    params = pickle.load(open("superRes_params.pkl", 'rb'))
     return params
 
 def makeKern(name_func, path, shapes, arguments):
