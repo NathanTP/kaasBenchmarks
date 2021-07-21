@@ -111,7 +111,7 @@ def getOnnx(inputPath, outputDir, inputShapeMap=None):
     with open(graphPath, 'w') as f:
         #json.dump(module.get_graph_json(), f)
         f.write(module.get_graph_json())
-    paramPath = outputDir / "params.pkl"
+    paramPath = outputDir / "superRes_params.pkl"
     with open(paramPath, 'wb') as f:
         pickle.dump({k: p.asnumpy() for k, p in module.params.items()}, f)
     '''

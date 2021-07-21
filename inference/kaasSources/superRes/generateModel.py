@@ -21,7 +21,7 @@ def getInfo(buf, graph):
     return dtype, shape
 
 def loadParams():
-    path = cwd / "params.pkl"
+    path = cwd / "superRes_params.pkl"
     return pickle.load(open(path, 'rb')) 
 
 
