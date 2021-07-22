@@ -36,7 +36,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = util.getModelSpec("testModelNP")
+    spec = util.getModelSpec("bert")
 
     # import localBench
     # backend = localBench
