@@ -1,9 +1,9 @@
 ---
-###########################
-###########################
-## Linter GitHub Actions ##
-###########################
-###########################
+#################################
+#################################
+## Super Linter GitHub Actions ##
+#################################
+#################################
 name: Lint Code Base
 
 #
@@ -16,10 +16,10 @@ name: Lint Code Base
 #############################
 on:
   push:
-    branches-ignore: [master]
+    branches-ignore: [master, main]
     # Remove the line above to run when pushing to master
   pull_request:
-    branches: [master]
+    branches: [master, main]
 
 ###############
 # Set the Job #
@@ -48,9 +48,8 @@ jobs:
       # Run Linter against code base #
       ################################
       - name: Lint Code Base
-        uses: github/super-linter:slim-v4
+        uses: docker://ghcr.io/github/super-linter:slim-v4
         env:
           VALIDATE_ALL_CODEBASE: false
-          VALIDATE_PYTHON_FLAKE8: true
           DEFAULT_BRANCH: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
