@@ -4,14 +4,16 @@ import pathlib
 import pickle
 import json
 from superRes import createReq
-
+import argparse
 
 cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
+superResDir = modelDir / "superRes"
 
 def loadGraph():
     graph = open(modelDir / "superRes_graph.json")
     return json.load(graph)
+
 
 '''This method is useful because the intermediate buffers in multi-kernel nodes aren't present in the graph, so this code is needed in 2 separate locations. '''
 def getInfo(buf, graph):
@@ -20,6 +22,7 @@ def getInfo(buf, graph):
     dtype = graph["attrs"]["dltype"][1][index]
     shape = graph["attrs"]["shape"][1][index]
     return dtype, shape
+
 
 def loadParams():
     path = modelDir / "superRes_params.pkl"
@@ -58,17 +61,24 @@ def getParams():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--output', type=pathlib.Path, default=superResDir, help="Output Directory")
 
-    req = createReq(modelDir / "superRes_params.pkl")
-    with open(cwd / "superRes_model.yaml", 'w') as f:
+    args = parser.parse_args()
+    targetDir = args.output
+    if not targetDir.exists():
+        targetDir.mkdir()
+
+    req = createReq(modelDir / "superRes_params.pkl", targetDir / "superRes.cubin")
+    with open(targetDir / "superRes_model.yaml", 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
     meta_data = metaFromReq(req)
-    with open(cwd / "superRes_meta.yaml", 'w') as f:
+    with open(targetDir / "superRes_meta.yaml", 'w') as f:
         yaml.safe_dump(meta_data, f)
 
     params = getParams()
-    with open(cwd / "superRes_params.pkl", 'wb') as f:
+    with open(targetDir / "superRes_params.pkl", 'wb') as f:
         pickle.dump(params, f)
 
     

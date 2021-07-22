@@ -6,7 +6,6 @@ import infbench.model
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
 
-
 class ModelSpec():
     def __init__(self, name, loader, modelPath, modelClass, dataDir=dataDir, modelType='tvm'):
         self.name = name
@@ -58,9 +57,6 @@ def getModelSpec(modelName):
                          modelType="direct")
 
     elif modelName == "superRes":
-        modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
-
-        
         import infbench.superres
         return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
@@ -126,7 +122,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = getModelSpec("superRes")
+    spec = getModelSpec("superResKaas")
 
     # import localBench
     # backend = localBench
