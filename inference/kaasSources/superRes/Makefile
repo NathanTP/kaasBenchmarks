@@ -7,7 +7,6 @@ PYTHON := python
 .PHONY: all
 
 superRes.cubin: kerns/superres.cu
-	$(PYTHON) getModels.py 
 	$(PYTHON) generateModel.py
 	nvcc $^ --cubin -gencode arch=compute_35,code=sm_35 -O3 -g -Xcompiler -Wall -Xcompiler -Wextra -std=c++14 -o $@
 
