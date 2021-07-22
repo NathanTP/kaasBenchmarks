@@ -111,11 +111,13 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
 
     # KaaS will place the result directly into the object store and return a
     # reference to it. It should be fine to ray.get this reference because the
-    # data is already in the obj store before we get called here.
+    # data is already in the obj store before we get called here. Other inputs
+    # (e.g. from pre()) will already be dereferenced by ray.
     if modelSpec.modelType == "kaas":
         data = list(data)
-        temp_data = data[1]
-        data[1] = ray.get(temp_data)
+        for i in range(len(data)):
+            if isinstance(data[i], ray._raylet.ObjectRef):
+                data[i] = ray.get(data[i])
 
     results = modelSpec.modelClass.post(constants + list(data))
 
