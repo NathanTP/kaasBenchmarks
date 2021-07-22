@@ -7,12 +7,14 @@ import numpy as np
 import os
 import pickle
 import signal
+import subprocess as sp
 
 from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 
 import mlperf_loadgen
+import libff.kaas.kaasRay as kaasRay
 
 import util
 
@@ -25,6 +27,16 @@ import util
 # pass each input directly as an argument using the *batch syntax (this groups
 # remaining function arguments into a list). This way Ray waits until all
 # inputs are ready before instantiating the function.
+
+
+def getNGpu():
+    """Returns the number of available GPUs on this machine"""
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        return len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
+    else:
+        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+                      stdout=sp.PIPE, text=True, check=True)
+        return proc.stdout.count('\n')
 
 
 def _unMarshalArgs(argMap, args):
@@ -52,29 +64,6 @@ def pre(modelSpec, *inputs):
         return res
 
 
-def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
-    """Run a kaasModel. kaasModels handle Ray interaction internally so this
-    function should be called natively on the client."""
-    # KaaS models live on the client, so the argument should be a kaasModel
-    # instance
-    model = modelArg
-
-    # constants, data = _unMarshalArgs(modelSpec.modelClass.runMap, inputs)
-
-    results = model.run(inputs)
-
-    if completionQ is not None:
-        completionQ.put((results, queryId))
-
-    return results
-    # Ray will interpret the return value as tuple if there are multiple
-    # returns, but if there is one return, it will treat it as a scalar.
-    # if len(results) == 1:
-    #     return results[0]
-    # else:
-    #     return results
-
-
 # Not sure how to have a truly per-worker cache, but this dict maps PID to the initialized model (if any).
 # From what I can tell, Ray will create a pool of processes for each unique
 # task. Each task will get its own pool. Since these require a GPU, I would not
@@ -85,10 +74,36 @@ def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
 modelCache = {}
 
 
-@ray.remote(num_gpus=1)
-def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
-    mClass = modelSpec.modelClass
+def _run(model, inputs, completionQ, queryId):
+    """Internal run function"""
+    constants, data = _unMarshalArgs(model.runMap, inputs)
 
+    results = model.run(constants + list(data))
+
+    if completionQ is not None:
+        completionQ.put((results, queryId))
+
+    # Ray will interpret the return value as tuple if there are multiple
+    # returns, but if there is one return, it will treat it as a scalar.
+    if len(results) == 1:
+        return results[0]
+    else:
+        return results
+
+
+@ray.remote(num_gpus=1)
+def runKaasTask(req, queryId=None, completionQ=None):
+    results = kaasRay.kaasServeRay(req.toDict())
+
+    if completionQ is not None:
+        completionQ.put((results, queryId))
+
+    return results
+
+
+@ray.remote(num_gpus=1)
+def runTask(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
+    """Run the request as a Ray task"""
     if cacheModel:
         pid = os.getpid()
         if pid not in modelCache:
@@ -103,19 +118,7 @@ def run(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel
     else:
         model = modelSpec.modelClass(modelArg)
 
-    constants, data = _unMarshalArgs(mClass.runMap, inputs)
-
-    results = model.run(constants + list(data))
-
-    if completionQ is not None:
-        completionQ.put((results, queryId))
-
-    # Ray will interpret the return value as tuple if there are multiple
-    # returns, but if there is one return, it will treat it as a scalar.
-    if len(results) == 1:
-        return results[0]
-    else:
-        return results
+    return _run(model, inputs, completionQ, queryId)
 
 
 @ray.remote
@@ -159,7 +162,8 @@ def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
     if model.noPost:
         postOut = modOut
     else:
-        postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=modOut)
+        postInp = _getInputs(model.postMap, const=constants, inp=inputs,
+                             pre=preOut, run=modOut)
         postOut = model.post(postInp)
 
     if completionQ is not None:
@@ -177,12 +181,69 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, completionQ=None, queryId=None, cacheModel=False, clientID=False):
+@ray.remote(num_gpus=1)
+class runActor():
+    """A persistent actor for running model requests. Actors will cache models
+    as needed and run them natively. It is possible to run out of GPU memory
+    with actors since they cache every model they are passed."""
+    def __init__(self):
+        self.modelCache = {}
+
+    def run(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
+            cacheModel=False, clientID=None):
+        # The runActor must cache the model, if you wan't to reset, you must
+        # kill and restart the actor. cacheModel is kept for consistency with
+        # runTask but is ignored here.
+        if clientID in self.modelCache:
+            model = self.modelCache[clientID]
+        else:
+            model = modelSpec.modelClass(modelArg)
+            self.modelCache[clientID] = model
+
+        return _run(model, inputs, completionQ, queryId)
+
+    def runKaas(self, req, queryId=None, completionQ=None):
+        results = kaasRay.kaasServeRay(req.toDict())
+
+        if completionQ is not None:
+            completionQ.put((results, queryId))
+
+        return results
+
+
+class runnerPool():
+    def __init__(self, nRunner):
+        self.actors = []
+        for i in range(nRunner):
+            self.actors.append(runActor.remote())
+
+        self.policy = self._roundRobin
+        self.last = 0
+
+    def _roundRobin(self, clientID):
+        """A simple round-robin policy with no affinity"""
+        self.last = (self.last + 1) % len(self.actors)
+        return self.last
+
+    def getRunner(self, clientID):
+        """Return an actor suitable for running a request from clientID.
+        Callers should call the returned actor exactly once per call to
+        getRunner (do not cache the return value of getRunner)."""
+        runnerIdx = self.policy(clientID)
+        return self.actors[runnerIdx]
+
+
+def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
+            completionQ=None, queryId=None, cacheModel=False, clientID=False,
+            runPool=None):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
     mClass = modelSpec.modelClass
 
     if inline:
+        assert not modelSpec.modelType == 'kaas', "KaaS is not compatible with inline"
+        assert runPool is None, "Cannot use run actors in inline mode"
+
         # We can't pass lists of references to ray functions because ray can't
         # statically determine the dataflow. All refs have to be first-class
         # arguments so we pack them all into a list and then expand it with
@@ -193,12 +254,13 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
             varArgs = list(constRefs) + list(inputRefs)
 
         if completionQ is not None:
-            runInline.options(num_returns=mClass.nOutPost).remote(
-                    specRef, modelArg, *varArgs, completionQ=completionQ, queryId=queryId)
+            runInline.options(num_returns=mClass.nOutPost) \
+                .remote(specRef, modelArg, *varArgs, completionQ=completionQ,
+                        queryId=queryId)
             postOut = None
         else:
-            postOut = runInline.options(num_returns=mClass.nOutPost).remote(
-                                specRef, modelArg, *varArgs)
+            postOut = runInline.options(num_returns=mClass.nOutPost) \
+                .remote(specRef, modelArg, *varArgs)
     else:
         # Pre
         preInp = _getInputs(mClass.preMap, const=constRefs, inp=inputRefs)
@@ -208,20 +270,35 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
             preOut = [preOut]
 
         # Run
-        if modelSpec.modelType == "kaas":
-            runner = runKaas
-            specArg = modelSpec
-        else:
-            runner = run.options(num_returns=mClass.nOutRun).remote
-            specArg = specRef
-
         runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
-        if completionQ is not None and mClass.noPost:
-            runOut = runner(specArg, modelArg, *runInp,
-                            completionQ=completionQ, queryId=queryId,
-                            cacheModel=cacheModel, clientID=clientID)
+
+        if modelSpec.modelType == "kaas":
+            model = modelArg
+            req = model.run(runInp)
+
+            if runPool is not None:
+                runActor = runPool.getRunner(clientID)
+                runner = runActor.runKaas.options(num_returns=mClass.nOutRun).remote
+            else:
+                runner = runKaasTask.options(num_returns=mClass.nOutRun).remote
+
+            if completionQ is not None and mClass.noPost:
+                runOut = runner(req, queryId=queryId, completionQ=completionQ)
+            else:
+                runOut = runner(req)
         else:
-            runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
+            if runPool is not None:
+                runActor = runPool.getRunner(clientID)
+                runner = runActor.run.options(num_returns=mClass.nOutRun).remote
+            else:
+                runner = runTask.options(num_returns=mClass.nOutRun).remote
+
+            if completionQ is not None and mClass.noPost:
+                runOut = runner(specRef, modelArg, *runInp,
+                                completionQ=completionQ, queryId=queryId,
+                                cacheModel=cacheModel, clientID=clientID)
+            else:
+                runOut = runner(specRef, modelArg, *runInp, cacheModel=cacheModel)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -230,9 +307,10 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
         if mClass.noPost:
             postOut = runOut
         else:
-            postInp = _getInputs(mClass.postMap, const=constRefs, inp=inputRefs, pre=preOut, run=runOut)
-            postOut = post.options(num_returns=mClass.nOutPost).remote(
-                    specRef, *postInp, completionQ=completionQ, queryId=queryId)
+            postInp = _getInputs(mClass.postMap, const=constRefs,
+                                 inp=inputRefs, pre=preOut, run=runOut)
+            postOut = post.options(num_returns=mClass.nOutPost) \
+                .remote(specRef, *postInp, completionQ=completionQ, queryId=queryId)
 
             if mClass.nOutPost == 1:
                 postOut = [postOut]
@@ -240,7 +318,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False, co
     return postOut
 
 
-def nShot(modelSpec, n, inline=False):
+def nShot(modelSpec, n, inline=False, useActors=False):
     ray.init()
 
     specRef = ray.put(modelSpec)
@@ -257,6 +335,11 @@ def nShot(modelSpec, n, inline=False):
         for const in constants:
             constRefs.append(ray.put(const))
 
+    if useActors:
+        pool = runnerPool(getNGpu())
+    else:
+        pool = None
+
     times = []
     accuracies = []
     results = []
@@ -265,7 +348,8 @@ def nShot(modelSpec, n, inline=False):
         inp = loader.get(idx)
 
         start = time.time()
-        res = _runOne(modelSpec, specRef, modelArg, constRefs, inp, inline=inline)
+        res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
+                      inline=inline, runPool=pool)
         res = ray.get(res)
 
         results.append(res)
@@ -338,7 +422,7 @@ def handleCompletion(queue):
 
 
 class mlperfRunner():
-    def __init__(self, modelSpec, loader, constantRefs, inline=False):
+    def __init__(self, modelSpec, loader, constantRefs, inline=False, useActors=False):
         self.modelSpec = modelSpec
         self.modelArg = modelSpec.getModelArg()
         self.loader = loader
@@ -349,6 +433,13 @@ class mlperfRunner():
         self.nIssued = 0
 
         self.specRef = ray.put(self.modelSpec)
+
+        self.nGpu = getNGpu()
+
+        if useActors:
+            self.pool = runnerPool(self.nGpu)
+        else:
+            self.pool = None
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -361,9 +452,17 @@ class mlperfRunner():
         if preWarm:
             self.loader.preLoad([0])
             inputs = self.loader.get(0)
-            res = _runOne(self.modelSpec, self.specRef, self.modelArg,
-                          self.constants, inputs, inline=self.inline)
-            ray.get(res)
+            results = []
+
+            # We don't control how ray handles workers, but we assume that
+            # sending a burst of nGpu*2 should be enough to trigger all the
+            # cold starts.
+            for i in range(self.nGpu*2):
+                results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
+                               self.constants, inputs, inline=self.inline,
+                               runPool=self.pool))
+            for res in results:
+                ray.get(res)
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
@@ -372,7 +471,7 @@ class mlperfRunner():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inp, inline=self.inline,
                     completionQ=self.completionQueue, queryId=q.id,
-                    cacheModel=True)
+                    cacheModel=True, runPool=self.pool)
 
         self.nIssued += len(queryBatch)
 
@@ -382,7 +481,7 @@ class mlperfRunner():
         self.completionHandler.join()
 
 
-def mlperfBench(modelSpec, testing=False, inline=False):
+def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     """Run the mlperf loadgen version"""
     ray.init()
 
@@ -397,7 +496,7 @@ def mlperfBench(modelSpec, testing=False, inline=False):
         for const in constants:
             constRefs.append(ray.put(const))
 
-    runner = mlperfRunner(modelSpec, loader, constRefs, inline=inline)
+    runner = mlperfRunner(modelSpec, loader, constRefs, inline=inline, useActors=useActors)
 
     runner.start(preWarm=True)
     sut = mlperf_loadgen.ConstructSUT(
@@ -443,13 +542,20 @@ clients = {}
 
 class serverLoop():
     """ServerTask"""
-    def __init__(self, clientSock):
+    def __init__(self, clientSock, useActors=False):
         self.loop = IOLoop.instance()
 
         self.clientStream = ZMQStream(clientSock)
         self.clientStream.on_recv(self.handleClients)
 
         IOLoop.current().add_callback(self.handleWorker)
+
+        self.nGpu = getNGpu()
+
+        if useActors:
+            self.pool = runnerPool(self.nGpu)
+        else:
+            self.pool = None
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -480,14 +586,14 @@ class serverLoop():
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
-                    cacheModel=True, inline=True)
+                    cacheModel=True, inline=False, runPool=self.pool)
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
         IOLoop.instance().stop()
 
 
-def serveRequests():
+def serveRequests(useActors=False):
     ray.init()
     context = zmq.Context()
 
@@ -496,7 +602,7 @@ def serveRequests():
 
     # IOLoop uses a global context, when you instantiate a serverLoop object,
     # it registers itself with IOLoop. The returned object isn't used here.
-    looper = serverLoop(clientSock)
+    looper = serverLoop(clientSock, useActors=useActors)
 
     signal.signal(signal.SIGINT, lambda s, f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
 
