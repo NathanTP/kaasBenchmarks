@@ -19,7 +19,7 @@ def sanityCheck(backend):
 
 
 def nshot(modelSpec, n, backend):
-    backend.nShot(modelSpec, n, inline=True, useActors=False)
+    backend.nShot(modelSpec, n, inline=False, useActors=True)
 
 
 def runMlperf(modelSpec, backend):

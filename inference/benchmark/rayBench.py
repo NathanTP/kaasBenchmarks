@@ -162,7 +162,8 @@ def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
     if model.noPost:
         postOut = modOut
     else:
-        postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=modOut)
+        postInp = _getInputs(model.postMap, const=constants, inp=inputs,
+                             pre=preOut, run=modOut)
         postOut = model.post(postInp)
 
     if completionQ is not None:
@@ -253,12 +254,13 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             varArgs = list(constRefs) + list(inputRefs)
 
         if completionQ is not None:
-            runInline.options(num_returns=mClass.nOutPost).remote(
-                    specRef, modelArg, *varArgs, completionQ=completionQ, queryId=queryId)
+            runInline.options(num_returns=mClass.nOutPost) \
+                .remote(specRef, modelArg, *varArgs, completionQ=completionQ,
+                        queryId=queryId)
             postOut = None
         else:
-            postOut = runInline.options(num_returns=mClass.nOutPost).remote(
-                                specRef, modelArg, *varArgs)
+            postOut = runInline.options(num_returns=mClass.nOutPost) \
+                .remote(specRef, modelArg, *varArgs)
     else:
         # Pre
         preInp = _getInputs(mClass.preMap, const=constRefs, inp=inputRefs)
@@ -298,21 +300,6 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             else:
                 runOut = runner(specRef, modelArg, *runInp, cacheModel=cacheModel)
 
-        # # Run
-        # if runPool is not None:
-        #     runActor = runPool.getRunner(clientID)
-        #     runner = runActor.run.options(num_returns=mClass.nOutRun).remote
-        # else:
-        #     runner = runTask.options(num_returns=mClass.nOutRun).remote
-        #
-        # runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
-        # if completionQ is not None and mClass.noPost:
-        #     runOut = runner(specRef, modelArg, *runInp,
-        #                     completionQ=completionQ, queryId=queryId,
-        #                     cacheModel=cacheModel, clientID=clientID)
-        # else:
-        #     runOut = runner(specRef, modelArg, *runInp, cacheModel=cacheModel)
-
         if mClass.nOutRun == 1:
             runOut = [runOut]
 
@@ -320,9 +307,10 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if mClass.noPost:
             postOut = runOut
         else:
-            postInp = _getInputs(mClass.postMap, const=constRefs, inp=inputRefs, pre=preOut, run=runOut)
-            postOut = post.options(num_returns=mClass.nOutPost).remote(
-                    specRef, *postInp, completionQ=completionQ, queryId=queryId)
+            postInp = _getInputs(mClass.postMap, const=constRefs,
+                                 inp=inputRefs, pre=preOut, run=runOut)
+            postOut = post.options(num_returns=mClass.nOutPost) \
+                .remote(specRef, *postInp, completionQ=completionQ, queryId=queryId)
 
             if mClass.nOutPost == 1:
                 postOut = [postOut]
