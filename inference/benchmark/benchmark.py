@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import util
+import numpy as np
 
 
 def sanityCheck(backend):
@@ -21,11 +22,12 @@ def sanityCheck(backend):
 def nshot(modelSpec, n, backend):
     backend.nShot(modelSpec, n, inline=False)
 
-
 def runMlperf(modelSpec, backend):
     testing = False
     inline = False
+    foobar = True
 
+    x = barbaz
     print("Starting MLPerf Benchmark: ")
     print("\tModel: ", modelSpec.name)
     print("\tBackend: ", backend.__name__)
