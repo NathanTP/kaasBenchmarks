@@ -240,6 +240,9 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
     mClass = modelSpec.modelClass
 
     if inline:
+        assert not modelSpec.modelType == 'kaas', "KaaS is not compatible with inline"
+        assert runPool is None, "Cannot use run actors in inline mode"
+
         # We can't pass lists of references to ray functions because ray can't
         # statically determine the dataflow. All refs have to be first-class
         # arguments so we pack them all into a list and then expand it with

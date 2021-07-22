@@ -19,7 +19,7 @@ def sanityCheck(backend):
 
 
 def nshot(modelSpec, n, backend):
-    backend.nShot(modelSpec, n, inline=False, useActors=True)
+    backend.nShot(modelSpec, n, inline=True, useActors=False)
 
 
 def runMlperf(modelSpec, backend):
@@ -32,11 +32,11 @@ def runMlperf(modelSpec, backend):
     print("\tTesting: ", testing)
     print("\tInline: ", inline)
 
-    backend.mlperfBench(modelSpec, testing=testing, inline=inline, useActors=True)
+    backend.mlperfBench(modelSpec, testing=testing, inline=inline, useActors=False)
 
 
 def main():
-    spec = util.getModelSpec("testModelKaas")
+    spec = util.getModelSpec("testModelNP")
 
     # import localBench
     # backend = localBench
@@ -46,8 +46,8 @@ def main():
     # rayBench.serveRequests(useActors=True)
 
     # sanityCheck()
-    # nshot(spec, 16, backend)
-    runMlperf(spec, backend)
+    nshot(spec, 16, backend)
+    # runMlperf(spec, backend)
 
 
 main()
