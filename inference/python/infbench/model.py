@@ -11,7 +11,6 @@ import collections
 import mlperf_loadgen
 
 import libff.kaas as kaas
-import libff.kaas.kaasRay as kaasRay
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -414,10 +413,7 @@ class kaasModel(Model):
         # solve this
         req.reKey(renameMap)
 
-        outs = kaasRay.kaasServeRay.options(
-            num_returns=len(self.meta['outputs'])).remote(req.toDict())
-
-        return outs
+        return req
 
 
 # =============================================================================

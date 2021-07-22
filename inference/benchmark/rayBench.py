@@ -14,6 +14,7 @@ import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 
 import mlperf_loadgen
+import libff.kaas.kaasRay as kaasRay
 
 import util
 
@@ -63,21 +64,6 @@ def pre(modelSpec, *inputs):
         return res
 
 
-def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False):
-    """Run a kaasModel. kaasModels handle Ray interaction internally so this
-    function should be called natively on the client."""
-    # KaaS models live on the client, so the argument should be a kaasModel
-    # instance
-    model = modelArg
-
-    results = model.run(inputs)
-
-    if completionQ is not None:
-        completionQ.put((results, queryId))
-
-    return results
-
-
 # Not sure how to have a truly per-worker cache, but this dict maps PID to the initialized model (if any).
 # From what I can tell, Ray will create a pool of processes for each unique
 # task. Each task will get its own pool. Since these require a GPU, I would not
@@ -88,7 +74,7 @@ def runKaas(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
 modelCache = {}
 
 
-def _run(model, inputs, completionQ=None, queryId=None):
+def _run(model, inputs, completionQ, queryId):
     """Internal run function"""
     constants, data = _unMarshalArgs(model.runMap, inputs)
 
@@ -106,10 +92,18 @@ def _run(model, inputs, completionQ=None, queryId=None):
 
 
 @ray.remote(num_gpus=1)
+def runKaasTask(req, queryId=None, completionQ=None):
+    results = kaasRay.kaasServeRay(req.toDict())
+
+    if completionQ is not None:
+        completionQ.put((results, queryId))
+
+    return results
+
+
+@ray.remote(num_gpus=1)
 def runTask(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheModel=False, clientID=None):
     """Run the request as a Ray task"""
-    # mClass = modelSpec.modelClass
-
     if cacheModel:
         pid = os.getpid()
         if pid not in modelCache:
@@ -125,19 +119,6 @@ def runTask(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
         model = modelSpec.modelClass(modelArg)
 
     return _run(model, inputs, completionQ, queryId)
-    # constants, data = _unMarshalArgs(mClass.runMap, inputs)
-    #
-    # results = model.run(constants + list(data))
-    #
-    # if completionQ is not None:
-    #     completionQ.put((results, queryId))
-    #
-    # # Ray will interpret the return value as tuple if there are multiple
-    # # returns, but if there is one return, it will treat it as a scalar.
-    # if len(results) == 1:
-    #     return results[0]
-    # else:
-    #     return results
 
 
 @ray.remote
@@ -207,7 +188,8 @@ class runActor():
     def __init__(self):
         self.modelCache = {}
 
-    def run(self, modelSpec, modelArg, *inputs, cacheModel=False, completionQ=None, queryId=None, clientID=None):
+    def run(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
+            cacheModel=False, clientID=None):
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
         # runTask but is ignored here.
@@ -218,6 +200,14 @@ class runActor():
             self.modelCache[clientID] = model
 
         return _run(model, inputs, completionQ, queryId)
+
+    def runKaas(self, req, queryId=None, completionQ=None):
+        results = kaasRay.kaasServeRay(req.toDict())
+
+        if completionQ is not None:
+            completionQ.put((results, queryId))
+
+        return results
 
 
 class runnerPool():
@@ -275,27 +265,50 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             preOut = [preOut]
 
         # Run
+        runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
+
         if modelSpec.modelType == "kaas":
-            # XXX Should KaaS work with the runnerPool? Some of the policies
-            # will make sense there but we can also handle that policy in
-            # libff...
-            runner = runKaas
-            specArg = modelSpec
+            model = modelArg
+            req = model.run(runInp)
+
+            if runPool is not None:
+                runActor = runPool.getRunner(clientID)
+                runner = runActor.runKaas.options(num_returns=mClass.nOutRun).remote
+            else:
+                runner = runKaasTask.options(num_returns=mClass.nOutRun).remote
+
+            if completionQ is not None and mClass.noPost:
+                runOut = runner(req, queryId=queryId, completionQ=completionQ)
+            else:
+                runOut = runner(req)
         else:
             if runPool is not None:
                 runActor = runPool.getRunner(clientID)
                 runner = runActor.run.options(num_returns=mClass.nOutRun).remote
             else:
                 runner = runTask.options(num_returns=mClass.nOutRun).remote
-            specArg = specRef
 
-        runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
-        if completionQ is not None and mClass.noPost:
-            runOut = runner(specArg, modelArg, *runInp,
-                            completionQ=completionQ, queryId=queryId,
-                            cacheModel=cacheModel, clientID=clientID)
-        else:
-            runOut = runner(specArg, modelArg, *runInp, cacheModel=cacheModel)
+            if completionQ is not None and mClass.noPost:
+                runOut = runner(specRef, modelArg, *runInp,
+                                completionQ=completionQ, queryId=queryId,
+                                cacheModel=cacheModel, clientID=clientID)
+            else:
+                runOut = runner(specRef, modelArg, *runInp, cacheModel=cacheModel)
+
+        # # Run
+        # if runPool is not None:
+        #     runActor = runPool.getRunner(clientID)
+        #     runner = runActor.run.options(num_returns=mClass.nOutRun).remote
+        # else:
+        #     runner = runTask.options(num_returns=mClass.nOutRun).remote
+        #
+        # runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
+        # if completionQ is not None and mClass.noPost:
+        #     runOut = runner(specRef, modelArg, *runInp,
+        #                     completionQ=completionQ, queryId=queryId,
+        #                     cacheModel=cacheModel, clientID=clientID)
+        # else:
+        #     runOut = runner(specRef, modelArg, *runInp, cacheModel=cacheModel)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -538,13 +551,20 @@ clients = {}
 
 class serverLoop():
     """ServerTask"""
-    def __init__(self, clientSock):
+    def __init__(self, clientSock, useActors=False):
         self.loop = IOLoop.instance()
 
         self.clientStream = ZMQStream(clientSock)
         self.clientStream.on_recv(self.handleClients)
 
         IOLoop.current().add_callback(self.handleWorker)
+
+        self.nGpu = getNGpu()
+
+        if useActors:
+            self.pool = runnerPool(self.nGpu)
+        else:
+            self.pool = None
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -575,14 +595,14 @@ class serverLoop():
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
-                    cacheModel=True, inline=True)
+                    cacheModel=True, inline=False, runPool=self.pool)
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
         IOLoop.instance().stop()
 
 
-def serveRequests():
+def serveRequests(useActors=False):
     ray.init()
     context = zmq.Context()
 
@@ -591,7 +611,7 @@ def serveRequests():
 
     # IOLoop uses a global context, when you instantiate a serverLoop object,
     # it registers itself with IOLoop. The returned object isn't used here.
-    looper = serverLoop(clientSock)
+    looper = serverLoop(clientSock, useActors=useActors)
 
     signal.signal(signal.SIGINT, lambda s, f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
 
