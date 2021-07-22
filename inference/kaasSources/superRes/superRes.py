@@ -35,17 +35,17 @@ def addToKV(kv, node_num, arr, const=True, ephemeral=False):
     buff = kaas.bufferSpec(str(node_num), nByte, const=const, ephemeral=ephemeral)
     return buff 
 
-def loadParams():
-    params = pickle.load(open("superRes_params.pkl", 'rb'))
+def loadParams(param_address):
+    params = pickle.load(open(param_address, 'rb'))
     return params
 
 def makeKern(name_func, path, shapes, arguments):
     return kaas.kernelSpec(path, name_func, shapes[0], shapes[1], arguments=arguments)
 
 
-def createReq(mode='direct'):    
+def createReq(param_address, mode='direct'):    
     libffCtx = getCtx(remote=(mode == 'process'))
-    params = loadParams()
+    params = loadParams(param_address)
     nodes = []
     kerns = []
     path = pathlib.Path(__file__).resolve().parent / 'superRes.cubin'

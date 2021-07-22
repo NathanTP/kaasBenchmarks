@@ -7,9 +7,10 @@ from superRes import createReq
 
 
 cwd = pathlib.Path(__file__).parent.resolve()
+modelDir = cwd / ".." / ".." / "models"
 
 def loadGraph():
-    graph = open(cwd / "graph.json")
+    graph = open(modelDir / "superRes_graph.json")
     return json.load(graph)
 
 '''This method is useful because the intermediate buffers in multi-kernel nodes aren't present in the graph, so this code is needed in 2 separate locations. '''
@@ -21,7 +22,7 @@ def getInfo(buf, graph):
     return dtype, shape
 
 def loadParams():
-    path = cwd / "superRes_params.pkl"
+    path = modelDir / "superRes_params.pkl"
     return pickle.load(open(path, 'rb')) 
 
 
@@ -58,7 +59,7 @@ def getParams():
 
 if __name__ == "__main__":
 
-    req = createReq()
+    req = createReq(modelDir / "superRes_params.pkl")
     with open(cwd / "superRes_model.yaml", 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
