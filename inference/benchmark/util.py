@@ -62,14 +62,14 @@ def getModelSpec(modelName):
         import infbench.superres
         return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
-                         modelPath=modelDir / "superres.so",
+                         modelPath=modelDir / "superRes" / "superres.so",
                          modelClass=infbench.superres.superResTvm)
 
     elif modelName == "resnet50":
         import infbench.resnet50
         return ModelSpec(name="resnet50",
                          loader=infbench.resnet50.imageNetLoader,
-                         modelPath=modelDir / "resnet50.so",
+                         modelPath=modelDir / "resnet50" / "resnet50.so",
                          modelClass=infbench.resnet50.resnet50)
 
     elif modelName == "ssdMobileNet":

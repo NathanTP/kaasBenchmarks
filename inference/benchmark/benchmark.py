@@ -34,7 +34,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = util.getModelSpec("superResKaas")
+    spec = util.getModelSpec("resnet50")
 
     # import localBench
     # backend = localBench

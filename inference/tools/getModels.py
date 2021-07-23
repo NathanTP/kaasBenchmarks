@@ -117,21 +117,26 @@ def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
     paramPath = outputDir / (modelName + "_params.pkl")
     with open(paramPath, 'wb') as f:
         pickle.dump({k: p.asnumpy() for k, p in module.params.items()}, f)
-    
 
 
 def getResnet50():
-    modelPath = modelDir / 'resnet50.onnx'
+    resnetDir = modelDir / 'resnet50'
+    if not resnetDir.exists():
+        resnetDir.mkdir()
+    modelPath = resnetDir / 'resnet50.onnx'
     if not modelPath.exists():
         wget.download("https://zenodo.org/record/4735647/files/resnet50_v1.onnx", str(modelPath))
-    getOnnx(modelPath, modelDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
+    getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
 
 
 def getSuperRes():
-    modelPath = modelDir / 'superres.onnx'
+    superResDir = modelDir / 'superRes'
+    if not superResDir.exists():
+        superResDir.mkdir()
+    modelPath = superResDir / 'superres.onnx'
     if not modelPath.exists():
         wget.download("https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx", str(modelPath))
-    getOnnx(modelPath, modelDir, "superRes")
+    getOnnx(modelPath, superResDir, "superRes")
 
 
 def getBert():

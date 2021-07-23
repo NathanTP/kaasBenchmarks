@@ -10,8 +10,9 @@ cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
 superResDir = modelDir / "superRes"
 
+
 def loadGraph():
-    graph = open(modelDir / "superRes_graph.json")
+    graph = open(superResDir / "superRes_graph.json")
     return json.load(graph)
 
 
@@ -25,8 +26,8 @@ def getInfo(buf, graph):
 
 
 def loadParams():
-    path = modelDir / "superRes_params.pkl"
-    return pickle.load(open(path, 'rb')) 
+    path = superResDir / "superRes_params.pkl"
+    return pickle.load(open(path, 'rb'))
 
 
 def metaFromReq(req):
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     if not targetDir.exists():
         targetDir.mkdir()
 
-    req = createReq(modelDir / "superRes_params.pkl", targetDir / "superRes.cubin")
+    req = createReq(superResDir / "superRes_params.pkl", superResDir / "superRes.cubin")
     with open(targetDir / "superRes_model.yaml", 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
@@ -81,4 +82,4 @@ if __name__ == "__main__":
     with open(targetDir / "superRes_params.pkl", 'wb') as f:
         pickle.dump(params, f)
 
-    
+
