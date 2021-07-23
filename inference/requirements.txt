@@ -8,3 +8,4 @@ matplotlib
 gpuinfo
 onnx-simplifier
 opencv-python
+zmq

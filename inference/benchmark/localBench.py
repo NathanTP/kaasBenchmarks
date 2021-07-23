@@ -158,6 +158,7 @@ def mlperfBench(modelSpec, testing=False, inline=False):
             loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
         mlperf_loadgen.StartTest(sut, qsl, settings)
+
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
     finally:

@@ -10,7 +10,7 @@ matSize = 128  # side length of test matrices (all square)
 depth = 3  # number of chained multiplies to use
 
 preTime = 0
-runTime = 0
+runTime = 0.01
 postTime = 0
 
 
@@ -50,11 +50,11 @@ class testModel():
 
     @staticmethod
     def getMlPerfCfg(testing=False):
-        settings = model.getDefaultMlPerfCfg()
+        settings = model.getDefaultMlPerfCfg(testing=testing)
 
         totalDelay = sum([preTime, runTime, postTime])
         if totalDelay == 0:
-            settings.server_target_qps = 100
+            settings.server_target_qps = 50
         else:
             settings.server_target_qps = (1 / (preTime + runTime + postTime)) / 2
 
