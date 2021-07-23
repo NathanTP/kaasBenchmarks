@@ -38,3 +38,8 @@ if not imagenetDir.exists():
     sp.run(["./make_fake_imagenet.sh", str(dataDir)], check=True)
 
 getData("superRes", "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true")
+
+superInput = dataDir / "superRes" / "cat.png"
+superReference = dataDir / "superRes" / "catSupered.png"
+if not superReference.exists():
+    sp.run(["python", "superResReference.py", str(superInput)], check=True)
