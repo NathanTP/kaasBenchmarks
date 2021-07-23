@@ -656,7 +656,7 @@ class bertLoader(dataset.loader):
         self.dataDir = dataDir / 'bert'
         # The bert example input is just 4MB, we just load it all, regardless
         # of idxs
-        self.examples = load(self.dataDir / "bertInputs.json")
+        self.examples = load(self.dataDir / "dev-v1.1.json")
 
     def preLoad(self, idxs):
         # We preload during init so we can get ndata early. Other datasets have

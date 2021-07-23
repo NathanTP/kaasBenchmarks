@@ -190,15 +190,15 @@ def main():
     if not modelDir.exists():
         modelDir.mkdir(mode=0o700)
 
-    # print("Getting BERT")
-    # getBert()
-    #
-    # print("\nGetting Resnet")
-    # getResnet50()
-    #
-    # print("\nGetting SuperRes")
-    # getSuperRes()
-    #
+    print("Getting BERT")
+    getBert()
+
+    print("\nGetting Resnet")
+    getResnet50()
+
+    print("\nGetting SuperRes")
+    getSuperRes()
+
     print("\nGetting SSD-Mobilenet")
     getSsdMobilenet()
 
