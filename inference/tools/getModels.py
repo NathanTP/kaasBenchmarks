@@ -116,7 +116,6 @@ def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
     paramPath = outputDir / (modelName + "_params.pkl")
     with open(paramPath, 'wb') as f:
         pickle.dump([module.params['p' + str(i)].asnumpy() for i in range(len(module.params))], f)
-        #pickle.dump([p.asnumpy() for k, p in module.params.items()], f)
 
 
 def getResnet50():

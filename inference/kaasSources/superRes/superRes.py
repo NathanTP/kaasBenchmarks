@@ -23,7 +23,6 @@ def makeKern(name_func, path, shapes, arguments):
 
 
 def createReq(params, cubinPath, mode='direct'):
-    #params = loadParams(param_address)
     nodes = []
     kerns = []
     path = cubinPath
