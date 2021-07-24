@@ -1,5 +1,4 @@
 import yaml
-import sys
 import pathlib
 import pickle
 import json
@@ -16,7 +15,8 @@ def loadGraph():
     return json.load(graph)
 
 
-'''This method is useful because the intermediate buffers in multi-kernel nodes aren't present in the graph, so this code is needed in 2 separate locations. '''
+# This method is useful because the intermediate buffers in multi-kernel nodes
+# aren't present in the graph, so this code is needed in 2 separate locations.
 def getInfo(buf, graph):
     name = buf.name
     index = int(name)
@@ -27,11 +27,11 @@ def getInfo(buf, graph):
 
 def loadParams():
     path = superResDir / "superRes_params.pkl"
-    return pickle.load(open(path, 'rb'))
+    params = pickle.load(open(path, 'rb'))
+    return {'p' + str(i): params[i] for i in range(len(params))}, params
 
 
-def metaFromReq(req):
-    graph = loadGraph()
+def metaFromReq(req, graph):
     c = 0
     constants = []
     inputs = []
@@ -47,7 +47,7 @@ def metaFromReq(req):
                     inputs.append({"name": buf.name, "type": dtype, "shape": shape})
         for buf in kern.outputs:
             if not buf.ephemeral:
-                dtype,shape = getInfo(buf, graph)
+                dtype, shape = getInfo(buf, graph)
                 outputs.append({"name": buf.name, "type": dtype, "shape": shape})
     print(c)
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
@@ -58,7 +58,7 @@ def getParams():
     params_list = []
     for i in range(len(params.keys())):
         params_list.append(params["p" + str(i)])
-    return params_list
+    return params, params_list
 
 
 if __name__ == "__main__":
@@ -70,16 +70,17 @@ if __name__ == "__main__":
     if not targetDir.exists():
         targetDir.mkdir()
 
-    req = createReq(superResDir / "superRes_params.pkl", superResDir / "superRes.cubin")
+    params_dict, params_list = loadParams()
+
+    graph = loadGraph()
+
+    req = createReq(params_dict, superResDir / "superRes.cubin")
     with open(targetDir / "superRes_model.yaml", 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
-    meta_data = metaFromReq(req)
+    meta_data = metaFromReq(req, graph)
     with open(targetDir / "superRes_meta.yaml", 'w') as f:
         yaml.safe_dump(meta_data, f)
 
-    params = getParams()
     with open(targetDir / "superRes_params.pkl", 'wb') as f:
-        pickle.dump(params, f)
-
-
+        pickle.dump(params_list, f)

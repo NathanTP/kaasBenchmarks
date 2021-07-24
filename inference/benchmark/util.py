@@ -45,10 +45,10 @@ def getModelSpec(modelName):
     elif modelName == "superResKaas":
         import infbench.superres
         return ModelSpec(name="superResKaas",
-                        loader=infbench.superres.superResLoader,
-                        modelPath=modelDir / "superRes" / "superRes_model.yaml",
-                        modelClass=infbench.superres.superResKaas,
-                        modelType="kaas")
+                         loader=infbench.superres.superResLoader,
+                         modelPath=modelDir / "superRes" / "superRes_model.yaml",
+                         modelClass=infbench.superres.superResKaas,
+                         modelType="kaas")
 
     elif modelName == "testModelNP":
         import infbench.testModel

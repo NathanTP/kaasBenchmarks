@@ -110,13 +110,13 @@ def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
     with open((outputDir / inputPath.name).with_suffix(".json"), 'w') as f:
         json.dump(meta, f, indent=True)
 
-    cudaLib = module.get_lib().imported_modules[0]
     graphPath = outputDir / (modelName + "_graph.json")
     with open(graphPath, 'w') as f:
         f.write(module.get_graph_json())
     paramPath = outputDir / (modelName + "_params.pkl")
     with open(paramPath, 'wb') as f:
-        pickle.dump({k: p.asnumpy() for k, p in module.params.items()}, f)
+        pickle.dump([module.params['p' + str(i)].asnumpy() for i in range(len(module.params))], f)
+        #pickle.dump([p.asnumpy() for k, p in module.params.items()], f)
 
 
 def getResnet50():
@@ -213,8 +213,8 @@ def main():
     print("\nGetting SuperRes")
     getSuperRes()
     #
-    #print("\nGetting SSD-Mobilenet")
-    #getSsdMobilenet()
+    # print("\nGetting SSD-Mobilenet")
+    # getSsdMobilenet()
 
 
 main()
