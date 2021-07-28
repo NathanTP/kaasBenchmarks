@@ -84,6 +84,11 @@ class superResTvm(superResBase, model.tvmModel):
     pass
 
 
+class superResKaas(superResBase, model.kaasModel):
+    nConst = 8
+    runMap = model.inputMap(const=(0, 1, 2, 3, 4, 5, 6, 7,), pre=(1,))
+
+
 class superResLoader(dataset.loader):
     ndata = 1
     checkAvailable = True

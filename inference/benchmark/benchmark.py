@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import util
 
 
@@ -8,7 +7,7 @@ def sanityCheck(backend):
     be manually fiddled with to spot check stuff. It will run the superres
     model and write the output to test.png, it should be the superres output (a
     small cat next to a big cat in a figure)."""
-    spec = util.getModelSpec("superRes")
+    spec = util.getModelSpec("superResKaas")
     res = backend.nShot(spec, 1)
 
     with open("test.png", "wb") as f:
@@ -36,7 +35,7 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = util.getModelSpec("bert")
+    spec = util.getModelSpec("superResKaas")
 
     # import localBench
     # backend = localBench
@@ -45,7 +44,7 @@ def main():
     backend = rayBench
     # rayBench.serveRequests(useActors=True)
 
-    # sanityCheck()
+    # sanityCheck(rayBench)
     nshot(spec, 16, backend)
     # runMlperf(spec, backend)
 
