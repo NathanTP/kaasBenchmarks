@@ -4,7 +4,7 @@ import json
 import onnx
 import tvm
 import tvm.relay as relay
-
+import pickle
 # Gluoncv throws out some stupid warning about having both mxnet and torch,
 # have to go through this nonsense to suppress it.
 import warnings
@@ -96,7 +96,7 @@ def getOnnxInfo(onnxModel):
     return info
 
 
-def getOnnx(inputPath, outputDir, inputShapeMap=None):
+def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
     model = onnx.load(inputPath)
     if inputShapeMap is not None:
         model = fixOnnxDim(model, inputShapeMap)
@@ -110,19 +110,32 @@ def getOnnx(inputPath, outputDir, inputShapeMap=None):
     with open((outputDir / inputPath.name).with_suffix(".json"), 'w') as f:
         json.dump(meta, f, indent=True)
 
+    graphPath = outputDir / (modelName + "_graph.json")
+    with open(graphPath, 'w') as f:
+        f.write(module.get_graph_json())
+    paramPath = outputDir / (modelName + "_params.pkl")
+    with open(paramPath, 'wb') as f:
+        pickle.dump([module.params['p' + str(i)].asnumpy() for i in range(len(module.params))], f)
+
 
 def getResnet50():
-    modelPath = modelDir / 'resnet50.onnx'
+    resnetDir = modelDir / 'resnet50'
+    if not resnetDir.exists():
+        resnetDir.mkdir()
+    modelPath = resnetDir / 'resnet50.onnx'
     if not modelPath.exists():
         wget.download("https://zenodo.org/record/4735647/files/resnet50_v1.onnx", str(modelPath))
-    getOnnx(modelPath, modelDir, inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
+    getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
 
 
 def getSuperRes():
-    modelPath = modelDir / 'superres.onnx'
+    superResDir = modelDir / 'superRes'
+    if not superResDir.exists():
+        superResDir.mkdir()
+    modelPath = superResDir / 'superres.onnx'
     if not modelPath.exists():
         wget.download("https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx", str(modelPath))
-    getOnnx(modelPath, modelDir)
+    getOnnx(modelPath, superResDir, "superRes")
 
 
 def getBert():
@@ -141,7 +154,7 @@ def getBert():
         wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
 
     print("Converting BERT to .so")
-    getOnnx(modelPath, bertDir,
+    getOnnx(modelPath, bertDir, "bert",
             inputShapeMap={
                 'input_ids': (1, 384),
                 'input_mask': (1, 384),
