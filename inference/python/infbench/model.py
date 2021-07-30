@@ -382,6 +382,9 @@ class kaasModel(Model):
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
+        for kern in self.reqTemplate['kernels']:
+            kern['library'] = self.cubin
+
     @staticmethod
     def getConstants(modelDir):
         """Default constant loader assumes the kaasModel simply pickled their

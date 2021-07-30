@@ -205,15 +205,15 @@ def main():
 
     print("Getting BERT")
     getBert()
-    #
+
     print("\nGetting Resnet")
     getResnet50()
-    #
+
     print("\nGetting SuperRes")
     getSuperRes()
-    #
-    # print("\nGetting SSD-Mobilenet")
-    # getSsdMobilenet()
+
+    print("\nGetting SSD-Mobilenet")
+    getSsdMobilenet()
 
 
 main()
