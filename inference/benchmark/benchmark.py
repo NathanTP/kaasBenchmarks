@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import util
+import argparse
 
 
 def sanityCheck(backend):
@@ -35,17 +36,36 @@ def runMlperf(modelSpec, backend):
 
 
 def main():
-    spec = util.getModelSpec("superResKaas")
+    parser = argparse.ArgumentParser("Inference benchmark driver")
+    parser.add_argument("-m", "--model", help="Model to run")
+    parser.add_argument("-b", "--backend", default='local', help="Which driver to use (local or ray)")
+    parser.add_argument("-t", "--test", default="nshot", help="Which test to run (nshot or mlperf)")
+    parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
+    parser.add_argument("--actors", action="store_true", help="Use actors for ray workloads")
+    parser.add_argument("--inline", action="store_true", help="Inline pre and post processing with them model run (only meaningful for ray mode)")
+    parser.add_argument("--numRun", default=1, type=int, help="Number of iterations to use in nshot mode")
+    args = parser.parse_args()
 
-    # import localBench
-    # backend = localBench
+    spec = util.getModelSpec(args.model)
 
-    import rayBench
-    backend = rayBench
-    # rayBench.serveRequests(useActors=True)
+    if args.backend == 'local':
+        import localBench
+        backend = localBench
+    else:
+        import rayBench
+        backend = rayBench
 
-    nshot(spec, 16, backend)
-    # runMlperf(spec, backend)
+    print(f"Starting {args.test} test")
+    print("\t Model: ", args.model)
+    print("\t Backend: ", args.backend)
+    print("\t Testing: ", args.testing)
+    print("\t Actors: ", args.actors)
+    print("\t Inline: ", args.inline)
+
+    if args.test == 'nshot':
+        backend.nShot(spec, args.numRun, inline=args.inline, useActors=args.actors)
+    elif args.test == 'mlperf':
+        backend.mlperfBench(spec, testing=args.testing, inline=args.inline, useActors=args.actors)
 
 
 main()

@@ -44,7 +44,7 @@ def _runOne(model, constants, inputs):
     return postOut
 
 
-def nShot(modelSpec, n, inline=False):
+def nShot(modelSpec, n, inline=False, useActors=False):
     loader, models = _getHandlers(modelSpec)
 
     if modelSpec.modelType == "kaas":
@@ -52,6 +52,8 @@ def nShot(modelSpec, n, inline=False):
 
     if inline:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
+    if useActors:
+        print("WARNING: Actors does nothing in local mode")
 
     loader.preLoad(list(range(min(n, loader.ndata))))
     model = models[0]
@@ -136,11 +138,13 @@ class mlperfRunner():
             batch = queue.get()
 
 
-def mlperfBench(modelSpec, testing=False, inline=False):
+def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     """Run the mlperf loadgen version"""
 
     if inline:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
+    if useActors:
+        print("WARNING: useActors does nothing in local mode")
 
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
