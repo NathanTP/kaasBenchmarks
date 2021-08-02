@@ -9,3 +9,6 @@ gpuinfo
 onnx-simplifier
 opencv-python
 zmq
+gluoncv
+mxnet
+transformers

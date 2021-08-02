@@ -3,12 +3,14 @@
 
 opt=-q
 
-if [ -d data/fake_imagenet ]; then
+installPath=$(realpath $1)
+
+if [ -d $installPath/fake_imagenet ]; then
     exit 0
 fi
 
-mkdir -p data/fake_imagenet/val
-cd data/fake_imagenet/val
+mkdir -p $installPath/fake_imagenet/val
+cd $installPath/fake_imagenet/val
 wget $opt https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/7weeks_old.JPG/800px-7weeks_old.JPG
 wget $opt https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Welsh_Springer_Spaniel.jpg/800px-Welsh_Springer_Spaniel.jpg
 wget $opt https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg

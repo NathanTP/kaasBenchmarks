@@ -49,7 +49,7 @@ class superResBase():
         out_cr = img_cr.resize(out_y.size, Image.BICUBIC)
         result = Image.merge("YCbCr", [out_y, out_cb, out_cr]).convert("RGB")
         canvas = np.full((672, 672 * 2, 3), 255)
-        canvas[0:224, 0:224, :] = np.asarray(imgPil)
+        canvas[0:224, 0:224, :] = np.asarray(imgPil.convert("RGB"))
         canvas[:, 672:, :] = np.asarray(result)
 
         with io.BytesIO() as f:
@@ -98,8 +98,7 @@ class superResLoader(dataset.loader):
         imgPath = dataDir / "superRes" / "cat.png"
         self.img = Image.open(imgPath).tobytes()
 
-        with open(dataDir / 'superRes' / 'catSupered.png', 'rb') as f:
-            self.imgRef = f.read()
+        self.imgRef = Image.open(dataDir / 'superRes' / 'catSupered.png')
 
     def preLoad(self, idxs):
         self.preLoaded = True
@@ -118,4 +117,13 @@ class superResLoader(dataset.loader):
         return (self.img,)
 
     def check(self, result, idx):
-        return result[0] == self.imgRef
+        npIO = io.BytesIO(result[0])
+        imgRes = Image.open(npIO)
+
+        npRes = np.asarray(imgRes).astype('float32')
+        npRef = np.asarray(self.imgRef).astype('float32')
+
+        # SuperRes isn't completely deterministic, but so long as all the pixel
+        # values are within 5 (out of 255) of eachother, it probably did the
+        # right thing
+        return np.allclose(npRes, npRef, atol=5)
