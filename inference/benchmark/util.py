@@ -24,7 +24,7 @@ class ModelSpec():
             # KaaS models live on the client so we only need one
             return self.modelClass(self.modelPath)
         elif self.modelType == "direct":
-            return None
+            return self.modelPath
         else:
             raise ValueError("Unrecognized model type: ", self.modelType)
 
@@ -56,6 +56,14 @@ def getModelSpec(modelName):
                          loader=infbench.testModel.testLoader,
                          modelPath=modelDir,  # testModelNP is completely self-contained, modelDir is unused
                          modelClass=infbench.testModel.testModelNP,
+                         modelType="direct")
+
+    elif modelName == "testModelNative":
+        import infbench.testModel
+        return ModelSpec(name="testModelNative",
+                         loader=infbench.testModel.testLoader,
+                         modelPath=modelDir / "sgemm" / "sgemm_meta.yaml",
+                         modelClass=infbench.testModel.testModelNative,
                          modelType="direct")
 
     elif modelName == "superRes":
