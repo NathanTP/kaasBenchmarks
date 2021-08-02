@@ -3,6 +3,10 @@ from . import dataset
 
 import time
 import numpy as np
+import pickle
+
+import pycuda.driver as cuda
+import pycuda.tools
 
 # These parameters should match kaasSources/sgemm to be consistent, though if you
 # only want to run testModelNP they can be anything you want.
@@ -86,6 +90,73 @@ class testModelNP(testModel, model.Model):
             expect = np.matmul(expect, constants[i])
 
         return (expect,)
+
+
+class testModelNative(testModel, model.Model):
+    """Calls the GPU kernel natively instead of using KaaS"""
+
+    def __init__(self, modelArg):
+        super().__init__(modelArg)
+        self.modelPath = modelArg
+        self.dConsts = None
+
+        tile_tb_height = 8
+        tileN = 16
+        tileM = (tileN * tile_tb_height)
+
+        # Size of one element in bytes, e.g. float32=4
+        self.gridDim = (matSize // tileM, matSize // tileN, 1)
+        self.blockDim = (tileN, tile_tb_height, 1)
+        self.sharedSize = tile_tb_height * tileN * 4
+
+        cuda.init()
+        self.cudaCtx = pycuda.tools.make_default_context()
+
+        mod = cuda.module_from_file(str(self.modelPath.parent / "sgemm.cubin"))
+        self.kern = mod.get_function("sgemm")
+        self.kern.prepare(["P", "P", "P"])
+
+    def __del__(self):
+        self.cudaCtx.detach()
+
+    @staticmethod
+    def getConstants(modelDir):
+        with open(modelDir / "sgemm_params.pkl", 'rb') as f:
+            constants = pickle.load(f)
+        return constants
+
+    def run(self, data):
+        constants = data[:self.nConst]
+        hInp = data[self.nConst]
+
+        self.cudaCtx.push()
+
+        if self.dConsts is None:
+            self.dConsts = []
+            for hConst in constants:
+                dConst = cuda.mem_alloc(hConst.nbytes)
+                cuda.memcpy_htod(dConst, hConst)
+                self.dConsts.append(dConst)
+
+        dIOs = []
+        dIOs.append(cuda.mem_alloc(hInp.nbytes))
+        cuda.memcpy_htod(dIOs[0], hInp)
+
+        for i in range(depth):
+            dIOs.append(cuda.mem_alloc(hInp.nbytes))
+
+        for i in range(depth):
+            self.kern.prepared_call(self.gridDim, self.blockDim,
+                                    dIOs[i], self.dConsts[i], dIOs[i+1],
+                                    shared_size=self.sharedSize)
+
+        hRes = np.empty_like(hInp)
+        cuda.memcpy_dtoh(hRes, dIOs[-1])
+
+        for dBuf in dIOs:
+            dBuf.free()
+
+        return (hRes,)
 
 
 class testModelKaas(testModel, model.kaasModel):
