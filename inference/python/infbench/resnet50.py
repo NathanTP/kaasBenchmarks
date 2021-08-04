@@ -67,14 +67,14 @@ class resnet50(model.tvmModel):
         raise AttributeError("resnet50 has no post-processing")
 
     @staticmethod
-    def getMlPerfCfg(testing=False):
+    def getMlPerfCfg(gpuType, testing=False):
         settings = model.getDefaultMlPerfCfg()
 
-        settings.server_target_qps = 3
-        # if testing:
-        #     settings.server_target_latency_ns = 1000
-        # else:
-        #     settings.server_target_latency_ns = 50000000
+        if gpuType == "Tesla K20c":
+            settings.server_target_qps = 4.5
+            settings.server_target_latency_ns = 600000000
+        else:
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
         return settings
 

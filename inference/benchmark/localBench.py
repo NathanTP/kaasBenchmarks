@@ -1,4 +1,6 @@
 import infbench
+import util
+
 import mlperf_loadgen
 import numpy as np
 import time
@@ -146,10 +148,12 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     if useActors:
         print("WARNING: useActors does nothing in local mode")
 
+    gpuType = util.getGpuType()
+
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
 
-    settings = models[0].getMlPerfCfg(testing=testing)
+    settings = models[0].getMlPerfCfg(gpuType, testing=testing)
 
     runner = mlperfRunner(loader, constants, models)
     runner.start()

@@ -327,7 +327,11 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 
     specRef = ray.put(modelSpec)
 
-    modelArg = modelSpec.getModelArg()
+    if modelSpec.modelType == "kaas":
+        modelArg = modelSpec.getModelArg()
+    else:
+        modelArg = ray.put(modelSpec.getModelArg())
+
     loader = modelSpec.loader(modelSpec.dataDir)
 
     loader.preLoad(range(min(n, loader.ndata)))
@@ -406,9 +410,6 @@ def handleCompletion(queue):
         # One batch at a time
         resp, qid = queue.get()
 
-        # if ncomplete % 10 == 0:
-        #     print("Query {} Finished".format(ncomplete))
-
         if isinstance(resp, int):
             # The driver is asking us to wrap up and exit after we've seen
             # 'resps' many responses.
@@ -428,7 +429,7 @@ def handleCompletion(queue):
 class mlperfRunner():
     def __init__(self, modelSpec, loader, constantRefs, inline=False, useActors=False):
         self.modelSpec = modelSpec
-        self.modelArg = modelSpec.getModelArg()
+        self.modelArg = ray.put(modelSpec.getModelArg())
         self.loader = loader
         self.constants = constantRefs
         self.inline = inline
@@ -489,7 +490,8 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     """Run the mlperf loadgen version"""
     ray.init()
 
-    settings = modelSpec.modelClass.getMlPerfCfg(testing=testing)
+    gpuType = util.getGpuType()
+    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, testing=testing)
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)

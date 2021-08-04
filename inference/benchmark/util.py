@@ -1,5 +1,7 @@
 import pathlib
 import infbench.model
+import subprocess as sp
+import re
 
 
 clientUrl = "ipc://benchmark_client.ipc"
@@ -97,3 +99,10 @@ def getModelSpec(modelName):
 
     else:
         raise ValueError("Unrecognized model: ", modelName)
+
+
+def getGpuType():
+    """Return a string describing the first available GPU"""
+    proc = sp.run(['nvidia-smi', '-L'], text=True, stdout=sp.PIPE, check=True)
+    match = re.search(r".*: (.*) \(UUID", proc.stdout)
+    return match.group(1)

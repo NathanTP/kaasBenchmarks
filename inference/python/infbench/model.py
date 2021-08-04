@@ -432,12 +432,10 @@ def getDefaultMlPerfCfg(testing=False):
     settings = mlperf_loadgen.TestSettings()
     settings.scenario = mlperf_loadgen.TestScenario.Server
 
-    # if testing:
-    #     settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    # else:
-    #     settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
-    # settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+    if testing:
+        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+    else:
+        settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
 
     # settings.min_query_count = 500
 
@@ -463,4 +461,5 @@ def processLatencies(latencies):
 def reportMlPerf(prefix="mlperf_log_"):
     with open(prefix + "summary.txt", 'r') as f:
         fullRes = f.readlines()
-        print("".join(fullRes[:28]))
+
+    print("".join(fullRes[:28]))

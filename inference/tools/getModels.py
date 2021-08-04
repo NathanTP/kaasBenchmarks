@@ -132,10 +132,10 @@ def getSuperRes():
     superResDir = modelDir / 'superRes'
     if not superResDir.exists():
         superResDir.mkdir()
-    modelPath = superResDir / 'superres.onnx'
-    if not modelPath.exists():
-        wget.download("https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx", str(modelPath))
-    getOnnx(modelPath, superResDir, "superRes")
+        modelPath = superResDir / 'superres.onnx'
+        if not modelPath.exists():
+            wget.download("https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx", str(modelPath))
+        getOnnx(modelPath, superResDir, "superRes")
 
 
 def getBert():
@@ -146,57 +146,58 @@ def getBert():
     if not bertDir.exists():
         bertDir.mkdir()
 
-    if not modelPath.exists():
-        print("Downloading BERT model")
-        wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
-    if not vocabPath.exists():
-        print("Downloading BERT vocab")
-        wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
+        if not modelPath.exists():
+            print("Downloading BERT model")
+            wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
+        if not vocabPath.exists():
+            print("Downloading BERT vocab")
+            wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
 
-    print("Converting BERT to .so")
-    getOnnx(modelPath, bertDir, "bert",
-            inputShapeMap={
-                'input_ids': (1, 384),
-                'input_mask': (1, 384),
-                'segment_ids': (1, 384)})
+        print("Converting BERT to .so")
+        getOnnx(modelPath, bertDir, "bert",
+                inputShapeMap={
+                    'input_ids': (1, 384),
+                    'input_mask': (1, 384),
+                    'segment_ids': (1, 384)})
 
 
 def getSsdMobilenet():
-    block = gluoncv.model_zoo.get_model("ssd_512_mobilenet1.0_coco", pretrained=True)
-    mod, params = relay.frontend.from_mxnet(block, {"data": (1, 3, 512, 512)})
-    with tvm.transform.PassContext(opt_level=3):
-        module = relay.build(mod, tvm.target.cuda(), params=params)
-    module.export_library(modelDir / 'ssdMobilenet.so')
+    if not (modelDir / 'ssdMobilenet').exists():
+        block = gluoncv.model_zoo.get_model("ssd_512_mobilenet1.0_coco", pretrained=True)
+        mod, params = relay.frontend.from_mxnet(block, {"data": (1, 3, 512, 512)})
+        with tvm.transform.PassContext(opt_level=3):
+            module = relay.build(mod, tvm.target.cuda(), params=params)
+        module.export_library(modelDir / 'ssdMobilenet.so')
 
-    # I'm sure there's a principled way to do this from mxnet models, but whatever
-    meta = {
-        "inputs": [
-            {
-                "name": "data",
-                "type": 'float32',
-                "shape": (1, 3, 512, 512)
-            }
-        ],
-        "outputs": [
-            {
-                "outName": "classIDs",
-                "outType": "float32",
-                "outShape": (1, 100, 1),
-            },
-            {
-                "outname": "scores",
-                "outtype": "float32",
-                "outshape": (1, 100, 1),
-            },
-            {
-                "outname": "bboxes",
-                "outtype": "float32",
-                "outshape": (1, 100, 4),
-            }
-        ]
-    }
-    with open(modelDir / 'ssdMobilenet.json', 'w') as f:
-        json.dump(meta, f)
+        # I'm sure there's a principled way to do this from mxnet models, but whatever
+        meta = {
+            "inputs": [
+                {
+                    "name": "data",
+                    "type": 'float32',
+                    "shape": (1, 3, 512, 512)
+                }
+            ],
+            "outputs": [
+                {
+                    "outName": "classIDs",
+                    "outType": "float32",
+                    "outShape": (1, 100, 1),
+                },
+                {
+                    "outname": "scores",
+                    "outtype": "float32",
+                    "outshape": (1, 100, 1),
+                },
+                {
+                    "outname": "bboxes",
+                    "outtype": "float32",
+                    "outshape": (1, 100, 4),
+                }
+            ]
+        }
+        with open(modelDir / 'ssdMobilenet.json', 'w') as f:
+            json.dump(meta, f)
 
 
 def main():
