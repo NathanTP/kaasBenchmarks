@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 import yaml
 import pathlib
 import pickle
 import json
 from superRes import createReq
 import argparse
+import subprocess as sp
 
 cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
@@ -64,23 +66,26 @@ def getParams():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output', type=pathlib.Path, default=superResDir, help="Output Directory")
+    parser.add_argument('-n', '--name', default='superRes', help="Name to use for output")
 
     args = parser.parse_args()
     targetDir = args.output
     if not targetDir.exists():
         targetDir.mkdir()
 
+    sp.run(['make'], cwd=cwd, check=True)
+
     params_dict, params_list = loadParams()
 
     graph = loadGraph()
 
-    req = createReq(params_dict, superResDir / "superRes.cubin")
-    with open(targetDir / "superRes_model.yaml", 'w') as f:
+    req = createReq(params_dict, superResDir / (args.name + ".cubin"))
+    with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
     meta_data = metaFromReq(req, graph)
-    with open(targetDir / "superRes_meta.yaml", 'w') as f:
+    with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta_data, f)
 
-    with open(targetDir / "superRes_params.pkl", 'wb') as f:
+    with open(targetDir / (args.name + "_params.pkl"), 'wb') as f:
         pickle.dump(params_list, f)

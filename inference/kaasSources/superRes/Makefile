@@ -7,9 +7,10 @@ PYTHON := python
 .PHONY: all
 
 ../../models/superRes/superRes.cubin: kerns/superres.cu
-	$(PYTHON) generateModel.py
 	nvcc $^ --cubin -gencode arch=compute_35,code=sm_35 -O3 -g -Xcompiler -Wall -Xcompiler -Wextra -std=c++14 -o $@
 
 %.o: %.cu
 	$(NVCC) -c $< $(NVCC_OPTS)
 
+clean:
+	rm *.cubin *.yaml *.pkl
