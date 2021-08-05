@@ -447,10 +447,14 @@ def handleCompletion(modelSpec, queue):
 class mlperfRunner():
     def __init__(self, modelSpec, loader, constantRefs, inline=False, useActors=False):
         self.modelSpec = modelSpec
-        self.modelArg = ray.put(modelSpec.getModelArg())
         self.loader = loader
         self.constants = constantRefs
         self.inline = inline
+
+        if modelSpec.modelType == "kaas":
+            self.modelArg = modelSpec.getModelArg()
+        else:
+            self.modelArg = ray.put(modelSpec.getModelArg())
 
         # Total number of queries issued
         self.nIssued = 0
