@@ -113,9 +113,18 @@ def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
     graphPath = outputDir / (modelName + "_graph.json")
     with open(graphPath, 'w') as f:
         f.write(module.get_graph_json())
+
     paramPath = outputDir / (modelName + "_params.pkl")
     with open(paramPath, 'wb') as f:
         pickle.dump([module.params['p' + str(i)].asnumpy() for i in range(len(module.params))], f)
+
+    metaPath = outputDir / (modelName + "_meta.ptx")
+    cudaLib = module.get_lib().imported_modules[0]
+    cudaLib.save(str(metaPath))
+
+    srcPath = outputDir / (modelName + "_source.cu")
+    with open(srcPath, 'w') as f:
+        f.write(cudaLib.get_source())
 
 
 def getResnet50():
