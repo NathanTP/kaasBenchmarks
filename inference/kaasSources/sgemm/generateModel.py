@@ -94,7 +94,7 @@ def metaFromReq(req):
 
 
 def generateCubin(outputPath):
-    sp.run(["make"], cwd="kerns/")
+    sp.run(["make"], cwd="kerns/", check=True)
     shutil.copy("kerns/sgemm.cubin", outputPath)
 
 
