@@ -52,6 +52,14 @@ def getModelSpec(modelName):
                          modelClass=infbench.superres.superResKaas,
                          modelType="kaas")
 
+    elif modelName == "resnet50Kaas":
+        import infbench.resnet50
+        return ModelSpec(name="resnet50Kaas",
+                         loader=infbench.resnet50.imageNetLoader,
+                         modelPath=modelDir / "resnet50" / "resnet50_model.yaml",
+                         modelClass=infbench.resnet50.resnet50Kaas,
+                         modelType="kaas")
+
     elif modelName == "testModelNP":
         import infbench.testModel
         return ModelSpec(name="testModelNP",

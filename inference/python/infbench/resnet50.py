@@ -31,7 +31,7 @@ def _resizeWithAspectratio(img, out_height, out_width, scale=87.5, inter_pol=cv2
     return img
 
 
-class resnet50(model.tvmModel):
+class resnet50Base(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0,))
     runMap = model.inputMap(pre=(0,))
@@ -77,6 +77,15 @@ class resnet50(model.tvmModel):
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
         return settings
+
+
+class resnet50(model.tvmModel, resnet50Base):
+    pass
+
+
+class resnet50Kaas(model.kaasModel, resnet50Base):
+    nConst = 108
+    runMap = model.inputMap(const=range(108), pre=(0,))
 
 
 class imageNetLoader(dataset.loader):

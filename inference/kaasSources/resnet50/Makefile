@@ -3,14 +3,14 @@ NVCC_OPTS := -O3 -g -arch=compute_35 -Xcompiler -Wall -Xcompiler -Wextra -Xcompi
 LIBS :=  -lcuda
 PYTHON := python
 
-
 .PHONY: all
 
-../../models/superRes/superRes.cubin: kerns/superres.cu
+../../models/resnet50/resnet50.cubin: kerns/source.cu
 	nvcc $^ --cubin -gencode arch=compute_35,code=sm_35 -O3 -g -Xcompiler -Wall -Xcompiler -Wextra -std=c++14 -o $@
+	$(PYTHON) generateModel.py
 
 %.o: %.cu
 	$(NVCC) -c $< $(NVCC_OPTS)
 
 clean:
-	rm *.cubin *.yaml *.pkl
+	rm -f *.cubin *.o

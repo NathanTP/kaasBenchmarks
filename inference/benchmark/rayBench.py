@@ -52,6 +52,21 @@ def _unMarshalArgs(argMap, args):
         return (constants, inputs)
 
 
+def handleKaasResult(res):
+    # KaaS will place the result directly into the object store and return a
+    # reference to it. It should be fine to ray.get this reference because the
+    # data is already in the obj store before we get called here. Other inputs
+    # (e.g. from pre()) will already be dereferenced by ray.
+    if not isinstance(res, list):
+        return ray.get(res)
+    else:
+        for i in range(len(res)):
+            if isinstance(res[i], ray._raylet.ObjectRef):
+                res[i] = ray.get(res[i])
+
+        return res
+
+
 @ray.remote
 def pre(modelSpec, *inputs):
     mClass = modelSpec.modelClass
@@ -126,15 +141,8 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
     mClass = modelSpec.modelClass
     constants, data = _unMarshalArgs(mClass.postMap, inputs)
 
-    # KaaS will place the result directly into the object store and return a
-    # reference to it. It should be fine to ray.get this reference because the
-    # data is already in the obj store before we get called here. Other inputs
-    # (e.g. from pre()) will already be dereferenced by ray.
-    if modelSpec.modelType == "kaas":
-        data = list(data)
-        for i in range(len(data)):
-            if isinstance(data[i], ray._raylet.ObjectRef):
-                data[i] = ray.get(data[i])
+    if modelSpec.modelType == 'kaas':
+        data = handleKaasResult(data)
 
     results = modelSpec.modelClass.post(constants + list(data))
 
@@ -358,7 +366,10 @@ def nShot(modelSpec, n, inline=False, useActors=False):
         start = time.time()
         res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
                       inline=inline, runPool=pool)
+
         res = ray.get(res)
+        if modelSpec.modelType == 'kaas' and modelSpec.modelClass.noPost:
+            res = handleKaasResult(res)
 
         results.append(res)
 
@@ -391,7 +402,7 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 # =============================================================================
 
 
-def handleCompletion(queue):
+def handleCompletion(modelSpec, queue):
     """Handle responses from mlperf model serving functions. Each response is a
     list of query IDs that are now complete. To signal completion, the user
     must push an integer to the queue representing the total number of
@@ -421,6 +432,13 @@ def handleCompletion(queue):
                 wrapItUp = True
         else:
             # Normal completion message from a worker
+
+            # Technically we should do this to load the result to the handler.
+            # Unfortunately this causes an error in ray that I can't figure out
+            # so we skip it.
+            # if modelSpec.modelType == 'kaas' and modelSpec.modelClass.noPost:
+            #     resp = handleKaasResult(resp)
+
             completion = mlperf_loadgen.QuerySampleResponse(qid, 0, 0)
             mlperf_loadgen.QuerySamplesComplete([completion])
             ncomplete += 1
@@ -449,7 +467,7 @@ class mlperfRunner():
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
         self.completionHandler = threading.Thread(
-                target=handleCompletion, args=[self.completionQueue])
+                target=handleCompletion, args=[self.modelSpec, self.completionQueue])
         self.completionHandler.start()
 
         # This is very important for Ray because the cold start is multiple
