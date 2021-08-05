@@ -43,13 +43,9 @@ def metaFromReq(req, graph):
                 dtype, shape = getInfo(buf, graph)
                 if buf.const:
                     c += 1
-                    #constants.append({"name": buf.name, "type": dtype, "shape": shape})
                     constMap[int(buf.name)] = buf
                 else:
                     inputs.append({"name": buf.name, "type": dtype, "shape": shape})
-            if buf.name == "0":
-                dtype, shape = getInfo(buf, graph)
-                inputs.append({"name": buf.name, "type": dtype, "shape": shape})
         for buf in kern.outputs:
             if not buf.ephemeral:
                 dtype, shape = getInfo(buf, graph)

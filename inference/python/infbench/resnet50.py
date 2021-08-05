@@ -141,4 +141,7 @@ class imageNetLoader(dataset.loader):
 
     def check(self, result, idx):
         # I don't know why it's -1, but it is
+        print(result[0])
+        print(type(result[0]))
+        print(int.from_bytes(result[0], sys.byteorder) - 1)
         return (int.from_bytes(result[0], sys.byteorder) - 1) == self.imageLabels[idx]

@@ -25,12 +25,11 @@ def makeKern(name_func, path, shapes, arguments):
 
 
 def createReq(params, cubinPath, mode='direct'):
-    #params = loadParams(params)
     nodes = []
     kerns = []
     path = cubinPath
     inp = np.zeros((1, 3, 224, 224))
-    nodes.append(addToKV(0, inp, const=False))
+    nodes.append(addToKV(0, inp, const=False, ephemeral=False))
 
     # 1. p0
     nodes.append(addToKV(1, params['p0']))
