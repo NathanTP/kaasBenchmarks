@@ -3,17 +3,17 @@ import yaml
 import pathlib
 import pickle
 import json
-from superRes import createReq
+from resnet50 import createReq
 import argparse
 import subprocess as sp
 
 cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
-superResDir = modelDir / "superRes"
+resnet50Dir = modelDir / "resnet50"
 
 
 def loadGraph():
-    graph = open(superResDir / "superRes_graph.json")
+    graph = open(resnet50Dir / "resnet50_graph.json")
     return json.load(graph)
 
 
@@ -28,7 +28,7 @@ def getInfo(buf, graph):
 
 
 def loadParams():
-    path = superResDir / "superRes_params.pkl"
+    path = resnet50Dir / "resnet50_params.pkl"
     params = pickle.load(open(path, 'rb'))
     return {'p' + str(i): params[i] for i in range(len(params))}, params
 
@@ -38,13 +38,14 @@ def metaFromReq(req, graph):
     constants = []
     inputs = []
     outputs = []
+    constMap = dict()
     for kern in req.kernels:
         for buf in kern.inputs:
             if not buf.ephemeral:
                 dtype, shape = getInfo(buf, graph)
                 if buf.const:
                     c += 1
-                    constants.append({"name": buf.name, "type": dtype, "shape": shape})
+                    constMap[int(buf.name)] = buf
                 else:
                     inputs.append({"name": buf.name, "type": dtype, "shape": shape})
         for buf in kern.outputs:
@@ -52,6 +53,12 @@ def metaFromReq(req, graph):
                 dtype, shape = getInfo(buf, graph)
                 outputs.append({"name": buf.name, "type": dtype, "shape": shape})
     print(c)
+    constant_list = list(constMap.keys())
+    constant_list.sort()
+    for i in constant_list:
+        buf = constMap[i]
+        dtype, shape = getInfo(buf, graph)
+        constants.append({"name": buf.name, "type": dtype, "shape": shape})
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
 
 
@@ -65,21 +72,21 @@ def getParams():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-o', '--output', type=pathlib.Path, default=superResDir, help="Output Directory")
-    parser.add_argument('-n', '--name', default='superRes', help="Name to use for output")
+    parser.add_argument('-o', '--output', type=pathlib.Path, default=resnet50Dir, help="Output Directory")
+    parser.add_argument('-n', '--name', default='resnet50', help="Name to use for output")
 
     args = parser.parse_args()
     targetDir = args.output
     if not targetDir.exists():
         targetDir.mkdir()
 
-    sp.run(['make'], cwd=cwd, check=True)
-
     params_dict, params_list = loadParams()
 
     graph = loadGraph()
 
-    req = createReq(params_dict, superResDir / (args.name + ".cubin"))
+    sp.run(['make'], cwd=cwd, check=True)
+
+    req = createReq(params_dict, resnet50Dir / (args.name + ".cubin"))
     with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
