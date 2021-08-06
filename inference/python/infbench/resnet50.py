@@ -66,26 +66,37 @@ class resnet50Base(model.Model):
     def post(label):
         raise AttributeError("resnet50 has no post-processing")
 
+
+class resnet50(model.tvmModel, resnet50Base):
     @staticmethod
     def getMlPerfCfg(gpuType, testing=False):
         settings = model.getDefaultMlPerfCfg()
 
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 4.5
-            settings.server_target_latency_ns = 600000000
+            settings.server_target_qps = 5
+
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.058)
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
         return settings
 
 
-class resnet50(model.tvmModel, resnet50Base):
-    pass
-
-
 class resnet50Kaas(model.kaasModel, resnet50Base):
     nConst = 108
     runMap = model.inputMap(const=range(108), pre=(0,))
+
+    @staticmethod
+    def getMlPerfCfg(gpuType, testing=False):
+        settings = model.getDefaultMlPerfCfg()
+
+        if gpuType == "Tesla K20c":
+            settings.server_target_qps = 5
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.070)
+        else:
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        return settings
 
 
 class imageNetLoader(dataset.loader):

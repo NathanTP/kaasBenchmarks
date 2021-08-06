@@ -66,6 +66,8 @@ def main():
         backend.nShot(spec, args.numRun, inline=args.inline, useActors=args.actors)
     elif args.test == 'mlperf':
         backend.mlperfBench(spec, testing=args.testing, inline=args.inline, useActors=args.actors)
+    else:
+        raise ValueError("Unrecognized test: ", args.test)
 
 
 main()

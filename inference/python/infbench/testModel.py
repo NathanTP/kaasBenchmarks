@@ -52,18 +52,6 @@ class testModel():
 
         return (result,)
 
-    @staticmethod
-    def getMlPerfCfg(testing=False):
-        settings = model.getDefaultMlPerfCfg(testing=testing)
-
-        totalDelay = sum([preTime, runTime, postTime])
-        if totalDelay == 0:
-            settings.server_target_qps = 50
-        else:
-            settings.server_target_qps = (1 / (preTime + runTime + postTime)) / 2
-
-        return settings
-
 
 class testModelNP(testModel, model.Model):
     """A numpy-based model"""
@@ -91,6 +79,19 @@ class testModelNP(testModel, model.Model):
 
         return (expect,)
 
+    @staticmethod
+    def getMlPerfCfg(gpuType, testing=False):
+        settings = model.getDefaultMlPerfCfg(testing=testing)
+
+        if gpuType == "Tesla K20c":
+            settings.server_target_qps = 100
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.025)
+        else:
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        return settings
+
+
 
 class testModelNative(testModel, model.Model):
     """Calls the GPU kernel natively instead of using KaaS"""
@@ -99,6 +100,7 @@ class testModelNative(testModel, model.Model):
         super().__init__(modelArg)
         self.modelPath = modelArg
         self.dConsts = None
+        self.dIOs = None
 
         tile_tb_height = 8
         tileN = 16
@@ -117,6 +119,14 @@ class testModelNative(testModel, model.Model):
         self.kern.prepare(["P", "P", "P"])
 
     def __del__(self):
+        if self.dConsts is not None:
+            for dConst in self.dConsts:
+                dConst.free()
+
+        if self.dIOs is not None:
+            for dBuf in self.dIOs:
+                dBuf.free()
+
         self.cudaCtx.detach()
 
     @staticmethod
@@ -138,30 +148,55 @@ class testModelNative(testModel, model.Model):
                 cuda.memcpy_htod(dConst, hConst)
                 self.dConsts.append(dConst)
 
-        dIOs = []
-        dIOs.append(cuda.mem_alloc(hInp.nbytes))
-        cuda.memcpy_htod(dIOs[0], hInp)
+        if self.dIOs is None:
+            self.dIOs = []
+            self.dIOs.append(cuda.mem_alloc(hInp.nbytes))
 
-        for i in range(depth):
-            dIOs.append(cuda.mem_alloc(hInp.nbytes))
+            for i in range(depth):
+                self.dIOs.append(cuda.mem_alloc(hInp.nbytes))
+
+        cuda.memcpy_htod(self.dIOs[0], hInp)
 
         for i in range(depth):
             self.kern.prepared_call(self.gridDim, self.blockDim,
-                                    dIOs[i], self.dConsts[i], dIOs[i+1],
+                                    self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)
 
         hRes = np.empty_like(hInp)
-        cuda.memcpy_dtoh(hRes, dIOs[-1])
-
-        for dBuf in dIOs:
-            dBuf.free()
+        cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
         return (hRes,)
+
+    @staticmethod
+    def getMlPerfCfg(gpuType, testing=False):
+        settings = model.getDefaultMlPerfCfg(testing=testing)
+
+        if gpuType == "Tesla K20c":
+            # It's actually about 150 but if you set it anywhere close to that
+            # it gets a crazy outlyer that ruins the p90. Not sure why.
+            settings.server_target_qps = 70
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.014)
+        else:
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        return settings
 
 
 class testModelKaas(testModel, model.kaasModel):
     def __init__(self, modelArg):
         super().__init__(modelArg)
+
+    @staticmethod
+    def getMlPerfCfg(gpuType, testing=False):
+        settings = model.getDefaultMlPerfCfg(testing=testing)
+
+        if gpuType == "Tesla K20c":
+            settings.server_target_qps = 70
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.017)
+        else:
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        return settings
 
 
 class testLoader(dataset.loader):

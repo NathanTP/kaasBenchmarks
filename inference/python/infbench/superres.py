@@ -65,20 +65,12 @@ class superResBase():
         testing for correctness."""
         settings = model.getDefaultMlPerfCfg()
 
-        if testing:
-            # MLperf detects an unatainable SLO pretty fast
+        if gpuType == "Tesla K20c":
             settings.server_target_qps = 3
-            settings.server_target_latency_ns = 1000
-        else:
-            if gpuType == "Tesla K20c":
-                # Set this to the lowest qps that any system should be able to get
-                # (benchmarks might fiddle with it to get a real measurement).
-                settings.server_target_qps = 6
 
-                # This is arbitrary for superRes
-                settings.server_target_latency_ns = 1000000000
-            else:
-                raise ValueError("Unrecognized GPU Type: ", gpuType)
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.320)
+        else:
+            raise ValueError("Unrecognized GPU Type: ", gpuType)
 
         return settings
 

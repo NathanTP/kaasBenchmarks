@@ -30,18 +30,21 @@ def _getInputs(maps, const=None, inp=None, pre=None, run=None):
     return inputs
 
 
-def _runOne(model, constants, inputs):
-    preInp = _getInputs(model.preMap, const=constants, inp=inputs)
-    preOut = model.pre(preInp)
+def _runOne(model, constants, inputs, stats=None):
+    with util.timer("pre", stats):
+        preInp = _getInputs(model.preMap, const=constants, inp=inputs)
+        preOut = model.pre(preInp)
 
-    runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
-    modOut = model.run(runInp)
+    with util.timer("run", stats):
+        runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
+        runOut = model.run(runInp)
 
     if model.noPost:
-        postOut = modOut
+        postOut = runOut
     else:
-        postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=modOut)
-        postOut = model.post(postInp)
+        with util.timer("post", stats):
+            postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut)
+            postOut = model.post(postInp)
 
     return postOut
 
@@ -57,6 +60,8 @@ def nShot(modelSpec, n, inline=False, useActors=False):
     if useActors:
         print("WARNING: Actors does nothing in local mode")
 
+    stats = util.profCollection()
+
     loader.preLoad(list(range(min(n, loader.ndata))))
     model = models[0]
     constants = model.getConstants(modelSpec.modelPath.parent)
@@ -70,7 +75,7 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 
         start = time.time()
 
-        result = _runOne(model, constants, inputs)
+        result = _runOne(model, constants, inputs, stats=stats)
 
         times.append(time.time() - start)
         results.append(result)
@@ -88,6 +93,9 @@ def nShot(modelSpec, n, inline=False, useActors=False):
     print(np.percentile(times, 50))
     print("99 percentile latency: ")
     print(np.percentile(times, 99))
+
+    print("\nTime Breakdowns: ")
+    print(stats.report())
 
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)

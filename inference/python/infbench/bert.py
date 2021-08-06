@@ -633,8 +633,8 @@ class bertModel(model.tvmModel):
         settings = model.getDefaultMlPerfCfg()
 
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 0.3
-            settings.server_target_latency_ns = 8000000000
+            settings.server_target_qps = 0.4
+            settings.server_target_latency_ns = model.calculateLatencyTarget(1.14)
         else:
             raise ValueError("Unrecognized GPU Type " + gpuType)
 
