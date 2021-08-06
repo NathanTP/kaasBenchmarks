@@ -629,15 +629,14 @@ class bertModel(model.tvmModel):
         return (pred,)
 
     @staticmethod
-    def getMlPerfCfg(testing=False):
+    def getMlPerfCfg(gpuType, testing=False):
         settings = model.getDefaultMlPerfCfg()
 
-        settings.server_target_qps = 0.3
-        # if testing:
-        #     # settings.server_target_qps = 0.3
-        #     settings.server_target_latency_ns = 1000
-        # else:
-        #     settings.server_target_latency_ns = 1000000000
+        if gpuType == "Tesla K20c":
+            settings.server_target_qps = 0.4
+            settings.server_target_latency_ns = model.calculateLatencyTarget(1.14)
+        else:
+            raise ValueError("Unrecognized GPU Type " + gpuType)
 
         return settings
 
@@ -669,8 +668,9 @@ class bertLoader(dataset.loader):
 
         return (self.examples[idx][0],)
 
-    def unLoad(self):
-        self.examples = None
+    def unLoad(self, idxs):
+        pass
+        # self.examples = None
 
     def check(self, result, idx):
         origData = self.examples[idx][1]
