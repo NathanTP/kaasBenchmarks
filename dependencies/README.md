@@ -22,5 +22,10 @@ Install Anaconda (miniconda):
 Clone kaasBenchmarks
 
     git clone --recurse-submodules git@github.com:NathanTP/kaasBenchmarks.git
+    cd kaasBenchmarks/dependencies
+    ./ubuntuSetup.sh
+    ./setup.sh
 
-
+Test:
+    cd kaasBenchmarks/inference/benchmarks
+    ./benchmark.py -t nshot -b ray -m testModelKaas
