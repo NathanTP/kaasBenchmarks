@@ -36,7 +36,6 @@ def loadParams():
 
 
 def metaFromReq(req, graph):
-    c = 0
     constants = []
     inputs = []
     outputs = []
@@ -50,7 +49,6 @@ def metaFromReq(req, graph):
                     constMap[int(buf.name)] = buf
                 else:
                     inputMap[int(buf.name)] = buf
-                    #inputs.append({"name": buf.name, "type": dtype, "shape": shape})
         for buf in kern.outputs:
             if not buf.ephemeral:
                 dtype, shape = getInfo(buf, graph)

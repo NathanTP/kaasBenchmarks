@@ -61,10 +61,10 @@ def getModelSpec(modelName):
     elif modelName == "bertKaas":
         import infbench.bert
         return ModelSpec(name="bertKaas",
-                        loader=infbench.bert.bertLoader,
-                        modelClass=infbench.bert.bertModelKaas,
-                        modelPath=modelDir / "bert" / "bert_model.yaml",
-                        modelType="kaas")
+                         loader=infbench.bert.bertLoader,
+                         modelClass=infbench.bert.bertModelKaas,
+                         modelPath=modelDir / "bert" / "bert_model.yaml",
+                         modelType="kaas")
 
     elif modelName == "testModelNP":
         import infbench.testModel

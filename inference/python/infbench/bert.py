@@ -642,6 +642,7 @@ class bertModelBase(model.Model):
 
         return settings
 
+
 class bertModel(bertModelBase, model.tvmModel):
     pass
 
@@ -649,6 +650,7 @@ class bertModel(bertModelBase, model.tvmModel):
 class bertModelKaas(bertModelBase, model.kaasModel):
     nConst = 391
     runMap = model.inputMap(const=range(1, nConst + 1), pre=(0, 1, 2))
+    postMap = model.inputMap(inp=(0,), pre=(3,), run=(1, 0))
 
     @staticmethod
     def getConstants(modelDir):

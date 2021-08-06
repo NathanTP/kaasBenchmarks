@@ -57,6 +57,9 @@ def handleKaasResult(res):
     # reference to it. It should be fine to ray.get this reference because the
     # data is already in the obj store before we get called here. Other inputs
     # (e.g. from pre()) will already be dereferenced by ray.
+    if isinstance(res, tuple):
+        res = list(res)
+
     if not isinstance(res, list):
         return ray.get(res)
     else:

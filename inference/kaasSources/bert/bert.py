@@ -10,7 +10,6 @@ testPath = pathlib.Path(__file__).resolve().parent
 
 # Adds the given array to the kv with name node_num.
 def addToKV(node_num, arr, const=True, ephemeral=False):
-    #kv.put(str(node_num), arr)
     nByte = arr.nbytes
     buff = kaas.bufferSpec(str(node_num), nByte, const=const, ephemeral=ephemeral)
     return buff
@@ -25,40 +24,6 @@ def loadParams():
 def makeKern(name_func, path, shapes, arguments):
     return kaas.kernelSpec(path, name_func, shapes[0], shapes[1], arguments=arguments)
 
-'''
-kv = None
-def runReq():
-    libffCtx = getCtx(remote=False)
-    global kv
-    kv = libffCtx.kv
-    from infbench import bert
-    import numpy as np
-    loader = bert.bertLoader(pathlib.Path.cwd() / "bertData")
-
-    inputs = loader.get(0)
-
-
-    constants = bert.bertModel.getConstants(pathlib.Path.cwd())
-
-    pre_input = constants + [inputs[0]]
-
-    pre_output = bert.bertModel.pre(pre_input)
-
-
-    graph_inputs = []
-    graph_inputs.append(np.frombuffer(pre_output[0], dtype=np.int64))
-    graph_inputs.append(np.frombuffer(pre_output[1], dtype=np.int64))
-    graph_inputs.append(np.frombuffer(pre_output[2], dtype=np.int64))
-
-    req = createReq(graph_inputs)
-
-    mode = "direct"
-    kaasHandle = kaas.kaasFF.getHandle(mode, libffCtx)
-    kaasHandle.Invoke(req.toDict())
-
-    c = np.frombuffer(libffCtx.kv.get('1123'), dtype=np.float32)
-    print(c)
-'''
 
 def createReq(params, path, mode='direct'):
     nodes = dict()
