@@ -92,7 +92,6 @@ class testModelNP(testModel, model.Model):
         return settings
 
 
-
 class testModelNative(testModel, model.Model):
     """Calls the GPU kernel natively instead of using KaaS"""
 
