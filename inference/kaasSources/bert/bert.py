@@ -1,10 +1,6 @@
 import pathlib
 import pickle
-import libff as ff
-import libff.kv
-import libff.invoke
-import libff.kaas.kaasFF
-
+import numpy as np
 # import kaasServer as kaas
 import libff.kaas as kaas
 
@@ -12,26 +8,12 @@ redisPwd = "Cd+OBWBEAXV0o2fg5yDrMjD9JUkW7J6MATWuGlRtkQXk/CBvf2HYEjKDYw4FC+eWPeVR
 testPath = pathlib.Path(__file__).resolve().parent
 
 
-def getCtx(remote=False):
-    if remote:
-        objStore = ff.kv.Redis(pwd=redisPwd, serialize=True)
-    else:
-        objStore = ff.kv.Local(copyObjs=False, serialize=False)
-
-    return libff.invoke.RemoteCtx(None, objStore)
-
-
 # Adds the given array to the kv with name node_num.
 def addToKV(node_num, arr, const=True, ephemeral=False):
-    kv.put(str(node_num), arr)
+    #kv.put(str(node_num), arr)
     nByte = arr.nbytes
     buff = kaas.bufferSpec(str(node_num), nByte, const=const, ephemeral=ephemeral)
     return buff
-
-
-def loadParams():
-    params = pickle.load(open("params", 'rb'))
-    return params
 
 
 def loadParams():
@@ -43,7 +25,7 @@ def loadParams():
 def makeKern(name_func, path, shapes, arguments):
     return kaas.kernelSpec(path, name_func, shapes[0], shapes[1], arguments=arguments)
 
-
+'''
 kv = None
 def runReq():
     libffCtx = getCtx(remote=False)
@@ -76,22 +58,20 @@ def runReq():
 
     c = np.frombuffer(libffCtx.kv.get('1123'), dtype=np.float32)
     print(c)
+'''
 
-
-def createReq(inp, no_reuse=True, mode='direct'):
-    params = loadParams()
+def createReq(params, path, mode='direct'):
     nodes = dict()
     kerns = []
-    path = pathlib.Path.cwd() / 'bert' / 'code.cubin'
-    nodes[0] = addToKV(0, inp[0])
+    nodes[0] = addToKV(0, np.zeros((1, 384)), const=False)
     # storage = dict()
     # storage['0'] = nodes[0]
 
     # 1. input_mask
-    nodes[1] = addToKV(1, inp[1])
+    nodes[1] = addToKV(1, np.zeros((1, 384)), const=False)
 
     # 2. segment_ids
-    nodes[2] = addToKV(2, inp[2])
+    nodes[2] = addToKV(2, np.zeros((1, 384)), const=False)
 
     # 3. p0
     nodes[3] = addToKV(3, params['p0'])
@@ -128,7 +108,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 8. fused_subtract48
     # kernel 0
     output_size = 1572864
-    nodes[8] = kaas.bufferSpec('8', output_size, const=False, ephemeral=False)
+    nodes[8] = kaas.bufferSpec('8', output_size, const=False, ephemeral=True)
     arguments = [(nodes[8], 'o'), (nodes[6], 'i'), (nodes[7], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
@@ -143,7 +123,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
-    nodes[9] = kaas.bufferSpec('9', output_size, const=False, ephemeral=False)
+    nodes[9] = kaas.bufferSpec('9', output_size, const=False, ephemeral=True)
     arguments = [(nodes[9], 'o'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
@@ -157,7 +137,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 12. fused_add_sqrt_divide_multiply_add47
     # kernel 0
     output_size = 1572864
-    nodes[12] = kaas.bufferSpec('12', output_size, const=False, ephemeral=False)
+    nodes[12] = kaas.bufferSpec('12', output_size, const=False, ephemeral=True)
     arguments = [(nodes[12], 'o'), (nodes[9], 'i'), (nodes[8], 'i'), (nodes[10], 'i'), (nodes[11], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
@@ -171,7 +151,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 15. fused_nn_batch_matmul_347
     # kernel 0
     output_size = 1572864
-    nodes[15] = kaas.bufferSpec('15', output_size, const=False, ephemeral=False)
+    nodes[15] = kaas.bufferSpec('15', output_size, const=False, ephemeral=True)
     arguments = [(nodes[12], 'i'), (nodes[14], 'i'), (nodes[15], 'o'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
@@ -372,7 +352,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 44. fused_add_sqrt_divide_multiply_add46
     # kernel 0
     output_size = 1572864
-    nodes[44] = kaas.bufferSpec('44', output_size, const=False, ephemeral=False)
+    nodes[44] = kaas.bufferSpec('44', output_size, const=False, ephemeral=True)
     arguments = [(nodes[44], 'o'), (nodes[41], 'i'), (nodes[40], 'i'), (nodes[42], 'i'), (nodes[43], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
@@ -408,7 +388,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 51. fused_nn_batch_matmul_123
     # kernel 0
     output_size = 1572864
-    nodes[51] = kaas.bufferSpec('51', output_size, const=False, ephemeral=False)
+    nodes[51] = kaas.bufferSpec('51', output_size, const=False, ephemeral=True)
     arguments = [(nodes[49], 'i'), (nodes[50], 'i'), (nodes[51], 'o'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
@@ -740,7 +720,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
-    nodes[100] = kaas.bufferSpec('100', output_size, const=False, ephemeral=False)
+    nodes[100] = kaas.bufferSpec('100', output_size, const=False, ephemeral=True)
     arguments = [(nodes[100], 'o'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
@@ -6724,7 +6704,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1000. fused_reshape_transpose_reshape2
     # kernel 0
     output_size = 1572864
-    nodes[1000] = kaas.bufferSpec('1000', output_size, const=False, ephemeral=False)
+    nodes[1000] = kaas.bufferSpec('1000', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1000], 'o'), (nodes[999], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
@@ -7358,7 +7338,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1096. fused_reshape_add_add1
     # kernel 0
     output_size = 1572864
-    nodes[1096] = kaas.bufferSpec('1096', output_size, const=False, ephemeral=False)
+    nodes[1096] = kaas.bufferSpec('1096', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1096], 'o'), (nodes[1094], 'i'), (nodes[1095], 'i'), (nodes[1071], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
@@ -7410,7 +7390,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1102. fused_add_sqrt_divide_multiply_add
     # kernel 0
     output_size = 1572864
-    nodes[1102] = kaas.bufferSpec('1102', output_size, const=False, ephemeral=False)
+    nodes[1102] = kaas.bufferSpec('1102', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1102], 'o'), (nodes[1099], 'i'), (nodes[1098], 'i'), (nodes[1100], 'i'), (nodes[1101], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
@@ -7424,7 +7404,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1105. fused_nn_batch_matmul_2
     # kernel 0
     output_size = 6291456
-    nodes[1105] = kaas.bufferSpec('1105', output_size, const=False, ephemeral=False)
+    nodes[1105] = kaas.bufferSpec('1105', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1103], 'i'), (nodes[1104], 'i'), (nodes[1105], 'o'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
@@ -7435,7 +7415,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1107. fused_reshape_add_multiply_divide_erf_add_multiply_reshape
     # kernel 0
     output_size = 6291456
-    nodes[1107] = kaas.bufferSpec('1107', output_size, const=False, ephemeral=False)
+    nodes[1107] = kaas.bufferSpec('1107', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1107], 'o'), (nodes[1105], 'i'), (nodes[1106], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
@@ -7495,7 +7475,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
-    nodes[1114] = kaas.bufferSpec('1114', output_size, const=False, ephemeral=False)
+    nodes[1114] = kaas.bufferSpec('1114', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1114], 'o'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
@@ -7509,7 +7489,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1117. fused_add_sqrt_divide_multiply_add_reshape
     # kernel 0
     output_size = 1572864
-    nodes[1117] = kaas.bufferSpec('1117', output_size, const=False, ephemeral=False)
+    nodes[1117] = kaas.bufferSpec('1117', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1117], 'o'), (nodes[1113], 'i'), (nodes[1114], 'i'), (nodes[1115], 'i'), (nodes[1116], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_reshape_kernel0', path, shapes, arguments))
@@ -7520,7 +7500,7 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1119. fused_nn_batch_matmul
     # kernel 0
     output_size = 3072
-    nodes[1119] = kaas.bufferSpec('1119', output_size, const=False, ephemeral=False)
+    nodes[1119] = kaas.bufferSpec('1119', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1117], 'i'), (nodes[1118], 'i'), (nodes[1119], 'o'), ]
     shapes = [(1, 6, 1),  (2, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_kernel0', path, shapes, arguments))
@@ -7531,13 +7511,13 @@ def createReq(inp, no_reuse=True, mode='direct'):
     # 1121. fused_reshape_add_split
     # kernel 0
     output_size = 1536
-    nodes["1121_0"] = kaas.bufferSpec('1121_0', output_size, const=False, ephemeral=False)
+    nodes["1121_0"] = kaas.bufferSpec('1121_0', output_size, const=False, ephemeral=True)
     arguments = [(nodes['1121_0'], 'o'), (nodes[1119], 'i'), (nodes[1120], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_split_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
-    nodes["1121_1"] = kaas.bufferSpec('1121_1', output_size, const=False, ephemeral=False)
+    nodes["1121_1"] = kaas.bufferSpec('1121_1', output_size, const=False, ephemeral=True)
     arguments = [(nodes['1121_1'], 'o'), (nodes[1119], 'i'), (nodes[1120], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_split_kernel1', path, shapes, arguments))
@@ -7558,8 +7538,5 @@ def createReq(inp, no_reuse=True, mode='direct'):
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_squeeze_1_kernel0', path, shapes, arguments))
 
-
     req = kaas.kaasReq(kerns)
     return req
-
-runReq()
