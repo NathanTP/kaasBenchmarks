@@ -14,7 +14,7 @@ set -e
 
 pushd tvm
     mkdir build
-    cp ../tvm_config.cmake build/
+    cp ../tvm_config.cmake build/config.cmake
     pushd build
         cmake ..
         make -j8
