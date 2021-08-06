@@ -7,6 +7,7 @@ import json
 import yaml
 import pickle
 import collections
+import re
 
 import mlperf_loadgen
 
@@ -428,16 +429,20 @@ class kaasModel(Model):
 mlperfNquery = 32
 
 
+def calculateLatencyTarget(medianLatency):
+    """Given a median latency in seconds, return a reasonable tail latency
+    target for mlperf (in ns)"""
+    return int((medianLatency*2)*1E9)
+
+
 def getDefaultMlPerfCfg(testing=False):
     settings = mlperf_loadgen.TestSettings()
     settings.scenario = mlperf_loadgen.TestScenario.Server
 
-    # if testing:
-    #     settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    # else:
-    #     settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
-    # settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+    if testing:
+        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+    else:
+        settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
 
     # settings.min_query_count = 500
 
@@ -463,4 +468,50 @@ def processLatencies(latencies):
 def reportMlPerf(prefix="mlperf_log_"):
     with open(prefix + "summary.txt", 'r') as f:
         fullRes = f.readlines()
-        print("".join(fullRes[:28]))
+
+    scheduledPattern = re.compile("Scheduled samples per second : (.*)$")
+    validPattern = re.compile(".*INVALID$")
+
+    valid = True
+    for idx, line in enumerate(fullRes):
+        match = scheduledPattern.match(line)
+        if match is not None:
+            nScheduled = float(match.group(1))
+            continue
+
+        match = validPattern.match(line)
+        if match is not None:
+            valid = False
+            continue
+
+        if line == "Additional Stats\n":
+            startIdx = idx + 2
+            break
+
+    fullRes = fullRes[startIdx:]
+
+    extractNumber = re.compile(".*: (.*)$")
+    nCompleted = float(extractNumber.match(fullRes[0]).group(1))
+
+    minLat = float(extractNumber.match(fullRes[2]).group(1)) / 1E9
+    maxLat = float(extractNumber.match(fullRes[3]).group(1)) / 1E9
+    meanLat = float(extractNumber.match(fullRes[4]).group(1)) / 1E9
+    p50 = float(extractNumber.match(fullRes[5]).group(1)) / 1E9
+    p90 = float(extractNumber.match(fullRes[6]).group(1)) / 1E9
+    p99 = float(extractNumber.match(fullRes[9]).group(1)) / 1E9
+
+    if not valid:
+        print("\n*********************************************************")
+        print("WARNING: Results invalid, reduce target QPS and try again")
+        print("*********************************************************\n")
+
+    print("NScheduled: ", nScheduled)
+    print("NCompleted: ", nCompleted)
+    print("")
+    print("Latencies (s):")
+    print("min:  ", minLat)
+    print("max:  ", maxLat)
+    print("mean: ", meanLat)
+    print("p50:  ", p50)
+    print("p90:  ", p90)
+    print("p99:  ", p99)

@@ -44,7 +44,7 @@ def _unMarshalArgs(argMap, args):
     are forced to marshal all variable-length arguments into a single list.
     This unMarshals it back into constants and batched inputs."""
     if argMap.const is None:
-        return ([], args)
+        return ([], list(args))
     else:
         nConst = len(argMap.const)
         constants = list(args[:nConst])
@@ -61,7 +61,10 @@ def handleKaasResult(res):
         res = list(res)
 
     if not isinstance(res, list):
-        return ray.get(res)
+        if isinstance(res, ray._raylet.ObjectRef):
+            return ray.get(res)
+        else:
+            return res
     else:
         for i in range(len(res)):
             if isinstance(res[i], ray._raylet.ObjectRef):
@@ -128,7 +131,7 @@ def runTask(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
             modelCache[pid] = {}
 
         nodeCache = modelCache[pid]
-        if pid in nodeCache:
+        if clientID in nodeCache:
             model = nodeCache[clientID]
         else:
             model = modelSpec.modelClass(modelArg)
@@ -338,7 +341,11 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 
     specRef = ray.put(modelSpec)
 
-    modelArg = modelSpec.getModelArg()
+    if modelSpec.modelType == "kaas":
+        modelArg = modelSpec.getModelArg()
+    else:
+        modelArg = ray.put(modelSpec.getModelArg())
+
     loader = modelSpec.loader(modelSpec.dataDir)
 
     loader.preLoad(range(min(n, loader.ndata)))
@@ -364,7 +371,7 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 
         start = time.time()
         res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
-                      inline=inline, runPool=pool)
+                      inline=inline, runPool=pool, cacheModel=True)
 
         res = ray.get(res)
         if modelSpec.modelType == 'kaas' and modelSpec.modelClass.noPost:
@@ -387,6 +394,9 @@ def nShot(modelSpec, n, inline=False, useActors=False):
     print(np.percentile(times, 50))
     print("99 percentile latency: ")
     print(np.percentile(times, 99))
+
+    print("Ray Profiling:")
+    ray.timeline(filename="rayProfile.json")
 
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
@@ -420,9 +430,6 @@ def handleCompletion(modelSpec, queue):
         # One batch at a time
         resp, qid = queue.get()
 
-        # if ncomplete % 10 == 0:
-        #     print("Query {} Finished".format(ncomplete))
-
         if isinstance(resp, int):
             # The driver is asking us to wrap up and exit after we've seen
             # 'resps' many responses.
@@ -449,10 +456,14 @@ def handleCompletion(modelSpec, queue):
 class mlperfRunner():
     def __init__(self, modelSpec, loader, constantRefs, inline=False, useActors=False):
         self.modelSpec = modelSpec
-        self.modelArg = modelSpec.getModelArg()
         self.loader = loader
         self.constants = constantRefs
         self.inline = inline
+
+        if modelSpec.modelType == "kaas":
+            self.modelArg = modelSpec.getModelArg()
+        else:
+            self.modelArg = ray.put(modelSpec.getModelArg())
 
         # Total number of queries issued
         self.nIssued = 0
@@ -510,7 +521,8 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     """Run the mlperf loadgen version"""
     ray.init()
 
-    settings = modelSpec.modelClass.getMlPerfCfg(testing=testing)
+    gpuType = util.getGpuType()
+    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, testing=testing)
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
@@ -536,6 +548,7 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
 
     runner.stop()
 
+    print("\nResults:")
     infbench.model.reportMlPerf()
 
 
