@@ -24,6 +24,9 @@ def getData(name, urls):
         print("Already available, skipping")
 
 
+if not dataDir.exists():
+    dataDir.mkdir(0o700)
+
 bertDir = dataDir / "bert"
 getData("bert", ["https://github.com/rajpurkar/SQuAD-explorer/blob/master/dataset/dev-v1.1.json?raw=true"])
 
@@ -40,7 +43,7 @@ imagenetDir = dataDir / "fake_imagenet"
 if not imagenetDir.exists():
     sp.run(["./make_fake_imagenet.sh", str(dataDir)], check=True)
 
-getData("superRes", "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true")
+getData("superRes", ["https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"])
 
 superInput = dataDir / "superRes" / "cat.png"
 superReference = dataDir / "superRes" / "catSupered.png"

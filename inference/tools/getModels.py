@@ -168,22 +168,28 @@ def getBert():
     modelPath = bertDir / 'bert.onnx'
     vocabPath = bertDir / 'vocab.txt'
 
-    if not bertDir.exists():
-        bertDir.mkdir()
-
-        if not modelPath.exists():
-            print("Downloading BERT model")
-            wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
-        if not vocabPath.exists():
-            print("Downloading BERT vocab")
-            wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
-
-        print("Converting BERT to .so")
-        getOnnx(modelPath, bertDir, "bert",
-                inputShapeMap={
-                    'input_ids': (1, 384),
-                    'input_mask': (1, 384),
-                    'segment_ids': (1, 384)})
+    #XXX
+    # if not bertDir.exists():
+    #     bertDir.mkdir()
+    #
+    #     if not modelPath.exists():
+    #         print("Downloading BERT model")
+    #         wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
+    #     if not vocabPath.exists():
+    #         print("Downloading BERT vocab")
+    #         wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
+    #
+    #     print("Converting BERT to .so")
+    #     getOnnx(modelPath, bertDir, "bert",
+    #             inputShapeMap={
+    #                 'input_ids': (1, 384),
+    #                 'input_mask': (1, 384),
+    #                 'segment_ids': (1, 384)})
+    getOnnx(modelPath, bertDir, "bert",
+            inputShapeMap={
+                'input_ids': (1, 384),
+                'input_mask': (1, 384),
+                'segment_ids': (1, 384)})
 
 
 def getSsdMobilenet():
