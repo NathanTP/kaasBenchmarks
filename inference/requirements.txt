@@ -1,6 +1,5 @@
 wget
 pathlib
-tvm
 ray[default]
 pillow
 onnx
