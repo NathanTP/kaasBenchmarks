@@ -2,12 +2,13 @@ import ray
 import ray.util.queue
 import infbench
 import threading
-import time
-import numpy as np
 import os
 import pickle
 import signal
 import subprocess as sp
+from pprint import pprint
+import pathlib
+import json
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -333,72 +334,86 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
     return postOut
 
 
-def nShot(modelSpec, n, inline=False, useActors=False):
+def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     ray.init()
+
+    stats = util.profCollection()
 
     specRef = ray.put(modelSpec)
 
-    if modelSpec.modelType == "kaas":
-        modelArg = modelSpec.getModelArg()
-    else:
-        modelArg = ray.put(modelSpec.getModelArg())
+    with util.timer("t_registerModel", stats):
+        if modelSpec.modelType == "kaas":
+            modelArg = modelSpec.getModelArg()
+        else:
+            modelArg = ray.put(modelSpec.getModelArg())
 
-    loader = modelSpec.loader(modelSpec.dataDir)
+        constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
 
-    loader.preLoad(range(min(n, loader.ndata)))
-    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
-    if constants is None:
-        constRefs = None
-    else:
-        constRefs = []
-        for const in constants:
-            constRefs.append(ray.put(const))
+        if constants is None:
+            constRefs = None
+        else:
+            constRefs = []
+            for const in constants:
+                constRefs.append(ray.put(const))
 
-    if useActors:
+    with util.timer("t_initLoader", stats):
+        loader = modelSpec.loader(modelSpec.dataDir)
+        loader.preLoad(range(min(n, loader.ndata)))
+
+    if benchConfig['actors']:
         pool = runnerPool(getNGpu())
     else:
         pool = None
 
-    times = []
     accuracies = []
     results = []
     for i in range(n):
         idx = i % loader.ndata
         inp = loader.get(idx)
 
-        start = time.time()
-        res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
-                      inline=inline, runPool=pool, cacheModel=True)
+        with util.timer('t_e2e', stats):
+            # Ray is lazy and asynchronous so it's difficult to collect more
+            # detailed metrics than e2e. Details within the remote functions
+            # should match localBench results anyway.
+            res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
+                          inline=benchConfig['inline'], runPool=pool, cacheModel=True)
 
-        res = ray.get(res)
-        if modelSpec.modelType == 'kaas' and modelSpec.modelClass.noPost:
-            res = handleKaasResult(res)
+            res = ray.get(res)
+            if modelSpec.modelType == 'kaas' and modelSpec.modelClass.noPost:
+                res = handleKaasResult(res)
 
         results.append(res)
 
-        times.append(time.time() - start)
-
         if loader.checkAvailable:
             accuracies.append(loader.check(res, idx))
-
-    print("Minimum latency: ")
-    print(np.min(times))
-    print("Maximum latency: ")
-    print(np.max(times))
-    print("Average latency: ")
-    print(np.mean(times))
-    print("Median latency: ")
-    print(np.percentile(times, 50))
-    print("99 percentile latency: ")
-    print(np.percentile(times, 99))
-
-    print("Ray Profiling:")
-    ray.timeline(filename="rayProfile.json")
 
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
         print("Accuracy checking not supported by this dataset")
+
+    report = stats.report()
+    print("E2E Results:")
+    pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+
+    if not isinstance(reportPath, pathlib.Path):
+        reportPath = pathlib.Path(reportPath).resolve()
+
+    print("Saving results to: ", reportPath)
+    with open(reportPath, 'r') as f:
+        fullReport = json.load(f)
+
+    record = {
+        "config": benchConfig,
+        "metrics": report
+    }
+    fullReport.append(record)
+
+    with open(reportPath, 'w') as f:
+        json.dump(fullReport, f)
+
+    # print("Ray Profiling:")
+    # ray.timeline(filename="rayProfile.json")
 
     return results
 

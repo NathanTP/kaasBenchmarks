@@ -19,23 +19,6 @@ def sanityCheck(backend):
     print("Output available at ./test.png")
 
 
-def nshot(modelSpec, n, backend):
-    backend.nShot(modelSpec, n, inline=False)
-
-
-def runMlperf(modelSpec, backend):
-    testing = False
-    inline = False
-
-    print("Starting MLPerf Benchmark: ")
-    print("\tModel: ", modelSpec.name)
-    print("\tBackend: ", backend.__name__)
-    print("\tTesting: ", testing)
-    print("\tInline: ", inline)
-
-    backend.mlperfBench(modelSpec, testing=testing, inline=inline, useActors=False)
-
-
 def main():
     parser = argparse.ArgumentParser("Inference benchmark driver")
     parser.add_argument("-m", "--model", help="Model to run")
@@ -74,7 +57,7 @@ def main():
     print("\t Inline: ", args.inline)
 
     if args.test == 'nshot':
-        backend.nShot(spec, args.numRun, inline=args.inline, useActors=args.actors, benchConfig=benchConfig)
+        backend.nShot(spec, args.numRun, benchConfig)
     elif args.test == 'mlperf':
         backend.mlperfBench(spec, benchConfig)
     else:

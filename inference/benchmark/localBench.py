@@ -2,11 +2,12 @@ import infbench
 import util
 
 import mlperf_loadgen
-import numpy as np
-import time
 import threading
 import queue
 from gpuinfo import GPUInfo
+from pprint import pprint
+import json
+import pathlib
 
 
 def _getHandlers(modelSpec):
@@ -49,15 +50,15 @@ def _runOne(model, constants, inputs, stats=None):
     return postOut
 
 
-def nShot(modelSpec, n, inline=False, useActors=False):
+def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     loader, models = _getHandlers(modelSpec)
 
     if modelSpec.modelType == "kaas":
         raise NotImplementedError("KaaS not supported in local mode")
 
-    if inline:
+    if benchConfig['inline']:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
-    if useActors:
+    if benchConfig['actors']:
         print("WARNING: Actors does nothing in local mode")
 
     stats = util.profCollection()
@@ -66,41 +67,44 @@ def nShot(modelSpec, n, inline=False, useActors=False):
     model = models[0]
     constants = model.getConstants(modelSpec.modelPath.parent)
 
-    times = []
     accuracies = []
     results = []
     for i in range(n):
         idx = i % loader.ndata
         inputs = loader.get(idx)
 
-        start = time.time()
+        with util.timer("t_e2e", stats):
+            result = _runOne(model, constants, inputs, stats=stats)
 
-        result = _runOne(model, constants, inputs, stats=stats)
-
-        times.append(time.time() - start)
         results.append(result)
 
         if loader.checkAvailable:
             accuracies.append(loader.check(result, idx))
 
-    print("Minimum latency: ")
-    print(np.min(times))
-    print("Maximum latency: ")
-    print(np.max(times))
-    print("Average latency: ")
-    print(np.mean(times))
-    print("Median latency: ")
-    print(np.percentile(times, 50))
-    print("99 percentile latency: ")
-    print(np.percentile(times, 99))
-
-    print("\nTime Breakdowns: ")
-    print(stats.report())
-
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
         print("Dataset does not support accuracy calculation")
+
+    report = stats.report()
+    print("E2E Results:")
+    pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+
+    if not isinstance(reportPath, pathlib.Path):
+        reportPath = pathlib.Path(reportPath).resolve()
+
+    print("Saving results to: ", reportPath)
+    with open(reportPath, 'r') as f:
+        fullReport = json.load(f)
+
+    record = {
+        "config": benchConfig,
+        "metrics": report
+    }
+    fullReport.append(record)
+
+    with open(reportPath, 'w') as f:
+        json.dump(fullReport, f)
 
     return results
 
