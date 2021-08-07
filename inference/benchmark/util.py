@@ -64,6 +64,14 @@ def getModelSpec(modelName):
                          modelClass=infbench.resnet50.resnet50Kaas,
                          modelType="kaas")
 
+    elif modelName == "bertKaas":
+        import infbench.bert
+        return ModelSpec(name="bertKaas",
+                         loader=infbench.bert.bertLoader,
+                         modelClass=infbench.bert.bertModelKaas,
+                         modelPath=modelDir / "bert" / "bert_model.yaml",
+                         modelType="kaas")
+
     elif modelName == "testModelNP":
         import infbench.testModel
         return ModelSpec(name="testModelNP",

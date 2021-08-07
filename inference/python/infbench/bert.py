@@ -28,6 +28,7 @@ import transformers
 import numpy as np
 import string
 import re
+import pickle
 
 
 @dataclass
@@ -585,7 +586,7 @@ def check(pred, origData):
     return max(matches)
 
 
-class bertModel(model.tvmModel):
+class bertModelBase(model.Model):
     noPost = False
     preMap = model.inputMap(const=(0,), inp=(0,))
     runMap = model.inputMap(pre=(0, 1, 2))
@@ -639,6 +640,26 @@ class bertModel(model.tvmModel):
             raise ValueError("Unrecognized GPU Type " + gpuType)
 
         return settings
+
+
+class bertModel(bertModelBase, model.tvmModel):
+    pass
+
+
+class bertModelKaas(bertModelBase, model.kaasModel):
+    nConst = 391
+    runMap = model.inputMap(const=range(1, nConst + 1), pre=(0, 1, 2))
+    postMap = model.inputMap(inp=(0,), pre=(3,), run=(1, 0))
+
+    @staticmethod
+    def getConstants(modelDir):
+        with open(modelDir / 'vocab.txt', 'rb') as f:
+            vocab = f.read()
+
+        baseName = modelDir.stem
+        with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
+            constants = pickle.load(f)
+        return [vocab] + constants
 
 
 class bertLoader(dataset.loader):
