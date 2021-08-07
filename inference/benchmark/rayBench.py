@@ -451,11 +451,11 @@ def handleCompletion(modelSpec, queue):
 
 
 class mlperfRunner():
-    def __init__(self, modelSpec, loader, constantRefs, inline=False, useActors=False):
+    def __init__(self, modelSpec, loader, constantRefs, benchConfig):
         self.modelSpec = modelSpec
         self.loader = loader
         self.constants = constantRefs
-        self.inline = inline
+        self.benchConfig = benchConfig
 
         if modelSpec.modelType == "kaas":
             self.modelArg = modelSpec.getModelArg()
@@ -469,7 +469,7 @@ class mlperfRunner():
 
         self.nGpu = getNGpu()
 
-        if useActors:
+        if benchConfig['actors']:
             self.pool = runnerPool(self.nGpu)
         else:
             self.pool = None
@@ -492,7 +492,7 @@ class mlperfRunner():
             # cold starts.
             for i in range(self.nGpu*2):
                 results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
-                               self.constants, inputs, inline=self.inline,
+                               self.constants, inputs, inline=self.benchConfig['inline'],
                                runPool=self.pool))
             for res in results:
                 ray.get(res)
@@ -502,11 +502,14 @@ class mlperfRunner():
             inp = self.loader.get(q.index)
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
-                    self.constants, inp, inline=self.inline,
+                    self.constants, inp, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
                     cacheModel=True, runPool=self.pool)
 
         self.nIssued += len(queryBatch)
+
+    def processLatencies(self, latencies):
+        infbench.model.processLatencies(self.benchConfig, latencies)
 
     def stop(self):
         self.completionQueue.put((self.nIssued, None))
@@ -514,12 +517,12 @@ class mlperfRunner():
         self.completionHandler.join()
 
 
-def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
+def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
     ray.init()
 
     gpuType = util.getGpuType()
-    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, testing=testing)
+    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, testing=benchConfig['testing'])
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
@@ -530,11 +533,11 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
         for const in constants:
             constRefs.append(ray.put(const))
 
-    runner = mlperfRunner(modelSpec, loader, constRefs, inline=inline, useActors=useActors)
+    runner = mlperfRunner(modelSpec, loader, constRefs, benchConfig)
 
     runner.start(preWarm=True)
     sut = mlperf_loadgen.ConstructSUT(
-        runner.runBatch, infbench.model.flushQueries, infbench.model.processLatencies)
+        runner.runBatch, infbench.model.flushQueries, runner.processLatencies)
 
     qsl = mlperf_loadgen.ConstructQSL(
         loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
@@ -545,8 +548,8 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
 
     runner.stop()
 
-    print("\nResults:")
-    infbench.model.reportMlPerf()
+    # print("\nResults:")
+    # infbench.model.reportMlPerf(benchConfig)
 
 
 # =============================================================================

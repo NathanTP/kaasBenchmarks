@@ -8,6 +8,7 @@ import yaml
 import pickle
 import collections
 import re
+from pprint import pprint
 
 import mlperf_loadgen
 
@@ -458,16 +459,93 @@ def flushQueries():
     pass
 
 
-def processLatencies(latencies):
-    """Callback for mlperf to report results"""
+def parseMlPerf(prefix):
+    with open(prefix + "summary.txt", 'r') as f:
+        mlLog = f.readlines()
+
+    metrics = {}
+
+    scheduledPattern = re.compile("Scheduled samples per second : (.*)$")
+    completedPattern = re.compile("Completed samples per second    : (.*)$")
+    validPattern = re.compile(".*INVALID$")
+
+    metrics['valid'] = True
+    for idx, line in enumerate(mlLog):
+        match = scheduledPattern.match(line)
+        if match is not None:
+            metrics['n_scheduled'] = float(match.group(1))
+            continue
+
+        match = completedPattern.match(line)
+        if match is not None:
+            metrics['n_completed'] = float(match.group(1))
+            continue
+
+        match = validPattern.match(line)
+        if match is not None:
+            metrics['valid'] = False
+            continue
+
+        if line == "Test Parameters Used\n":
+            break
+
+    return metrics
+
+
+def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerfPrefix="mlperf_log_"):
+    """Reads latencies from mlperf and generates both human and machine
+    readable reports."""
+    metrics = parseMlPerf(mlPerfPrefix)
+
     # latencies is a list of latencies for each query issued (in ns).
-    print("nQuery: ", len(latencies))
-    print("Total Time: ", sum(latencies) / 1E9)
+    lats = np.array(rawLatencies, dtype=np.float32)
+
+    lats = np.divide(lats, 1E9)
+    metrics['t_min'] = float(lats.min())
+    metrics['t_max'] = float(lats.max())
+    metrics['t_mean'] = float(lats.mean())
+    metrics['t_p50'] = float(np.quantile(lats, 0.50))
+    metrics['t_p90'] = float(np.quantile(lats, 0.90))
+    metrics['t_p99'] = float(np.quantile(lats, 0.99))
+    metrics['latencies'] = lats.tolist()
+
+    if not isinstance(outPath, pathlib.Path):
+        outPath = pathlib.Path(outPath).resolve()
+
+    if not metrics['valid']:
+        print("\n*********************************************************")
+        print("WARNING: Results invalid, reduce target QPS and try again")
+        print("*********************************************************\n")
+        pprint(metrics)
+    else:
+        if outPath.exists():
+            with open(outPath, 'r') as f:
+                allMetrics = json.load(f)
+        else:
+            allMetrics = []
+
+        record = {
+            "config": benchConfig,
+            "metrics": metrics
+        }
+        allMetrics.append(record)
+
+        print("Saving metrics to: ", outPath)
+        with open(outPath, 'w') as f:
+            json.dump(allMetrics, f)
+
+        print("Results:")
+        pprint({(m, record['metrics'][m]) for m in metrics.keys() if m != "latencies"})
 
 
-def reportMlPerf(prefix="mlperf_log_"):
+def reportMlPerf(config, prefix="mlperf_log_", outPath="./results.json"):
+    if not isinstance(outPath, pathlib.Path):
+        outPath = pathlib.Path(outPath).resolve()
+
     with open(prefix + "summary.txt", 'r') as f:
         fullRes = f.readlines()
+
+    metrics = {}
 
     scheduledPattern = re.compile("Scheduled samples per second : (.*)$")
     validPattern = re.compile(".*INVALID$")
@@ -476,7 +554,7 @@ def reportMlPerf(prefix="mlperf_log_"):
     for idx, line in enumerate(fullRes):
         match = scheduledPattern.match(line)
         if match is not None:
-            nScheduled = float(match.group(1))
+            metrics['n_scheduled'] = float(match.group(1))
             continue
 
         match = validPattern.match(line)
@@ -491,27 +569,36 @@ def reportMlPerf(prefix="mlperf_log_"):
     fullRes = fullRes[startIdx:]
 
     extractNumber = re.compile(".*: (.*)$")
-    nCompleted = float(extractNumber.match(fullRes[0]).group(1))
+    metrics['n_completed'] = float(extractNumber.match(fullRes[0]).group(1))
 
-    minLat = float(extractNumber.match(fullRes[2]).group(1)) / 1E9
-    maxLat = float(extractNumber.match(fullRes[3]).group(1)) / 1E9
-    meanLat = float(extractNumber.match(fullRes[4]).group(1)) / 1E9
-    p50 = float(extractNumber.match(fullRes[5]).group(1)) / 1E9
-    p90 = float(extractNumber.match(fullRes[6]).group(1)) / 1E9
-    p99 = float(extractNumber.match(fullRes[9]).group(1)) / 1E9
+    metrics['t_minLat'] = float(extractNumber.match(fullRes[2]).group(1)) / 1E9
+    metrics['t_maxLat'] = float(extractNumber.match(fullRes[3]).group(1)) / 1E9
+    metrics['t_meanLat'] = float(extractNumber.match(fullRes[4]).group(1)) / 1E9
+    metrics['t_p50'] = float(extractNumber.match(fullRes[5]).group(1)) / 1E9
+    metrics['t_p90'] = float(extractNumber.match(fullRes[6]).group(1)) / 1E9
+    metrics['t_p99'] = float(extractNumber.match(fullRes[9]).group(1)) / 1E9
 
     if not valid:
         print("\n*********************************************************")
         print("WARNING: Results invalid, reduce target QPS and try again")
         print("*********************************************************\n")
+        pprint(metrics)
+    else:
+        if outPath.exists():
+            with open(outPath, 'r') as f:
+                allMetrics = json.load(f)
+        else:
+            allMetrics = []
 
-    print("NScheduled: ", nScheduled)
-    print("NCompleted: ", nCompleted)
-    print("")
-    print("Latencies (s):")
-    print("min:  ", minLat)
-    print("max:  ", maxLat)
-    print("mean: ", meanLat)
-    print("p50:  ", p50)
-    print("p90:  ", p90)
-    print("p99:  ", p99)
+        record = {
+            "config": config,
+            "metrics": metrics
+        }
+        allMetrics.append(record)
+
+        print("Saving metrics to: ", outPath)
+        with open(outPath, 'w') as f:
+            json.dump(allMetrics, f)
+
+        print("Results:")
+        pprint(metrics)

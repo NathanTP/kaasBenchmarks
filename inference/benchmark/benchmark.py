@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import util
 import argparse
+import datetime
 
 
 def sanityCheck(backend):
@@ -55,6 +56,16 @@ def main():
         import rayBench
         backend = rayBench
 
+    benchConfig = {
+        "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
+        "model": args.model,
+        "test": args.test,
+        "backend": args.backend,
+        "testing": args.testing,
+        "actors": args.actors,
+        "inline": args.inline
+    }
+
     print(f"Starting {args.test} test")
     print("\t Model: ", args.model)
     print("\t Backend: ", args.backend)
@@ -63,9 +74,9 @@ def main():
     print("\t Inline: ", args.inline)
 
     if args.test == 'nshot':
-        backend.nShot(spec, args.numRun, inline=args.inline, useActors=args.actors)
+        backend.nShot(spec, args.numRun, inline=args.inline, useActors=args.actors, benchConfig=benchConfig)
     elif args.test == 'mlperf':
-        backend.mlperfBench(spec, testing=args.testing, inline=args.inline, useActors=args.actors)
+        backend.mlperfBench(spec, benchConfig)
     else:
         raise ValueError("Unrecognized test: ", args.test)
 
