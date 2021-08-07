@@ -133,7 +133,7 @@ def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
 
 def getKaasModel(name):
     modelPath = modelDir / name
-
+    print(kaasSrcDir / name)
     if not (modelPath / (name + "_model.yaml")).exists():
         sp.run(['./generateModel.py', '-o', str(modelPath), '-n', name], cwd=kaasSrcDir / name)
 
@@ -184,6 +184,8 @@ def getBert():
                     'input_ids': (1, 384),
                     'input_mask': (1, 384),
                     'segment_ids': (1, 384)})
+
+    getKaasModel('bert')
 
 
 def getSsdMobilenet():
