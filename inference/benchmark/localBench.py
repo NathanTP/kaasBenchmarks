@@ -111,11 +111,12 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 
 class mlperfRunner():
 
-    def __init__(self, loader, constants, models):
+    def __init__(self, loader, constants, models, benchConfig):
         self.loader = loader
         self.models = models
         self.queue = queue.SimpleQueue()
         self.constants = constants
+        self.benchConfig = benchConfig
 
     def start(self):
         for model in self.models:
@@ -147,13 +148,16 @@ class mlperfRunner():
 
             batch = queue.get()
 
+    def processLatencies(self, latencies):
+        infbench.model.processLatencies(self.benchConfig, latencies)
 
-def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
+
+def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
-    if inline:
+    if benchConfig['inline']:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
-    if useActors:
+    if benchConfig['actors']:
         print("WARNING: useActors does nothing in local mode")
 
     gpuType = util.getGpuType()
@@ -161,14 +165,14 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
 
-    settings = models[0].getMlPerfCfg(gpuType, testing=testing)
+    settings = models[0].getMlPerfCfg(gpuType, testing=benchConfig['testing'])
 
-    runner = mlperfRunner(loader, constants, models)
+    runner = mlperfRunner(loader, constants, models, benchConfig)
     runner.start()
 
     try:
         sut = mlperf_loadgen.ConstructSUT(
-            runner.runOne, infbench.model.flushQueries, infbench.model.processLatencies)
+            runner.runOne, infbench.model.flushQueries, runner.processLatencies)
 
         qsl = mlperf_loadgen.ConstructQSL(
             loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
