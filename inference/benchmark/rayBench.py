@@ -9,6 +9,7 @@ import subprocess as sp
 from pprint import pprint
 import pathlib
 import json
+import collections
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -227,27 +228,59 @@ class runActor():
 
         return results
 
+    def terminate(self):
+        ray.actor.exit_actor()
+
 
 class runnerPool():
-    def __init__(self, nRunner):
-        self.actors = []
-        for i in range(nRunner):
-            self.actors.append(runActor.remote())
+    def __init__(self, nRunner, policy='rr'):
+        self.maxRunners = nRunner
 
-        self.policy = self._roundRobin
-        self.last = 0
+        if policy == 'rr':
+            self.policy = self._roundRobin
+            self.last = 0
+            self.actors = []
+            for i in range(nRunner):
+                self.actors.append(runActor.remote())
+        if policy == 'affinity':
+            self.policy = self._affinity
+            self.lru = collections.deque()
+            self.assignments = {}
 
     def _roundRobin(self, clientID):
         """A simple round-robin policy with no affinity"""
         self.last = (self.last + 1) % len(self.actors)
-        return self.last
+        return self.actors[self.last]
+
+    def _affinity(self, clientID):
+        """Maps clients to actors exclusively. If there are not enough actors,
+        one is killed to make room. This is most similar to a typical naive
+        faas system."""
+        if clientID in self.assignments:
+            self.lru.remove(clientID)
+            self.lru.appendleft(clientID)
+            return self.assignments[clientID]
+        else:
+            if len(self.assignments) < self.maxRunners:
+                self.lru.appendleft(clientID)
+                self.assignments[clientID] = runActor.remote()
+                return self.assignments[clientID]
+            else:
+                # Gotta evict someone
+                idEvict = self.lru.pop()
+                actEvict = self.assignments[idEvict]
+                actEvict.terminate.remote()
+                del self.assignments[idEvict]
+
+                self.lru.appendleft(clientID)
+                self.assignments[clientID] = runActor.remote()
+                return self.assignments[clientID]
 
     def getRunner(self, clientID):
         """Return an actor suitable for running a request from clientID.
         Callers should call the returned actor exactly once per call to
         getRunner (do not cache the return value of getRunner)."""
-        runnerIdx = self.policy(clientID)
-        return self.actors[runnerIdx]
+        return self.policy(clientID)
 
 
 def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
@@ -361,8 +394,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(n, loader.ndata)))
 
-    if benchConfig['actors']:
-        pool = runnerPool(getNGpu())
+    if benchConfig['actor_policy'] is not None:
+        pool = runnerPool(getNGpu(), policy=benchConfig['actor_policy'])
     else:
         pool = None
 
@@ -489,8 +522,8 @@ class mlperfRunner():
 
         self.nGpu = getNGpu()
 
-        if benchConfig['actors']:
-            self.pool = runnerPool(self.nGpu)
+        if benchConfig['actor_policy']:
+            self.pool = runnerPool(self.nGpu, policy=benchConfig['actor_policy'])
         else:
             self.pool = None
 
@@ -612,8 +645,8 @@ class serverLoop():
 
         self.nGpu = getNGpu()
 
-        if self.benchConfig['actors']:
-            self.pool = runnerPool(self.nGpu)
+        if self.benchConfig['actor_policy'] is not None:
+            self.pool = runnerPool(self.nGpu, policy=self.benchConfig['actor_policy'])
         else:
             self.pool = None
 
