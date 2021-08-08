@@ -24,11 +24,15 @@ from dataclasses import dataclass
 import json
 import math
 import tempfile
-import transformers
 import numpy as np
 import string
 import re
 import pickle
+
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import transformers
 
 
 @dataclass
@@ -636,6 +640,9 @@ class bertModelBase(model.Model):
         if gpuType == "Tesla K20c":
             settings.server_target_qps = 0.4
             settings.server_target_latency_ns = model.calculateLatencyTarget(1.14)
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            settings.server_target_qps = 0.4
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.5)
         else:
             raise ValueError("Unrecognized GPU Type " + gpuType)
 

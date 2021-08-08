@@ -401,8 +401,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         reportPath = pathlib.Path(reportPath).resolve()
 
     print("Saving results to: ", reportPath)
-    with open(reportPath, 'r') as f:
-        fullReport = json.load(f)
+    if reportPath.exists():
+        with open(reportPath, 'r') as f:
+            fullReport = json.load(f)
+    else:
+        fullReport = []
 
     record = {
         "config": benchConfig,
@@ -525,7 +528,7 @@ class mlperfRunner():
         self.nIssued += len(queryBatch)
 
     def processLatencies(self, latencies):
-        infbench.model.processLatencies(self.benchConfig, latencies)
+        self.latMetrics = infbench.model.processLatencies(self.benchConfig, latencies)
 
     def stop(self):
         self.completionQueue.put((self.nIssued, None))
@@ -564,8 +567,9 @@ def mlperfBench(modelSpec, benchConfig):
 
     runner.stop()
 
-    # print("\nResults:")
-    # infbench.model.reportMlPerf(benchConfig)
+    print("\nResults:")
+    mlPerfMetrics = infbench.model.parseMlPerf('mlperf_log_')
+    infbench.model.saveReport({**runner.latMetrics, **mlPerfMetrics}, benchConfig, 'results.json')
 
 
 # =============================================================================

@@ -94,8 +94,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         reportPath = pathlib.Path(reportPath).resolve()
 
     print("Saving results to: ", reportPath)
-    with open(reportPath, 'r') as f:
-        fullReport = json.load(f)
+    if reportPath.exists():
+        with open(reportPath, 'r') as f:
+            fullReport = json.load(f)
+    else:
+        fullReport = []
 
     record = {
         "config": benchConfig,

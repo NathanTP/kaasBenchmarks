@@ -67,7 +67,10 @@ class superResBase():
 
         if gpuType == "Tesla K20c":
             settings.server_target_qps = 3
-
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.320)
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            # ~6 (10 for kaas)
+            settings.server_target_qps = 3
             settings.server_target_latency_ns = model.calculateLatencyTarget(0.320)
         else:
             raise ValueError("Unrecognized GPU Type: ", gpuType)

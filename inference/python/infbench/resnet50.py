@@ -74,8 +74,11 @@ class resnet50(model.tvmModel, resnet50Base):
 
         if gpuType == "Tesla K20c":
             settings.server_target_qps = 5
-
             settings.server_target_latency_ns = model.calculateLatencyTarget(0.058)
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            settings.server_target_qps = 2
+            #XXX Why is this twice the latency on a V100?
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.12)
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
@@ -93,6 +96,10 @@ class resnet50Kaas(model.kaasModel, resnet50Base):
         if gpuType == "Tesla K20c":
             settings.server_target_qps = 5
             settings.server_target_latency_ns = model.calculateLatencyTarget(0.070)
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            # really ~6
+            settings.server_target_qps = 2
+            settings.server_target_latency_ns = model.calculateLatencyTarget(0.05)
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
