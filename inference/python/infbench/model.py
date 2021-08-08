@@ -436,19 +436,25 @@ def calculateLatencyTarget(medianLatency):
     return int((medianLatency*2)*1E9)
 
 
-def getDefaultMlPerfCfg(testing=False):
+def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
+
     settings = mlperf_loadgen.TestSettings()
     settings.scenario = mlperf_loadgen.TestScenario.Server
 
-    if testing:
-        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    else:
+    # Default is 99, 90 is a bit more manageable in terms of avoiding tricky
+    # tuning and requiring very long tests
+    settings.server_target_latency_percentile = 0.9
+
+    settings.server_target_latency_ns = calculateLatencyTarget(medianLat)
+
+    if benchConfig['scale'] is None:
+        settings.server_target_qps = maxQps * 0.80
         settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+    else:
+        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+        settings.server_target_qps = maxQps * benchConfig['scale']
 
     # settings.min_query_count = 500
-
-    # Default is 99, keeping it here due to Ray's awful tail
-    settings.server_target_latency_percentile = 0.9
 
     return settings
 

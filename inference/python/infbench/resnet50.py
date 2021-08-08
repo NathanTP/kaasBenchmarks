@@ -69,18 +69,17 @@ class resnet50Base(model.Model):
 
 class resnet50(model.tvmModel, resnet50Base):
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg()
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 5
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.058)
+            maxQps = 4.6
+            medianLatency = 0.09
         elif gpuType == "Tesla V100-SXM2-16GB":
-            settings.server_target_qps = 2
-            #XXX Why is this twice the latency on a V100?
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.12)
+            maxQps = 2
+            medianLatency = 0.12
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 
@@ -90,18 +89,17 @@ class resnet50Kaas(model.kaasModel, resnet50Base):
     runMap = model.inputMap(const=range(108), pre=(0,))
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg()
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 5
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.070)
+            maxQps = 16.5
+            medianLatency = 0.090
         elif gpuType == "Tesla V100-SXM2-16GB":
-            # really ~6
-            settings.server_target_qps = 2
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.05)
+            maxQps = 2
+            medianLatency = 0.05
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 

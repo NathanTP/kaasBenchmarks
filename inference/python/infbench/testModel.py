@@ -80,17 +80,17 @@ class testModelNP(testModel, model.Model):
         return (expect,)
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg(testing=testing)
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 100
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.025)
+            maxQps = 100
+            medianLatency = 0.025
         elif gpuType == "Tesla V100-SXM2-16GB":
-            settings.server_target_qps = 50
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.025)
+            maxQps = 50
+            medianLatency = 0.025
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 
@@ -170,23 +170,17 @@ class testModelNative(testModel, model.Model):
         return (hRes,)
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg(testing=testing)
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            # It's actually about 150 but if you set it anywhere close to that
-            # it gets a crazy outlyer that ruins the p90. I think what happens
-            # is that all the initial queries get stuck behind a cold start and
-            # you get a big batch of slow queries. If you start with a low qps,
-            # it reduces the number of queries sent during the cold start
-            # (since it ramps up slowly).
-            settings.server_target_qps = 70
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.014)
+            maxQps = 148
+            medianLatency = 0.014
         elif gpuType == "Tesla V100-SXM2-16GB":
-            settings.server_target_qps = 10
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.016)
+            maxQps = 125
+            medianLatency = 0.016
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 
@@ -196,17 +190,17 @@ class testModelKaas(testModel, model.kaasModel):
         super().__init__(modelArg)
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg(testing=testing)
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 70
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.017)
+            maxQps = 126
+            medianLatency = 0.017
         elif gpuType == "Tesla V100-SXM2-16GB":
-            settings.server_target_qps = 10
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.020)
+            maxQps = 126
+            medianLatency = 0.020
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 

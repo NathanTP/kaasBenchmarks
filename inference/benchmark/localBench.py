@@ -192,3 +192,11 @@ def mlperfBench(modelSpec, benchConfig):
         runner.stop()
 
     infbench.model.reportMlPerf()
+
+# =============================================================================
+# Server Mode
+# =============================================================================
+
+
+def serveRequests(benchConfig):
+    raise ValueError("Local does not support server mode right now")

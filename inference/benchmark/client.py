@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
 import sys
-import argparse
 import pickle
 import threading
 from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
-import time
+from pprint import pprint
 
 import mlperf_loadgen
 
@@ -26,54 +25,59 @@ def setupZmq(clientID, context=None):
     return socket
 
 
-def nShot(modelName, clientID, n):
+def nShot(modelSpec, n, benchConfig):
     """A simple nShot test. All N requests are sent before waiting for
     responses. The raw results are returned."""
+    clientID = benchConfig['name'].encode('utf-8')
 
-    modelSpec = util.getModelSpec(modelName)
+    stats = util.profCollection()
+
     loader = modelSpec.loader(modelSpec.dataDir)
     loader.preLoad(range(min(n, loader.ndata)))
 
     socket = setupZmq(clientID)
 
     # Registration
-    print("Registering client: ", clientID)
-    socket.send_multipart([modelName.encode('utf-8'), b''])
+    print("Registering client: ", benchConfig['name'])
+    socket.send_multipart([benchConfig['model'].encode('utf-8'), b''])
 
     # Send all requests
     print("Sending Requests:")
+    results = []
+    accuracies = []
     for i in range(n):
         idx = i % loader.ndata
         inp = loader.get(idx)
 
-        socket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
+        with util.timer('t_e2e', stats):
+            socket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
 
-    # Wait for responses
-    print("Waiting for responses")
-    responses = {}  # {idx -> data}
-    for i in range(n):
-        idx, respData = socket.recv_multipart()
-        responses[int.from_bytes(idx, sys.byteorder)] = pickle.loads(respData)
+            respIdx, respData = socket.recv_multipart()
+            respIdx = int.from_bytes(respIdx, sys.byteorder)
+
+            assert (respIdx == idx)
+            results.append(pickle.loads(respData))
+
+        if loader.checkAvailable:
+            accuracies.append(loader.check(results[-1], idx))
 
     # Check Accuracy
     print("Test complete, checking accuracies")
     if loader.checkAvailable:
-        accuracies = []
-        for idx, data in responses.items():
-            accuracies.append(loader.check(data, idx))
-
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
 
-    return [data for idx, data in responses.items()]
+    report = stats.report()
+    print("E2E Results:")
+    pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+
+    return results
 
 
 class mlperfRunner(threading.Thread):
-    def __init__(self, clientID, modelName, zmqContext, testing=False, scale=1.0):
+    def __init__(self, modelSpec, benchConfig, zmqContext):
         self.zmqContext = zmqContext
-        self.testing = testing
-        self.modelName = modelName
-        self.clientID = clientID
-        self.scale = scale
+        self.benchConfig = benchConfig
+        self.modelSpec = modelSpec
 
         threading.Thread.__init__(self)
 
@@ -82,30 +86,24 @@ class mlperfRunner(threading.Thread):
             inp = self.loader.get(q.index)
             self.sutSock.send_multipart([q.id.to_bytes(8, sys.byteorder), pickle.dumps(inp)])
 
-    def preWarm(self):
-        self.loader.preLoad([0])
-        inputs = self.loader.get(0)
-        for i in range(10):
-            self.sutSock.send_multipart([bytes(1), pickle.dumps(inputs)])
-        time.sleep(20)
+    def processLatencies(self, latencies):
+        self.latMetrics = infbench.model.processLatencies(self.benchConfig, latencies)
 
     def run(self):
-        modelSpec = util.getModelSpec(self.modelName)
-        self.loader = modelSpec.loader(modelSpec.dataDir)
+        gpuType = util.getGpuType()
+
+        self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
 
         self.sutSock = self.zmqContext.socket(zmq.PAIR)
         self.sutSock.connect(sutSockUrl)
 
-        # self.preWarm()
-
-        runSettings = modelSpec.modelClass.getMlPerfCfg(testing=self.testing)
-        runSettings.server_target_qps = runSettings.server_target_qps * self.scale
+        runSettings = self.modelSpec.modelClass.getMlPerfCfg(gpuType, self.benchConfig)
 
         logSettings = mlperf_loadgen.LogSettings()
-        logSettings.log_output.prefix = self.clientID.decode("utf-8") + "_"
+        logSettings.log_output.prefix = self.benchConfig['name'] + "_"
 
         sut = mlperf_loadgen.ConstructSUT(
-            self.runBatch, infbench.model.flushQueries, infbench.model.processLatencies)
+            self.runBatch, infbench.model.flushQueries, self.processLatencies)
 
         qsl = mlperf_loadgen.ConstructQSL(
             self.loader.ndata, infbench.model.mlperfNquery, self.loader.preLoad, self.loader.unLoad)
@@ -120,7 +118,9 @@ class mlperfRunner(threading.Thread):
 
 
 class mlperfLoop():
-    def __init__(self, clientID, modelName, zmqContext):
+    def __init__(self, modelSpec, benchConfig, zmqContext):
+        self.benchConfig = benchConfig
+        self.clientID = benchConfig['name'].encode('utf-8')
         self.loop = IOLoop.instance()
 
         self.sutSocket = zmqContext.socket(zmq.PAIR)
@@ -128,15 +128,14 @@ class mlperfLoop():
         self.sutStream = ZMQStream(self.sutSocket)
         self.sutStream.on_recv(self.handleSut)
 
-        self.serverSocket = setupZmq(clientID, context=zmqContext)
+        self.serverSocket = setupZmq(self.clientID, context=zmqContext)
         self.serverStream = ZMQStream(self.serverSocket)
         self.serverStream.on_recv(self.handleServer)
 
         # Register with the benchmark server
-        self.serverSocket.send_multipart([modelName.encode('utf-8'), b''])
+        self.serverSocket.send_multipart([self.benchConfig['model'].encode('utf-8'), b''])
 
         # PreWarm
-        modelSpec = util.getModelSpec(modelName)
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad([0])
         inputs = loader.get(0)
@@ -166,34 +165,18 @@ class mlperfLoop():
             mlperf_loadgen.QuerySamplesComplete([completion])
 
 
-def mlperfBench(modelName, clientID, scale=1.0):
+def mlperfBench(modelSpec, benchConfig):
     context = zmq.Context()
 
-    print("Registering and prewarming", modelName)
-    mlperfLoop(clientID, modelName, context)
+    print("Registering and prewarming", modelSpec.name)
+    mlperfLoop(modelSpec, benchConfig, context)
 
-    testRunner = mlperfRunner(clientID, modelName, context, testing=False, scale=scale)
+    testRunner = mlperfRunner(modelSpec, benchConfig, context)
 
     print("Beginning loadgen run")
     testRunner.start()
 
     IOLoop.instance().start()
-
-    infbench.model.reportMlPerf(prefix=clientID.decode("utf-8") + "_")
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--model", default="testModelNP", help="Model name")
-    parser.add_argument("-n", "--name", type=str, default="client0", help="Unique identifier for this client")
-    parser.add_argument("-s", "--scale", type=float, default=1.0, help="Scale the request rate of the model. 1.0 corresponds to approximately the maximum supported arrival rate in isolation.")
-
-    args = parser.parse_args()
-
-    clientID = args.name.encode("utf-8")
-    # nShot(args.model, clientID, 1)
-    mlperfBench(args.model, clientID, scale=args.scale)
-
-
-if __name__ == "__main__":
-    main()
+    mlPerfMetrics = infbench.model.parseMlPerf(benchConfig['name'] + '_')
+    infbench.model.saveReport({**testRunner.latMetrics, **mlPerfMetrics},
+                              benchConfig, benchConfig['name'] + '_results.json')

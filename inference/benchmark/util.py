@@ -9,7 +9,7 @@ import json
 import numpy as np
 
 
-clientUrl = "ipc://benchmark_client.ipc"
+clientUrl = "ipc://client.ipc"
 
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()

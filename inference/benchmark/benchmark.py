@@ -21,32 +21,42 @@ def sanityCheck(backend):
 
 def main():
     parser = argparse.ArgumentParser("Inference benchmark driver")
+    parser.add_argument("-n", "--name", default="test", help="Name to use internally and when saving results")
     parser.add_argument("-m", "--model", help="Model to run")
-    parser.add_argument("-b", "--backend", default='local', help="Which driver to use (local or ray)")
-    parser.add_argument("-t", "--test", default="nshot", help="Which test to run (nshot or mlperf)")
+    parser.add_argument("-b", "--backend", default='local', choices=['local', 'ray', 'client'], help="Which driver to use (local or ray)")
+    parser.add_argument("-t", "--test", default="nshot", choices=['nshot', 'mlperf', 'server'], help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("--actors", action="store_true", help="Use actors for ray workloads")
+    parser.add_argument("--cache", action="store_false", help="Cache models on workers")
     parser.add_argument("--inline", action="store_true", help="Inline pre and post processing with them model run (only meaningful for ray mode)")
+    parser.add_argument("--scale", type=float, help="Rate at which to submit requests in mlperf mode (as a fraction of peak throughput). If not provided, mlperf is run in FindPeakPerformance mode.")
     parser.add_argument("--numRun", default=1, type=int, help="Number of iterations to use in nshot mode")
     args = parser.parse_args()
-
-    spec = util.getModelSpec(args.model)
 
     if args.backend == 'local':
         import localBench
         backend = localBench
-    else:
+    elif args.backend == 'ray':
         import rayBench
         backend = rayBench
+    elif args.backend == 'client':
+        import client
+        backend = client
+    else:
+        raise ValueError("Unrecognized backend: " + args.backend)
 
     benchConfig = {
         "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
+        "name": args.name,
         "model": args.model,
         "test": args.test,
         "backend": args.backend,
         "testing": args.testing,
         "actors": args.actors,
-        "inline": args.inline
+        "cache": args.cache,
+        "inline": args.inline,
+        "scale": args.scale,
+        "numRun": args.numRun
     }
 
     print(f"Starting {args.test} test")
@@ -54,12 +64,17 @@ def main():
     print("\t Backend: ", args.backend)
     print("\t Testing: ", args.testing)
     print("\t Actors: ", args.actors)
+    print("\t Cache Models: ", args.cache)
     print("\t Inline: ", args.inline)
 
     if args.test == 'nshot':
+        spec = util.getModelSpec(args.model)
         backend.nShot(spec, args.numRun, benchConfig)
     elif args.test == 'mlperf':
+        spec = util.getModelSpec(args.model)
         backend.mlperfBench(spec, benchConfig)
+    elif args.test == 'server':
+        backend.serveRequests(benchConfig)
     else:
         raise ValueError("Unrecognized test: ", args.test)
 

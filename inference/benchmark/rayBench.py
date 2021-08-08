@@ -377,7 +377,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
             # detailed metrics than e2e. Details within the remote functions
             # should match localBench results anyway.
             res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
-                          inline=benchConfig['inline'], runPool=pool, cacheModel=True)
+                          inline=benchConfig['inline'], runPool=pool,
+                          cacheModel=benchConfig['cache'])
 
             res = ray.get(res)
             if modelSpec.modelType == 'kaas' and modelSpec.modelClass.noPost:
@@ -523,7 +524,7 @@ class mlperfRunner():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inp, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
-                    cacheModel=True, runPool=self.pool)
+                    cacheModel=self.benchConfig['cache'], runPool=self.pool)
 
         self.nIssued += len(queryBatch)
 
@@ -600,8 +601,9 @@ clients = {}
 
 class serverLoop():
     """ServerTask"""
-    def __init__(self, clientSock, useActors=False):
+    def __init__(self, clientSock, benchConfig):
         self.loop = IOLoop.instance()
+        self.benchConfig = benchConfig
 
         self.clientStream = ZMQStream(clientSock)
         self.clientStream.on_recv(self.handleClients)
@@ -610,7 +612,7 @@ class serverLoop():
 
         self.nGpu = getNGpu()
 
-        if useActors:
+        if self.benchConfig['actors']:
             self.pool = runnerPool(self.nGpu)
         else:
             self.pool = None
@@ -630,13 +632,15 @@ class serverLoop():
 
         cState = clients.get(clientID, None)
 
-        # Registration
         if cState is None:
+            # Registration
             print("Registering ", clientID)
             modelName = reqID.decode('utf-8')
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
+            # Normal Request
+
             # XXX ray.put is just going to re-pickle the data. We should really
             # require models to only pass bytes as inputs and outputs.
             data = pickle.loads(data)
@@ -644,14 +648,15 @@ class serverLoop():
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
-                    cacheModel=True, inline=False, runPool=self.pool)
+                    cacheModel=self.benchConfig['cache'],
+                    inline=self.benchConfig['inline'], runPool=self.pool)
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
         IOLoop.instance().stop()
 
 
-def serveRequests(useActors=False):
+def serveRequests(benchConfig):
     ray.init()
     context = zmq.Context()
 
@@ -660,7 +665,7 @@ def serveRequests(useActors=False):
 
     # IOLoop uses a global context, when you instantiate a serverLoop object,
     # it registers itself with IOLoop. The returned object isn't used here.
-    looper = serverLoop(clientSock, useActors=useActors)
+    looper = serverLoop(clientSock, benchConfig)
 
     signal.signal(signal.SIGINT, lambda s, f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
 
