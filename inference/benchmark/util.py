@@ -10,6 +10,7 @@ import numpy as np
 
 
 clientUrl = "ipc://client.ipc"
+barrierUrl = "ipc://barrier.ipc"
 
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()

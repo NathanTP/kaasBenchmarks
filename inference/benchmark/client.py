@@ -19,10 +19,31 @@ sutSockUrl = "inproc://sut"
 def setupZmq(clientID, context=None):
     if context is None:
         context = zmq.Context()
-    socket = context.socket(zmq.DEALER)
-    socket.identity = clientID
-    socket.connect(util.clientUrl)
-    return socket
+    serverSocket = context.socket(zmq.DEALER)
+    serverSocket.identity = clientID
+    serverSocket.connect(util.clientUrl)
+
+    barrierSocket = context.socket(zmq.REQ)
+    barrierSocket.identity = clientID
+    barrierSocket.connect(util.barrierUrl)
+
+    return serverSocket, barrierSocket
+
+
+def barrier(barrierSock):
+    barrierSock.send(b'READY')
+    barrierSock.recv()
+
+
+def preWarm(serverSock, barrierSock, inputs):
+    for i in range(10):
+        serverSock.send_multipart([bytes(1), pickle.dumps(inputs)])
+    for i in range(10):
+        serverSock.recv_multipart()
+
+    #XXX
+    print("Ready: waiting on barrier")
+    barrier(barrierSock)
 
 
 def nShot(modelSpec, n, benchConfig):
@@ -35,11 +56,15 @@ def nShot(modelSpec, n, benchConfig):
     loader = modelSpec.loader(modelSpec.dataDir)
     loader.preLoad(range(min(n, loader.ndata)))
 
-    socket = setupZmq(clientID)
+    zmqContext = zmq.Context()
+    serverSocket, barrierSocket = setupZmq(clientID, context=zmqContext)
 
     # Registration
     print("Registering client: ", benchConfig['name'])
-    socket.send_multipart([benchConfig['model'].encode('utf-8'), b''])
+    serverSocket.send_multipart([benchConfig['model'].encode('utf-8'), b''])
+
+    print("Waiting for other clients:")
+    barrier(barrierSocket)
 
     # Send all requests
     print("Sending Requests:")
@@ -50,9 +75,9 @@ def nShot(modelSpec, n, benchConfig):
         inp = loader.get(idx)
 
         with util.timer('t_e2e', stats):
-            socket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
+            serverSocket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
 
-            respIdx, respData = socket.recv_multipart()
+            respIdx, respData = serverSocket.recv_multipart()
             respIdx = int.from_bytes(respIdx, sys.byteorder)
 
             assert (respIdx == idx)
@@ -128,7 +153,7 @@ class mlperfLoop():
         self.sutStream = ZMQStream(self.sutSocket)
         self.sutStream.on_recv(self.handleSut)
 
-        self.serverSocket = setupZmq(self.clientID, context=zmqContext)
+        self.serverSocket, self.barrierSocket = setupZmq(self.clientID, context=zmqContext)
         self.serverStream = ZMQStream(self.serverSocket)
         self.serverStream.on_recv(self.handleServer)
 
@@ -139,10 +164,7 @@ class mlperfLoop():
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad([0])
         inputs = loader.get(0)
-        for i in range(10):
-            self.serverSocket.send_multipart([bytes(1), pickle.dumps(inputs)])
-        for i in range(10):
-            self.serverSocket.recv_multipart()
+        preWarm(self.serverSocket, self.barrierSocket, inputs)
 
     def handleSut(self, msg):
         """Handle requests from mlperf, we simply proxy requests to serverSocket"""

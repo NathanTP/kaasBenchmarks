@@ -634,12 +634,16 @@ clients = {}
 
 class serverLoop():
     """ServerTask"""
-    def __init__(self, clientSock, benchConfig):
+    def __init__(self, clientSock, barrierSock, benchConfig):
         self.loop = IOLoop.instance()
         self.benchConfig = benchConfig
 
         self.clientStream = ZMQStream(clientSock)
         self.clientStream.on_recv(self.handleClients)
+
+        self.barrierStream = ZMQStream(barrierSock)
+        self.barrierStream.on_recv(self.handleBarrier)
+        self.readyClients = []
 
         IOLoop.current().add_callback(self.handleWorker)
 
@@ -651,6 +655,16 @@ class serverLoop():
             self.pool = None
 
         self.rayQ = ray.util.queue.Queue()
+
+    def handleBarrier(self, msg):
+        clientID = msg[0]
+
+        print("Recieved Ready from: ", clientID.decode("utf-8"))
+        self.readyClients.append(clientID)
+        if len(self.readyClients) == self.benchConfig['numClient']:
+            print("Releasing Barrier")
+            for cID in self.readyClients:
+                self.barrierStream.send_multipart([cID, b'', b'GO'])
 
     async def handleWorker(self):
         result, reqData = await self.rayQ.get_async()
@@ -696,9 +710,12 @@ def serveRequests(benchConfig):
     clientSock = context.socket(zmq.ROUTER)
     clientSock.bind(util.clientUrl)
 
+    barrierSock = context.socket(zmq.ROUTER)
+    barrierSock.bind(util.barrierUrl)
+
     # IOLoop uses a global context, when you instantiate a serverLoop object,
     # it registers itself with IOLoop. The returned object isn't used here.
-    looper = serverLoop(clientSock, benchConfig)
+    looper = serverLoop(clientSock, barrierSock, benchConfig)
 
     signal.signal(signal.SIGINT, lambda s, f: IOLoop.instance().add_callback_from_signal(looper.shutdown))
 
