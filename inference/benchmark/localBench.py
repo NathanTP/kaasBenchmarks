@@ -56,11 +56,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     if modelSpec.modelType == "kaas":
         raise NotImplementedError("KaaS not supported in local mode")
 
-    if benchConfig['inline']:
-        print("WARNING: inline does nothing in local mode (it's basically always inline)")
-    if benchConfig['actors']:
-        print("WARNING: Actors does nothing in local mode")
-
     stats = util.profCollection()
 
     loader.preLoad(list(range(min(n, loader.ndata))))

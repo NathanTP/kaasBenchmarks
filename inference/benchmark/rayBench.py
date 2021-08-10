@@ -207,8 +207,8 @@ class runActor():
     def __init__(self):
         self.modelCache = {}
 
-    def run(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
-            cacheModel=False, clientID=None):
+    def runNative(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
+                  cacheModel=False, clientID=None):
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
         # runTask but is ignored here.
@@ -233,19 +233,33 @@ class runActor():
 
 
 class runnerPool():
-    def __init__(self, nRunner, policy='rr'):
+    def __init__(self, nRunner, benchConfig):
+        """RunnerPool is responsible for launching run requests.
+                - nRunner: If using actors, number of actors to allocate
+                - policy: Scheduling policy (when using actors)
+                - mode: ['actors', 'kaas', 'task']. Actors and KaaS will run in
+                actors while 'task' will use ray tasks instead.
+        """
         self.maxRunners = nRunner
+        self.mode = benchConfig['runner_mode']
+        benchConfig['runner_policy']
 
-        if policy == 'rr':
-            self.policy = self._roundRobin
-            self.last = 0
-            self.actors = []
-            for i in range(nRunner):
-                self.actors.append(runActor.remote())
-        if policy == 'affinity':
-            self.policy = self._affinity
-            self.lru = collections.deque()
-            self.assignments = {}
+        if self.mode not in ['task', 'actor', 'kaas']:
+            raise ValueError("Unrecognized mode: " + self.mode)
+
+        if self.mode != 'task':
+            if benchConfig['runner_policy'] == 'rr':
+                self.policy = self._roundRobin
+                self.last = 0
+                self.actors = []
+                for i in range(nRunner):
+                    self.actors.append(runActor.remote())
+            elif benchConfig['runner_policy'] == 'affinity':
+                self.policy = self._affinity
+                self.lru = collections.deque()
+                self.assignments = {}
+            else:
+                raise ValueError("Unrecognized policy: " + benchConfig['runner_policy'])
 
     def _roundRobin(self, clientID):
         """A simple round-robin policy with no affinity"""
@@ -276,15 +290,28 @@ class runnerPool():
                 self.assignments[clientID] = runActor.remote()
                 return self.assignments[clientID]
 
-    def getRunner(self, clientID):
+    def _getRunner(self, clientID):
         """Return an actor suitable for running a request from clientID.
         Callers should call the returned actor exactly once per call to
         getRunner (do not cache the return value of getRunner)."""
         return self.policy(clientID)
 
+    def run(self, nReturn, clientID, args, kwargs={}):
+        """Run a model. Args and kwargs will be passed to the appropriate runner"""
+        if self.mode == 'task':
+            return runTask.options(num_returns=nReturn).remote(*args, **kwargs)
+        elif self.mode == 'actor':
+            runActor = self._getRunner(clientID)
+            respFutures = runActor.runNative.options(num_returns=nReturn).remote(*args, **kwargs)
+        elif self.mode == 'kaas':
+            runActor = self._getRunner(clientID)
+            respFutures = runActor.runKaas.options(num_returns=nReturn).remote(*args, **kwargs)
+
+        return respFutures
+
 
 def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
-            completionQ=None, queryId=None, cacheModel=False, clientID=False,
+            completionQ=None, queryId=None, cacheModel=False, clientID=None,
             runPool=None):
     """Issue one query asynchronously to ray, returns a future. inline will run
        all data processing steps in the same function as the model."""
@@ -326,29 +353,18 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             model = modelArg
             req = model.run(runInp)
 
-            if runPool is not None:
-                runActor = runPool.getRunner(clientID)
-                runner = runActor.runKaas.options(num_returns=mClass.nOutRun).remote
-            else:
-                runner = runKaasTask.options(num_returns=mClass.nOutRun).remote
-
             if completionQ is not None and mClass.noPost:
-                runOut = runner(req, queryId=queryId, completionQ=completionQ)
+                runOut = runPool.run(mClass.nOutRun, clientID, [req], {"queryId": queryId, "completionQ": completionQ})
             else:
-                runOut = runner(req)
+                runOut = runPool.run(mClass.nOutRun, clientID, [req])
         else:
-            if runPool is not None:
-                runActor = runPool.getRunner(clientID)
-                runner = runActor.run.options(num_returns=mClass.nOutRun).remote
-            else:
-                runner = runTask.options(num_returns=mClass.nOutRun).remote
-
             if completionQ is not None and mClass.noPost:
-                runOut = runner(specRef, modelArg, *runInp,
-                                completionQ=completionQ, queryId=queryId,
-                                cacheModel=cacheModel, clientID=clientID)
+                runOut = runPool.run(mClass.nOutRun, clientID,
+                                     [specRef, modelArg] + runInp,
+                                     {"completionQ": completionQ, "queryId": queryId,
+                                      "cacheModel": cacheModel, "clientID": clientID})
             else:
-                runOut = runner(specRef, modelArg, *runInp, cacheModel=cacheModel)
+                runOut = runPool.run(mClass.nOutRun, clientID, [specRef, modelArg] + runInp, {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -394,10 +410,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(n, loader.ndata)))
 
-    if benchConfig['actor_policy'] is not None:
-        pool = runnerPool(getNGpu(), policy=benchConfig['actor_policy'])
-    else:
-        pool = None
+    pool = runnerPool(getNGpu(), benchConfig)
 
     accuracies = []
     results = []
