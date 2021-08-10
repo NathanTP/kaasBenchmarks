@@ -157,6 +157,9 @@ class testModelNative(testModel, model.Model):
             for i in range(depth):
                 self.dIOs.append(cuda.mem_alloc(hInp.nbytes))
 
+        for i in range(1, depth + 1):
+            cuda.memset_d8(self.dIOs[i], 0, hInp.nbytes)
+
         cuda.memcpy_htod(self.dIOs[0], hInp)
 
         for i in range(depth):
