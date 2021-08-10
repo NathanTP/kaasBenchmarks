@@ -575,7 +575,7 @@ def mlperfBench(modelSpec, benchConfig):
     ray.init()
 
     gpuType = util.getGpuType()
-    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, testing=benchConfig['testing'])
+    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)

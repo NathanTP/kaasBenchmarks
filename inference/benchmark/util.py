@@ -90,28 +90,28 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelNative,
                          modelType="direct")
 
-    elif modelName == "superRes":
+    elif modelName == "superResTvm":
         import infbench.superres
         return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
                          modelPath=modelDir / "superRes" / "superres.so",
                          modelClass=infbench.superres.superResTvm)
 
-    elif modelName == "resnet50":
+    elif modelName == "resnet50Tvm":
         import infbench.resnet50
         return ModelSpec(name="resnet50",
                          loader=infbench.resnet50.imageNetLoader,
                          modelPath=modelDir / "resnet50" / "resnet50.so",
                          modelClass=infbench.resnet50.resnet50)
 
-    elif modelName == "ssdMobileNet":
+    elif modelName == "ssdMobileNetTvm":
         import infbench.ssdmobilenet
         return ModelSpec(name="ssdMobileNet",
                          loader=infbench.ssdmobilenet.cocoLoader,
                          modelPath=modelDir / "ssdMobilenet.so",
                          modelClass=infbench.ssdmobilenet.ssdMobilenet)
 
-    elif modelName == "bert":
+    elif modelName == "bertTvm":
         import infbench.bert
         return ModelSpec(name="bert",
                          loader=infbench.bert.bertLoader,

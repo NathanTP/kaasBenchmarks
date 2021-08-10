@@ -430,13 +430,16 @@ class kaasModel(Model):
 mlperfNquery = 32
 
 
-def calculateLatencyTarget(medianLatency):
-    """Given a median latency in seconds, return a reasonable tail latency
-    target for mlperf (in ns)"""
-    return int((medianLatency*2)*1E9)
-
-
 def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
+    """Return a configuration for the MlPerf benchmark based on the model and
+    benchmark properties. All metrics are based on client/server mode. For
+    agpu1 (K20c) we measure throughput for both GPUs, for EC2 (V100), we
+    measure on one GPU only.
+        - maxQps: Peak QPS achieved by mlperf FindPeakPerformance. As a peak,
+          you should generally run a bit lower in PerformanceOnly mode using the
+          --scale option.
+        - medianLat: Median latency recorded using nshot with 32 iterations.
+    """
 
     settings = mlperf_loadgen.TestSettings()
     settings.scenario = mlperf_loadgen.TestScenario.Server
@@ -445,16 +448,22 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
     # tuning and requiring very long tests
     settings.server_target_latency_percentile = 0.9
 
-    settings.server_target_latency_ns = calculateLatencyTarget(medianLat)
+    settings.server_target_latency_ns = int((medianLat*4)*1E9)
 
     if benchConfig['scale'] is None:
-        settings.server_target_qps = maxQps * 0.80
+        # Even in client/server mode, if FindPeakPerformance starts with a QPS
+        # close to max it will experience a severe outlier. I don't know why
+        # this happens since we pre-warm, but it does. Start from a much lower
+        # QPS and ramp up to peak for FindPeakPerformance mode.
+        settings.server_target_qps = maxQps * 0.25
         settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
     else:
         settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
         settings.server_target_qps = maxQps * benchConfig['scale']
 
     # settings.min_query_count = 500
+    settings.min_duration_ms = int(300*1E3)
+    settings.max_duration_ms = int(300*1E3)
 
     return settings
 

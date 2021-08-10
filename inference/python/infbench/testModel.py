@@ -82,7 +82,7 @@ class testModelNP(testModel, model.Model):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            maxQps = 100
+            maxQps = 123
             medianLatency = 0.025
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 50
@@ -172,7 +172,8 @@ class testModelNative(testModel, model.Model):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            maxQps = 148
+            # maxQps = 148
+            maxQps = 150
             medianLatency = 0.014
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 125

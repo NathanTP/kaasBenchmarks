@@ -7,6 +7,7 @@ from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 from pprint import pprint
+import time
 
 import mlperf_loadgen
 
@@ -41,8 +42,6 @@ def preWarm(serverSock, barrierSock, inputs):
     for i in range(10):
         serverSock.recv_multipart()
 
-    #XXX
-    print("Ready: waiting on barrier")
     barrier(barrierSock)
 
 
@@ -103,16 +102,19 @@ class mlperfRunner(threading.Thread):
         self.zmqContext = zmqContext
         self.benchConfig = benchConfig
         self.modelSpec = modelSpec
+        self.metrics = {}
+        self.nQuery = 0
 
         threading.Thread.__init__(self)
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
+            self.nQuery += 1
             inp = self.loader.get(q.index)
             self.sutSock.send_multipart([q.id.to_bytes(8, sys.byteorder), pickle.dumps(inp)])
 
     def processLatencies(self, latencies):
-        self.latMetrics = infbench.model.processLatencies(self.benchConfig, latencies)
+        self.metrics = {**infbench.model.processLatencies(self.benchConfig, latencies), **self.metrics}
 
     def run(self):
         gpuType = util.getGpuType()
@@ -133,13 +135,18 @@ class mlperfRunner(threading.Thread):
         qsl = mlperf_loadgen.ConstructQSL(
             self.loader.ndata, infbench.model.mlperfNquery, self.loader.preLoad, self.loader.unLoad)
 
+        start = time.time()
         mlperf_loadgen.StartTestWithLogSettings(sut, qsl, runSettings, logSettings)
+        self.metrics['t_e2e'] = time.time() - start
+
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
 
         # Shutdown Signal
         self.sutSock.send_multipart([b'', b''])
         self.sutSock.close()
+
+        self.metrics['n_query'] = self.nQuery
 
 
 class mlperfLoop():
@@ -200,5 +207,5 @@ def mlperfBench(modelSpec, benchConfig):
 
     IOLoop.instance().start()
     mlPerfMetrics = infbench.model.parseMlPerf(benchConfig['name'] + '_')
-    infbench.model.saveReport({**testRunner.latMetrics, **mlPerfMetrics},
+    infbench.model.saveReport({**testRunner.metrics, **mlPerfMetrics},
                               benchConfig, benchConfig['name'] + '_results.json')
