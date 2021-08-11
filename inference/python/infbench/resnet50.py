@@ -156,5 +156,8 @@ class imageNetLoader(dataset.loader):
             self.images[i] = None
 
     def check(self, result, idx):
+        if not isinstance(result[0], bytes):
+            raise RuntimeError("Result has wrong type: expect bytes, got ", type(result[0]))
+
         # I don't know why it's -1, but it is
         return (int.from_bytes(result[0], sys.byteorder) - 1) == self.imageLabels[idx]

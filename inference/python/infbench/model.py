@@ -462,8 +462,10 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.server_target_qps = maxQps * benchConfig['scale']
 
     # settings.min_query_count = 500
-    settings.min_duration_ms = int(300*1E3)
-    settings.max_duration_ms = int(300*1E3)
+    # settings.min_duration_ms = int(300*1E3)
+    # settings.max_duration_ms = int(300*1E3)
+    #XXX
+    settings.max_duration_ms = int(60*1E3)
 
     return settings
 
