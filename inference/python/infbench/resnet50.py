@@ -71,8 +71,8 @@ class resnet50(model.tvmModel, resnet50Base):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            maxQps = 4.6
-            medianLatency = 0.08
+            maxQps = 28
+            medianLatency = 0.07
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 2
             medianLatency = 0.12
@@ -91,8 +91,8 @@ class resnet50Kaas(model.kaasModel, resnet50Base):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            maxQps = 14.2
-            medianLatency = 0.080
+            maxQps = 31
+            medianLatency = 0.07
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 2
             medianLatency = 0.05

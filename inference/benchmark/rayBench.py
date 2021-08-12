@@ -9,8 +9,6 @@ import subprocess as sp
 from pprint import pprint
 import pathlib
 import json
-import collections
-import time
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -533,17 +531,17 @@ class runnerPool():
 
     def run(self, nReturn, clientID, inputRefs, args, kwargs={}):
         """Run a model. Args and kwargs will be passed to the appropriate runner"""
-        start = time.time()
+        # start = time.time()
         if self.mode == 'task':
             respFutures = runTask.options(num_returns=nReturn).remote(*args, **kwargs)
         else:
             # Block until the inputs are ready
             ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
-            t_getinp = time.time() - start
+            # t_getinp = time.time() - start
 
             # Get a free runner (may block)
             runActor, handle = self.policy.getRunner(clientID)
-            t_getactor = time.time() - start
+            # t_getactor = time.time() - start
 
             if self.mode == 'actor':
                 respFutures = runActor.runNative.options(num_returns=nReturn).remote(*args, **kwargs)
@@ -553,7 +551,7 @@ class runnerPool():
                 raise RuntimeError("Unrecognized mode: ", self.mode)
 
             self.policy.update(clientID, handle, respFutures)
-            t_dispatchRun = time.time() - start
+            # t_dispatchRun = time.time() - start
 
         # Wait until the runner is done before returning, this ensures that
         # anyone waiting on our response (e.g. post()) can immediately
@@ -562,7 +560,7 @@ class runnerPool():
             ray.wait([respFutures], num_returns=1, fetch_local=False)
         else:
             ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
-        t_e2e = time.time() - start
+        # t_e2e = time.time() - start
         # print(f"{inputRefs[0]} took: inp:{t_getinp} getact:{t_getactor} dispatch:{t_dispatchRun} e2e:{t_e2e}")
         return respFutures
 
@@ -766,7 +764,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
 
-    #XXX
     # print("KaaS Stats: ")
     # poolStats = ray.get(pool.getStats.remote())
     # pprint({cID: s.report() for cID, s in poolStats.items()})

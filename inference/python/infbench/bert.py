@@ -636,10 +636,10 @@ class bertModelBase(model.Model):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            maxQps = 0.4
-            medianLatency = 1.14
+            maxQps = 1.5
+            medianLatency = 1.00
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 0.4
+            maxQps = 1.5
             medianLatency = 0.5
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)

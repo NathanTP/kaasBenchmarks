@@ -435,10 +435,12 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
     benchmark properties. All metrics are based on client/server mode. For
     agpu1 (K20c) we measure throughput for both GPUs, for EC2 (V100), we
     measure on one GPU only.
-        - maxQps: Peak QPS achieved by mlperf FindPeakPerformance. As a peak,
-          you should generally run a bit lower in PerformanceOnly mode using the
-          --scale option.
-        - medianLat: Median latency recorded using nshot with 32 iterations.
+        - maxQps: Peak QPS achieved by mlperf FindPeakPerformance using the
+        balance policy and actors/kaas. As a peak, you should generally run a
+        bit lower in PerformanceOnly mode using the --scale option.
+
+        - medianLat: Median latency recorded using nshot with 32 iterations
+        using the balance policy and actors/kaas.
     """
 
     settings = mlperf_loadgen.TestSettings()
@@ -462,10 +464,8 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.server_target_qps = maxQps * benchConfig['scale']
 
     # settings.min_query_count = 500
-    # settings.min_duration_ms = int(300*1E3)
-    # settings.max_duration_ms = int(300*1E3)
-    #XXX
-    settings.max_duration_ms = int(60*1E3)
+    settings.min_duration_ms = int(300*1E3)
+    settings.max_duration_ms = int(300*1E3)
 
     return settings
 
