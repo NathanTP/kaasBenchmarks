@@ -255,6 +255,7 @@ class Policy():
 class PolicyRR(Policy):
     """A simple round-robin policy with no affinity"""
     def __init__(self, nRunner):
+        self.lock = threading.Lock()
         self.last = 0
         self.actors = []
         for i in range(nRunner):
@@ -263,8 +264,11 @@ class PolicyRR(Policy):
             self.actors.append(newActor)
 
     def getRunner(self, clientID, *args):
-        self.last = (self.last + 1) % len(self.actors)
-        return self.actors[self.last]
+        with self.lock:
+            self.last = (self.last + 1) % len(self.actors)
+            actor = self.actors[self.last]
+
+        return actor
 
     def update(self, *args):
         pass
@@ -334,7 +338,7 @@ class statusList():
             status.state = newState
 
 
-def pickActorBalanced(slist, lock, timeout=None):
+def pickActorBalanced(slist, timeout=None):
     """Given a list of actor statuses, return the first idle actor. Statuses
     are either ray references for busy actors, or None for idle. If timeout is
     provided, None may be returned if there are no free actors within
@@ -342,6 +346,9 @@ def pickActorBalanced(slist, lock, timeout=None):
 
     while True:
         with slist.reservedCv:
+            if len(slist.statuses) == 0:
+                return None
+
             while slist.nReserved == len(slist.statuses):
                 slist.reservedCv.wait()
 
@@ -396,94 +403,12 @@ def pickActorBalanced(slist, lock, timeout=None):
     return idleRunner
 
 
-class PolicyAffinityExclusive(Policy):
-    def __init__(self, nRunner):
-        self.maxRunners = nRunner
-
-        # Maps clients to a list of actors assigned to them and their statuses
-        # { clientID -> [ (actors, statuses) ]
-        self.assignments = {}
-        self.nRunner = 0
-
-    def _makeRoom(self, clientID):
-        """Make room for a new actor for clientID. Returns the index of the
-        newly created actor in self.assignments[clientID]. May choose to block
-        on existing actors rather than creating new depending on fairness
-        metrics."""
-        clientActors, clientStatuses = self.assignments[clientID]
-        clientLength = len(clientActors)
-
-        if self.nRunner < self.maxRunners:
-            print("AUTOSCALED INTO FREE SPACE")
-            newActor = runActor.remote()
-            clientActors.append(newActor)
-            permanentScope.append(newActor)
-            clientStatuses.append(None)
-            return len(clientActors) - 1
-
-        # Pick a candidate for eviction. This will be the client with the most
-        # actors.
-        maxLength = 0
-        candidate = None
-        for cID, val in self.assignments.values():
-            actors = val[0]
-            if len(actors) > maxLength:
-                maxLength = len(actors)
-                candidate = cID
-
-        if clientLength >= maxLength:
-            # Wouldn't be fair to kill anyone, just block until something frees
-            # up
-            return pickActorBalanced(clientStatuses)
-        else:
-            victimActors, victimStatuses = self.assignments[candidate]
-            victimStatuses.pop()
-            toKill = victimActors.pop()
-            toKill.terminate.remote()
-
-            newActor = runActor.remote()
-            print("EVICTED")
-            clientActors.append(runActor.remote())
-            permanentScope.append(newActor)
-            clientStatuses.append(None)
-            return len(clientActors) - 1
-
-    def getRunner(self, clientID, *args):
-        if clientID in self.assignments:
-            actors, statuses = self.assignments[clientID]
-
-            # Wait 10ms if we can't find an idle actor, then consider scaling
-            freeActor = pickActorBalanced(statuses, timeout=0)
-
-            if freeActor is None:
-                print("COULDNT FIND FREE ACTOR")
-                freeActor = self._makeRoom(clientID)
-
-            self.lastActor = freeActor
-            return actors[freeActor]
-        else:
-            actors = []
-            statuses = []
-            self.assignments[clientID] = (actors, statuses)
-            self.lastActor = self._makeRoom(clientID)
-            return actors[self.lastActor]
-
-    def update(self, clientID, respFutures):
-        actors, statuses = self.assignments[clientID]
-        if isinstance(respFutures, list):
-            statuses[self.lastActor] = respFutures[0]
-        else:
-            statuses[self.lastActor] = respFutures
-
-
 class PolicyBalance(Policy):
     """Routes requests to actors with potentially multiple clients per
     actor. It will attempt to balance load across the actors based on
     estimated outstanding work."""
     def __init__(self, nRunner):
-        self.lock = threading.Lock()
         self.actors = []
-        self.maxRunners = nRunner
         for i in range(nRunner):
             newActor = runActor.remote()
             permanentScope.append(newActor)
@@ -495,12 +420,31 @@ class PolicyBalance(Policy):
         self.sList = statusList()
         self.sList.statuses = [actorStatus() for i in range(nRunner)]
 
-    def getRunner(self, clientID, *args):
+    def scaleUp(self):
+        """Add a worker to this policy"""
+        with self.sList.reservedCv:
+            self.sList.statuses.append(actorStatus())
+            newActor = runActor.remote()
+            permanentScope.append(newActor)
+            self.actors.append(newActor)
+
+    def scaleDown(self):
+        """Remove a worker from this policy"""
+        with self.sList.reservedCv:
+            self.sList.statuses.pop()
+            toKill = self.actors.pop()
+            toKill.terminate.remote()
+
+    def getRunner(self, clientID, **kwargs):
         """Returns an actor suitable for running a request and an opaque handle
         that must be passed to update() along with the clientID and
         respFutures"""
-        idx = pickActorBalanced(self.sList, self.lock)
-        return self.actors[idx], idx
+        timeout = kwargs.get('timeout', None)
+        idx = pickActorBalanced(self.sList, timeout=timeout)
+        if idx is None:
+            return None, None
+        else:
+            return self.actors[idx], idx
 
     def update(self, clientID, handle, respFutures):
         if isinstance(respFutures, list):
@@ -510,6 +454,68 @@ class PolicyBalance(Policy):
         with self.sList.reservedCv:
             self.sList.updateState(handle, actorStatus.BUSY)
             self.sList.reservedCv.notify()
+
+
+class PolicyExclusive(Policy):
+    def __init__(self, nRunner):
+        self.maxRunners = nRunner
+        self.nRunners = 0
+
+        self.lock = threading.Lock()
+
+        # {clientID -> PolicyBalance()}
+        self.clientPools = {}
+
+    def _makeRoom(self, clientID):
+        with self.lock:
+            clientPool = self.clientPools[clientID]
+            clientLength = len(clientPool.actors)
+
+            if self.nRunners < self.maxRunners:
+                clientPool.scaleUp()
+                self.nRunners += 1
+                # This is guaranteed to return without blocking since there's a new
+                # idle worker
+                return clientPool.getRunner(clientID)
+
+            # Pick a candidate for eviction. This will be the client with the most
+            # actors.
+            maxLength = 0
+            candidate = None
+            for cID, pool in self.clientPools.items():
+                if len(pool.actors) > maxLength:
+                    maxLength = len(pool.actors)
+                    candidate = cID
+
+            if clientLength < maxLength:
+                victimPool = self.clientPools[candidate]
+                victimPool.scaleDown()
+
+                clientPool.scaleUp()
+                return clientPool.getRunner(clientID)
+
+        # Wouldn't be fair to kill anyone, just block until something frees
+        # up. Warning, this may block.
+        return clientPool.getRunner(clientID)
+
+    def getRunner(self, clientID, **kwargs):
+        with self.lock:
+            if clientID in self.clientPools:
+                clientPool = self.clientPools[clientID]
+            else:
+                clientPool = PolicyBalance(0)
+                self.clientPools[clientID] = clientPool
+
+        runner, handle = clientPool.getRunner(clientID, timeout=0.01)
+
+        if runner is not None:
+            return runner, handle
+        else:
+            return self._makeRoom(clientID)
+
+    def update(self, clientID, handle, respFutures):
+        with self.lock:
+            self.clientPools[clientID].update(clientID, handle, respFutures)
 
 
 @ray.remote
@@ -531,8 +537,8 @@ class runnerPool():
         if self.mode != 'task':
             if benchConfig['runner_policy'] == 'rr':
                 self.policy = PolicyRR(nRunner)
-            elif benchConfig['runner_policy'] == 'affinity_exclusive':
-                self.policy = PolicyAffinityExclusive(nRunner)
+            elif benchConfig['runner_policy'] == 'exclusive':
+                self.policy = PolicyExclusive(nRunner)
             elif benchConfig['runner_policy'] == 'balance':
                 self.policy = PolicyBalance(nRunner)
             else:
@@ -540,17 +546,17 @@ class runnerPool():
 
     def run(self, nReturn, clientID, inputRefs, args, kwargs={}):
         """Run a model. Args and kwargs will be passed to the appropriate runner"""
-        # start = time.time()
+        start = time.time()
         if self.mode == 'task':
             respFutures = runTask.options(num_returns=nReturn).remote(*args, **kwargs)
         else:
             # Block until the inputs are ready
             ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
-            # t_getinp = time.time() - start
+            t_getinp = time.time() - start
 
             # Get a free runner (may block)
             runActor, handle = self.policy.getRunner(clientID)
-            # t_getactor = time.time() - start
+            t_getactor = time.time() - start
 
             if self.mode == 'actor':
                 respFutures = runActor.runNative.options(num_returns=nReturn).remote(*args, **kwargs)
@@ -560,7 +566,7 @@ class runnerPool():
                 raise RuntimeError("Unrecognized mode: ", self.mode)
 
             self.policy.update(clientID, handle, respFutures)
-            # t_dispatchRun = time.time() - start
+            t_dispatchRun = time.time() - start
 
         # Wait until the runner is done before returning, this ensures that
         # anyone waiting on our response (e.g. post()) can immediately
@@ -569,7 +575,7 @@ class runnerPool():
             ray.wait([respFutures], num_returns=1, fetch_local=False)
         else:
             ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
-        # t_e2e = time.time() - start
+        t_e2e = time.time() - start
         # print(f"{inputRefs[0]} took: inp:{t_getinp} getact:{t_getactor} dispatch:{t_dispatchRun} e2e:{t_e2e}")
         return respFutures
 
