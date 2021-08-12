@@ -103,7 +103,7 @@ set(USE_STACKVM_RUNTIME OFF)
 set(USE_GRAPH_EXECUTOR ON)
 
 # Whether enable tiny graph executor with CUDA Graph
-set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
+set(USE_GRAPH_EXECUTOR_CUDA_GRAPH ON)
 
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
