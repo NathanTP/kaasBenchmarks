@@ -166,18 +166,20 @@ def getSuperRes():
 def getBert():
     bertDir = modelDir / 'bert'
     modelPath = bertDir / 'bert.onnx'
+    tvmLibPath = bertDir / 'bert.so'
     vocabPath = bertDir / 'vocab.txt'
 
     if not bertDir.exists():
         bertDir.mkdir()
 
-        if not modelPath.exists():
-            print("Downloading BERT model")
-            wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
-        if not vocabPath.exists():
-            print("Downloading BERT vocab")
-            wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
+    if not modelPath.exists():
+        print("Downloading BERT model")
+        wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
+    if not vocabPath.exists():
+        print("Downloading BERT vocab")
+        wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
 
+    if not tvmLibPath.exists():
         print("Converting BERT to .so")
         getOnnx(modelPath, bertDir, "bert",
                 inputShapeMap={
@@ -247,8 +249,8 @@ def main():
     print("\nGetting SuperRes")
     getSuperRes()
 
-    print("\nGetting SSD-Mobilenet")
-    getSsdMobilenet()
+    # print("\nGetting SSD-Mobilenet")
+    # getSsdMobilenet()
 
 
 main()
