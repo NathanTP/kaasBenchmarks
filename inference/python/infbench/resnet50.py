@@ -72,7 +72,7 @@ class resnet50(model.tvmModel, resnet50Base):
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 4.6
-            medianLatency = 0.09
+            medianLatency = 0.08
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 2
             medianLatency = 0.12
@@ -92,7 +92,7 @@ class resnet50Kaas(model.kaasModel, resnet50Base):
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 14.2
-            medianLatency = 0.070
+            medianLatency = 0.080
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 2
             medianLatency = 0.05
@@ -156,8 +156,8 @@ class imageNetLoader(dataset.loader):
             self.images[i] = None
 
     def check(self, result, idx):
-        if not isinstance(result[0], bytes):
-            raise RuntimeError("Result has wrong type: expect bytes, got ", type(result[0]))
+        if not (isinstance(result[0], bytes) or isinstance(result[0], np.ndarray)):
+            raise RuntimeError("Result has wrong type: expect bytes or ndarray, got ", type(result[0]))
 
         # I don't know why it's -1, but it is
         return (int.from_bytes(result[0], sys.byteorder) - 1) == self.imageLabels[idx]

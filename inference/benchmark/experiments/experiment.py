@@ -29,9 +29,9 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
     prefix = f"{prefix}_{modelType}"
     runners = {
-        # 'resnet': launchClient(0.2, 'resnet50' + modelType, prefix+"_resnet", outDir),
-        'bert': launchClient(0.2, 'bert' + modelType, prefix+"_bert", outDir),
-        # 'resnet1': launchClient(0.2, 'resnet50' + modelType, prefix+"_resnet1", outDir)
+        'resnet': launchClient(0.2, 'resnet50' + modelType, prefix+"_resnet", outDir),
+        # 'bert': launchClient(0.2, 'bert' + modelType, prefix+"_bert", outDir),
+        # 'resnet1': launchClient(0.2, 'resnet50' + modelType, prefix+"_resnet1", outDir),
         'superres': launchClient(0.2, 'superRes' + modelType, prefix+"_superRes", outDir)
     }
     server = launchServer(outDir, len(runners))

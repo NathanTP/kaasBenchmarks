@@ -213,6 +213,8 @@ class runActor():
     with actors since they cache every model they are passed."""
     def __init__(self):
         self.modelCache = {}
+        # {clientID -> libff.util.profCollection}
+        self.stats = {}
 
     def runNative(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
@@ -227,8 +229,10 @@ class runActor():
 
         return _run(model, inputs, completionQ, queryId)
 
-    def runKaas(self, req, queryId=None, completionQ=None):
-        results = kaasRay.kaasServeRay(req.toDict())
+    def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
+        if clientID not in self.stats:
+            self.stats[clientID] = util.profCollection()
+        results = kaasRay.kaasServeRay(req, stats=self.stats[clientID])
 
         if completionQ is not None:
             completionQ.put((results, queryId))
@@ -237,6 +241,9 @@ class runActor():
 
     def terminate(self):
         ray.actor.exit_actor()
+
+    def getStats(self):
+        return self.stats
 
 
 class Policy():
@@ -271,40 +278,6 @@ class PolicyRR(Policy):
         return actor
 
     def update(self, *args):
-        pass
-
-
-class OLDPolicyAffinityExclusive(Policy):
-    """Maps clients to actors exclusively. If there are not enough actors,
-    one is killed to make room. This is most similar to a typical naive
-    faas system."""
-    def __init__(self, nRunner):
-        self.lru = collections.deque()
-        self.assignments = {}
-        self.maxRunners = nRunner
-
-    def getRunner(self, clientID, *args):
-        if clientID in self.assignments:
-            self.lru.remove(clientID)
-            self.lru.appendleft(clientID)
-            return self.assignments[clientID]
-        else:
-            if len(self.assignments) < self.maxRunners:
-                self.lru.appendleft(clientID)
-                self.assignments[clientID] = runActor.remote()
-                return self.assignments[clientID]
-            else:
-                # Gotta evict someone
-                idEvict = self.lru.pop()
-                actEvict = self.assignments[idEvict]
-                actEvict.terminate.remote()
-                del self.assignments[idEvict]
-
-                self.lru.appendleft(clientID)
-                self.assignments[clientID] = runActor.remote()
-                return self.assignments[clientID]
-
-    def update(self, clientID, *args):
         pass
 
 
@@ -455,6 +428,17 @@ class PolicyBalance(Policy):
             self.sList.updateState(handle, actorStatus.BUSY)
             self.sList.reservedCv.notify()
 
+    def getStats(self):
+        stats = {}
+        for actor in self.actors:
+            actorStats = ray.get(actor.getStats.remote())
+            for cID, clientStats in actorStats.items():
+                if cID in stats:
+                    stats[cID].merge(clientStats)
+                else:
+                    stats[cID] = clientStats
+        return stats
+
 
 class PolicyExclusive(Policy):
     def __init__(self, nRunner):
@@ -544,6 +528,9 @@ class runnerPool():
             else:
                 raise ValueError("Unrecognized policy: " + benchConfig['runner_policy'])
 
+    def getStats(self):
+        return self.policy.getStats()
+
     def run(self, nReturn, clientID, inputRefs, args, kwargs={}):
         """Run a model. Args and kwargs will be passed to the appropriate runner"""
         start = time.time()
@@ -624,31 +611,22 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             req = model.run(runInp)
 
             if completionQ is not None and mClass.noPost:
-                runOut = runPool.run.remote(mClass.nOutRun, clientID, runInp, [req], {"queryId": queryId, "completionQ": completionQ})
-                # runOut = runPool.run(mClass.nOutRun, clientID, [req], {"queryId": queryId, "completionQ": completionQ})
+                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
+                    remote(mClass.nOutRun, clientID, runInp, [req], {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
-                runOut = runPool.run.remote(mClass.nOutRun, clientID, runInp, [req])
-                # runOut = runPool.run(mClass.nOutRun, clientID, [req])
+                runOut = runPool.run.options(num_returns=mClass.nOutRun).remote(mClass.nOutRun, clientID, runInp, [req], {"clientID": clientID})
         else:
             if completionQ is not None and mClass.noPost:
-                # runOut = runPool.run(mClass.nOutRun, clientID,
-                runOut = runPool.run.remote(mClass.nOutRun, clientID, runInp,
-                                     [specRef, modelArg] + runInp,
-                                     {"completionQ": completionQ, "queryId": queryId,
-                                      "cacheModel": cacheModel, "clientID": clientID})
+                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
+                    remote(mClass.nOutRun, clientID, runInp,
+                           [specRef, modelArg] + runInp,
+                           {"completionQ": completionQ, "queryId": queryId,
+                            "cacheModel": cacheModel, "clientID": clientID})
 
             else:
-                #XXX
-                # print("Router issued at: ", time.time())
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
                     remote(mClass.nOutRun, clientID, runInp,
                            [specRef, modelArg] + runInp, {"cacheModel": cacheModel})
-                # runOut = runPool.run(mClass.nOutRun, clientID, [specRef, modelArg] + runInp, {"cacheModel": cacheModel})
-
-        # this is getting the list of references from the pool router, it's not
-        # waiting on any substantial computation so it shouldn't be too bad to
-        # wait here.
-        # runOut = ray.get(runOut)
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -699,74 +677,47 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     accuracies = []
     results = []
 
-    #XXX prewarm
-    inp = loader.get(0)
-    warmRefs = []
-    for i in range(1):
-        # Ray is lazy and asynchronous so it's difficult to collect more
-        # detailed metrics than e2e. Details within the remote functions
-        # should match localBench results anyway.
-        warmRefs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
-                    inline=benchConfig['inline'], runPool=pool,
-                    cacheModel=benchConfig['cache']))
-    for warmRef in warmRefs:
-        # Dereference answer from post or the router's reference from run
-        # (if nopost)
-        res = ray.get(warmRef)
-        if modelSpec.modelClass.noPost:
-            # Dereference the answer from run itself
-            res = ray.get(res)
-
-            if modelSpec.modelType == 'kaas':
-                res = maybeDereference(res)
-
-    #XXX
-    with util.timer('t_e2e', stats):
-        refs = []
-        for i in range(n):
-            idx = i % loader.ndata
-            inp = loader.get(idx)
-
-            # Ray is lazy and asynchronous so it's difficult to collect more
-            # detailed metrics than e2e. Details within the remote functions
-            # should match localBench results anyway.
-            refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
-                        inline=benchConfig['inline'], runPool=pool,
-                        cacheModel=benchConfig['cache']))
-
-        for i, ref in enumerate(refs):
-            idx = i % loader.ndata
-
-            # Dereference answer from post or the router's reference from run
-            # (if nopost)
-            res = ray.get(ref)
-            if modelSpec.modelClass.noPost:
-                # Dereference the answer from run itself
-                res = ray.get(res)
-
-                if modelSpec.modelType == 'kaas':
-                    res = handleKaasResult(res)
-
-            results.append(res)
-
-            if loader.checkAvailable:
-                accuracies.append(loader.check(res, idx))
-
-    # for i in range(n):
-    #     idx = i % loader.ndata
-    #     inp = loader.get(idx)
+    # #XXX prewarm
+    # inp = loader.get(0)
+    # warmRefs = []
+    # for i in range(1):
+    #     # Ray is lazy and asynchronous so it's difficult to collect more
+    #     # detailed metrics than e2e. Details within the remote functions
+    #     # should match localBench results anyway.
+    #     warmRefs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
+    #                 inline=benchConfig['inline'], runPool=pool,
+    #                 cacheModel=benchConfig['cache']))
+    # for warmRef in warmRefs:
+    #     # Dereference answer from post or the router's reference from run
+    #     # (if nopost)
+    #     res = ray.get(warmRef)
+    #     if modelSpec.modelClass.noPost:
+    #         # Dereference the answer from run itself
+    #         res = ray.get(res)
     #
-    #     with util.timer('t_e2e', stats):
+    #         if modelSpec.modelType == 'kaas':
+    #             res = maybeDereference(res)
+    #
+    # #XXX
+    # with util.timer('t_e2e', stats):
+    #     refs = []
+    #     for i in range(n):
+    #         idx = i % loader.ndata
+    #         inp = loader.get(idx)
+    #
     #         # Ray is lazy and asynchronous so it's difficult to collect more
     #         # detailed metrics than e2e. Details within the remote functions
     #         # should match localBench results anyway.
-    #         res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
-    #                       inline=benchConfig['inline'], runPool=pool,
-    #                       cacheModel=benchConfig['cache'])
+    #         refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
+    #                     inline=benchConfig['inline'], runPool=pool,
+    #                     cacheModel=benchConfig['cache']))
+    #
+    #     for i, ref in enumerate(refs):
+    #         idx = i % loader.ndata
     #
     #         # Dereference answer from post or the router's reference from run
     #         # (if nopost)
-    #         res = ray.get(res)
+    #         res = ray.get(ref)
     #         if modelSpec.modelClass.noPost:
     #             # Dereference the answer from run itself
     #             res = ray.get(res)
@@ -774,10 +725,37 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     #             if modelSpec.modelType == 'kaas':
     #                 res = maybeDereference(res)
     #
-    #     results.append(res)
+    #         results.append(res)
     #
-    #     if loader.checkAvailable:
-    #         accuracies.append(loader.check(res, idx))
+    #         if loader.checkAvailable:
+    #             accuracies.append(loader.check(res, idx))
+
+    for i in range(n):
+        idx = i % loader.ndata
+        inp = loader.get(idx)
+
+        with util.timer('t_e2e', stats):
+            # Ray is lazy and asynchronous so it's difficult to collect more
+            # detailed metrics than e2e. Details within the remote functions
+            # should match localBench results anyway.
+            res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
+                          inline=benchConfig['inline'], runPool=pool,
+                          cacheModel=benchConfig['cache'])
+
+            # Dereference answer from post or the router's reference from run
+            # (if nopost)
+            res = ray.get(res)
+            if modelSpec.modelClass.noPost:
+                # Dereference the answer from run itself
+                res = ray.get(res)
+
+                if modelSpec.modelType == 'kaas':
+                    res = maybeDereference(res)
+
+        results.append(res)
+
+        if loader.checkAvailable:
+            accuracies.append(loader.check(res, idx))
 
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
@@ -787,6 +765,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     report = stats.report()
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+
+    #XXX
+    # print("KaaS Stats: ")
+    # poolStats = ray.get(pool.getStats.remote())
+    # pprint({cID: s.report() for cID, s in poolStats.items()})
 
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath).resolve()
