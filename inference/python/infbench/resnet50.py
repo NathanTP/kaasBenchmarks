@@ -69,15 +69,17 @@ class resnet50Base(model.Model):
 
 class resnet50(model.tvmModel, resnet50Base):
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg()
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 5
-
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.058)
+            maxQps = 28
+            medianLatency = 0.07
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            maxQps = 2
+            medianLatency = 0.12
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 
@@ -87,14 +89,17 @@ class resnet50Kaas(model.kaasModel, resnet50Base):
     runMap = model.inputMap(const=range(108), pre=(0,))
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg()
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 5
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.070)
+            maxQps = 31
+            medianLatency = 0.07
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            maxQps = 2
+            medianLatency = 0.05
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 
@@ -151,5 +156,8 @@ class imageNetLoader(dataset.loader):
             self.images[i] = None
 
     def check(self, result, idx):
+        if not (isinstance(result[0], bytes) or isinstance(result[0], np.ndarray)):
+            raise RuntimeError("Result has wrong type: expect bytes or ndarray, got ", type(result[0]))
+
         # I don't know why it's -1, but it is
         return (int.from_bytes(result[0], sys.byteorder) - 1) == self.imageLabels[idx]

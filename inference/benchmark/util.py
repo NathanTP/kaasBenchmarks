@@ -6,9 +6,11 @@ import collections.abc
 import contextlib
 import time
 import json
+import numpy as np
 
 
-clientUrl = "ipc://benchmark_client.ipc"
+clientUrl = "ipc://client.ipc"
+barrierUrl = "ipc://barrier.ipc"
 
 dataDir = (pathlib.Path(__file__).parent / ".." / "data").resolve()
 modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
@@ -88,28 +90,28 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelNative,
                          modelType="direct")
 
-    elif modelName == "superRes":
+    elif modelName == "superResTvm":
         import infbench.superres
         return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
                          modelPath=modelDir / "superRes" / "superres.so",
                          modelClass=infbench.superres.superResTvm)
 
-    elif modelName == "resnet50":
+    elif modelName == "resnet50Tvm":
         import infbench.resnet50
         return ModelSpec(name="resnet50",
                          loader=infbench.resnet50.imageNetLoader,
                          modelPath=modelDir / "resnet50" / "resnet50.so",
                          modelClass=infbench.resnet50.resnet50)
 
-    elif modelName == "ssdMobileNet":
+    elif modelName == "ssdMobileNetTvm":
         import infbench.ssdmobilenet
         return ModelSpec(name="ssdMobileNet",
                          loader=infbench.ssdmobilenet.cocoLoader,
                          modelPath=modelDir / "ssdMobilenet.so",
                          modelClass=infbench.ssdmobilenet.ssdMobilenet)
 
-    elif modelName == "bert":
+    elif modelName == "bertTvm":
         import infbench.bert
         return ModelSpec(name="bert",
                          loader=infbench.bert.bertLoader,
@@ -129,34 +131,56 @@ def getGpuType():
 
 
 class prof():
-    def __init__(self, fromDict=None):
+    def __init__(self, fromDict=None, detail=True):
         """A profiler object for a metric or event type. The counter can be
         updated multiple times per event, while calling increment() moves on to
-        a new event."""
+        a new event. If detail==true, all events are logged allowing more
+        complex statistics. This may affect performance if there are many
+        events."""
+        self.detail = detail
         if fromDict is not None:
+            if self.detail:
+                self.events = fromDict['events']
             self.total = fromDict['total']
             self.nevent = fromDict['nevent']
         else:
             self.total = 0.0
             self.nevent = 0
 
+            if self.detail:
+                self.currentEvent = 0.0
+                self.events = []
+
     def update(self, n):
         """Update increases the value of this entry for the current event."""
         self.total += n
+        if self.detail:
+            self.currentEvent += n
 
     def increment(self, n=0):
         """Finalize the current event (increment the event counter). If n is
         provided, the current event will be updated by n before finalizing."""
         self.update(n)
         self.nevent += 1
+        if self.detail:
+            self.events.append(self.currentEvent)
+            self.currentEvent = 0.0
 
-    def total(self):
-        """Report the total value of the counter for all events"""
-        return self.total
-
-    def mean(self):
+    def report(self):
         """Report the average value per event"""
-        return self.total / self.nevent
+        rep = {}
+        rep['total'] = self.total
+        rep['mean'] = self.total / self.nevent
+        if self.detail:
+            events = np.array(self.events)
+            rep['min'] = events.min()
+            rep['max'] = events.max()
+            rep['p50'] = np.quantile(events, 0.50)
+            rep['p90'] = np.quantile(events, 0.90)
+            rep['p99'] = np.quantile(events, 0.99)
+            rep['events'] = self.events
+
+        return rep
 
 
 class profCollection(collections.abc.MutableMapping):
@@ -165,16 +189,18 @@ class profCollection(collections.abc.MutableMapping):
     particular, it will generate an empty prof whenever a non-existant key is
     accessed."""
 
-    def __init__(self):
+    def __init__(self, detail=True):
         # a map of modules included in these stats. Each module is a
         # profCollection. Submodules can nest indefinitely.
+        self.detail = detail
+
         self.mods = {}
 
         self.profs = dict()
 
     def __getitem__(self, key):
         if key not in self.profs:
-            self.profs[key] = prof()
+            self.profs[key] = prof(detail=self.detail)
         return self.profs[key]
 
     def __setitem__(self, key, value):
@@ -194,7 +220,7 @@ class profCollection(collections.abc.MutableMapping):
 
     def mod(self, name):
         if name not in self.mods:
-            self.mods[name] = profCollection()
+            self.mods[name] = profCollection(detail=self.detail)
 
         return self.mods[name]
 
@@ -211,11 +237,11 @@ class profCollection(collections.abc.MutableMapping):
         for name, mod in new.mods.items():
             # Merging into an empty profCollection causes a deep copy
             if name not in self.mods:
-                self.mods[name] = profCollection()
+                self.mods[name] = profCollection(detail=self.detail)
             self.mods[name].merge(mod)
 
     def report(self):
-        flattened = {name: v.mean() for name, v in self.profs.items()}
+        flattened = {name: v.report() for name, v in self.profs.items()}
 
         for name, mod in self.mods.items():
             flattened = {**flattened, **{name+":"+itemName: v for itemName, v in mod.report().items()}}

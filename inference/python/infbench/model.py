@@ -8,6 +8,7 @@ import yaml
 import pickle
 import collections
 import re
+from pprint import pprint
 
 import mlperf_loadgen
 
@@ -429,25 +430,42 @@ class kaasModel(Model):
 mlperfNquery = 32
 
 
-def calculateLatencyTarget(medianLatency):
-    """Given a median latency in seconds, return a reasonable tail latency
-    target for mlperf (in ns)"""
-    return int((medianLatency*2)*1E9)
+def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
+    """Return a configuration for the MlPerf benchmark based on the model and
+    benchmark properties. All metrics are based on client/server mode. For
+    agpu1 (K20c) we measure throughput for both GPUs, for EC2 (V100), we
+    measure on one GPU only.
+        - maxQps: Peak QPS achieved by mlperf FindPeakPerformance using the
+        balance policy and actors/kaas. As a peak, you should generally run a
+        bit lower in PerformanceOnly mode using the --scale option.
 
+        - medianLat: Median latency recorded using nshot with 32 iterations
+        using the balance policy and actors/kaas.
+    """
 
-def getDefaultMlPerfCfg(testing=False):
     settings = mlperf_loadgen.TestSettings()
     settings.scenario = mlperf_loadgen.TestScenario.Server
 
-    if testing:
-        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    else:
+    # Default is 99, 90 is a bit more manageable in terms of avoiding tricky
+    # tuning and requiring very long tests
+    settings.server_target_latency_percentile = 0.9
+
+    settings.server_target_latency_ns = int((medianLat*4)*1E9)
+
+    if benchConfig['scale'] is None:
+        # Even in client/server mode, if FindPeakPerformance starts with a QPS
+        # close to max it will experience a severe outlier. I don't know why
+        # this happens since we pre-warm, but it does. Start from a much lower
+        # QPS and ramp up to peak for FindPeakPerformance mode.
+        settings.server_target_qps = maxQps * 0.25
         settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
+    else:
+        settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
+        settings.server_target_qps = maxQps * benchConfig['scale']
 
     # settings.min_query_count = 500
-
-    # Default is 99, keeping it here due to Ray's awful tail
-    settings.server_target_latency_percentile = 0.9
+    settings.min_duration_ms = int(300*1E3)
+    settings.max_duration_ms = int(300*1E3)
 
     return settings
 
@@ -458,60 +476,87 @@ def flushQueries():
     pass
 
 
-def processLatencies(latencies):
-    """Callback for mlperf to report results"""
-    # latencies is a list of latencies for each query issued (in ns).
-    print("nQuery: ", len(latencies))
-    print("Total Time: ", sum(latencies) / 1E9)
-
-
-def reportMlPerf(prefix="mlperf_log_"):
+def parseMlPerf(prefix):
     with open(prefix + "summary.txt", 'r') as f:
-        fullRes = f.readlines()
+        mlLog = f.readlines()
+
+    metrics = {}
 
     scheduledPattern = re.compile("Scheduled samples per second : (.*)$")
+    completedPattern = re.compile("Completed samples per second    : (.*)$")
     validPattern = re.compile(".*INVALID$")
 
-    valid = True
-    for idx, line in enumerate(fullRes):
+    metrics['valid'] = True
+    for idx, line in enumerate(mlLog):
         match = scheduledPattern.match(line)
         if match is not None:
-            nScheduled = float(match.group(1))
+            metrics['n_scheduled'] = float(match.group(1))
+            continue
+
+        match = completedPattern.match(line)
+        if match is not None:
+            metrics['n_completed'] = float(match.group(1))
             continue
 
         match = validPattern.match(line)
         if match is not None:
-            valid = False
+            metrics['valid'] = False
             continue
 
-        if line == "Additional Stats\n":
-            startIdx = idx + 2
+        if line == "Test Parameters Used\n":
             break
 
-    fullRes = fullRes[startIdx:]
+    if 'n_scheduled' not in metrics or 'n_completed' not in metrics or 'valid' not in metrics:
+        raise RuntimeError("Failed to parse mlperf log")
 
-    extractNumber = re.compile(".*: (.*)$")
-    nCompleted = float(extractNumber.match(fullRes[0]).group(1))
+    return metrics
 
-    minLat = float(extractNumber.match(fullRes[2]).group(1)) / 1E9
-    maxLat = float(extractNumber.match(fullRes[3]).group(1)) / 1E9
-    meanLat = float(extractNumber.match(fullRes[4]).group(1)) / 1E9
-    p50 = float(extractNumber.match(fullRes[5]).group(1)) / 1E9
-    p90 = float(extractNumber.match(fullRes[6]).group(1)) / 1E9
-    p99 = float(extractNumber.match(fullRes[9]).group(1)) / 1E9
 
-    if not valid:
+def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerfPrefix="mlperf_log_"):
+    """Reads latencies from mlperf and generates both human and machine
+    readable reports."""
+
+    # latencies is a list of latencies for each query issued (in ns).
+    lats = np.array(rawLatencies, dtype=np.float32)
+
+    lats = np.divide(lats, 1E9)
+    metrics = {}
+    metrics['t_min'] = float(lats.min())
+    metrics['t_max'] = float(lats.max())
+    metrics['t_mean'] = float(lats.mean())
+    metrics['t_p50'] = float(np.quantile(lats, 0.50))
+    metrics['t_p90'] = float(np.quantile(lats, 0.90))
+    metrics['t_p99'] = float(np.quantile(lats, 0.99))
+    metrics['latencies'] = lats.tolist()
+
+    return metrics
+
+
+def saveReport(metrics, benchConfig, outPath):
+    if not isinstance(outPath, pathlib.Path):
+        outPath = pathlib.Path(outPath).resolve()
+
+    if not metrics['valid']:
         print("\n*********************************************************")
         print("WARNING: Results invalid, reduce target QPS and try again")
         print("*********************************************************\n")
+        pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
+    else:
+        if outPath.exists():
+            with open(outPath, 'r') as f:
+                allMetrics = json.load(f)
+        else:
+            allMetrics = []
 
-    print("NScheduled: ", nScheduled)
-    print("NCompleted: ", nCompleted)
-    print("")
-    print("Latencies (s):")
-    print("min:  ", minLat)
-    print("max:  ", maxLat)
-    print("mean: ", meanLat)
-    print("p50:  ", p50)
-    print("p90:  ", p90)
-    print("p99:  ", p99)
+        record = {
+            "config": benchConfig,
+            "metrics": metrics
+        }
+        allMetrics.append(record)
+
+        print("Saving metrics to: ", outPath)
+        with open(outPath, 'w') as f:
+            json.dump(allMetrics, f)
+
+        print("Results:")
+        pprint({(m, record['metrics'][m]) for m in metrics.keys() if m != "latencies"})

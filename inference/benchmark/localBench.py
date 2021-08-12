@@ -2,11 +2,12 @@ import infbench
 import util
 
 import mlperf_loadgen
-import numpy as np
-import time
 import threading
 import queue
 from gpuinfo import GPUInfo
+from pprint import pprint
+import json
+import pathlib
 
 
 def _getHandlers(modelSpec):
@@ -49,16 +50,11 @@ def _runOne(model, constants, inputs, stats=None):
     return postOut
 
 
-def nShot(modelSpec, n, inline=False, useActors=False):
+def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     loader, models = _getHandlers(modelSpec)
 
     if modelSpec.modelType == "kaas":
         raise NotImplementedError("KaaS not supported in local mode")
-
-    if inline:
-        print("WARNING: inline does nothing in local mode (it's basically always inline)")
-    if useActors:
-        print("WARNING: Actors does nothing in local mode")
 
     stats = util.profCollection()
 
@@ -66,41 +62,47 @@ def nShot(modelSpec, n, inline=False, useActors=False):
     model = models[0]
     constants = model.getConstants(modelSpec.modelPath.parent)
 
-    times = []
     accuracies = []
     results = []
     for i in range(n):
         idx = i % loader.ndata
         inputs = loader.get(idx)
 
-        start = time.time()
+        with util.timer("t_e2e", stats):
+            result = _runOne(model, constants, inputs, stats=stats)
 
-        result = _runOne(model, constants, inputs, stats=stats)
-
-        times.append(time.time() - start)
         results.append(result)
 
         if loader.checkAvailable:
             accuracies.append(loader.check(result, idx))
 
-    print("Minimum latency: ")
-    print(np.min(times))
-    print("Maximum latency: ")
-    print(np.max(times))
-    print("Average latency: ")
-    print(np.mean(times))
-    print("Median latency: ")
-    print(np.percentile(times, 50))
-    print("99 percentile latency: ")
-    print(np.percentile(times, 99))
-
-    print("\nTime Breakdowns: ")
-    print(stats.report())
-
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
         print("Dataset does not support accuracy calculation")
+
+    report = stats.report()
+    print("E2E Results:")
+    pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+
+    if not isinstance(reportPath, pathlib.Path):
+        reportPath = pathlib.Path(reportPath).resolve()
+
+    print("Saving results to: ", reportPath)
+    if reportPath.exists():
+        with open(reportPath, 'r') as f:
+            fullReport = json.load(f)
+    else:
+        fullReport = []
+
+    record = {
+        "config": benchConfig,
+        "metrics": report
+    }
+    fullReport.append(record)
+
+    with open(reportPath, 'w') as f:
+        json.dump(fullReport, f)
 
     return results
 
@@ -111,11 +113,12 @@ def nShot(modelSpec, n, inline=False, useActors=False):
 
 class mlperfRunner():
 
-    def __init__(self, loader, constants, models):
+    def __init__(self, loader, constants, models, benchConfig):
         self.loader = loader
         self.models = models
         self.queue = queue.SimpleQueue()
         self.constants = constants
+        self.benchConfig = benchConfig
 
     def start(self):
         for model in self.models:
@@ -147,13 +150,16 @@ class mlperfRunner():
 
             batch = queue.get()
 
+    def processLatencies(self, latencies):
+        infbench.model.processLatencies(self.benchConfig, latencies)
 
-def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
+
+def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
-    if inline:
+    if benchConfig['inline']:
         print("WARNING: inline does nothing in local mode (it's basically always inline)")
-    if useActors:
+    if benchConfig['actors']:
         print("WARNING: useActors does nothing in local mode")
 
     gpuType = util.getGpuType()
@@ -161,14 +167,14 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
 
-    settings = models[0].getMlPerfCfg(gpuType, testing=testing)
+    settings = models[0].getMlPerfCfg(gpuType, testing=benchConfig['testing'])
 
-    runner = mlperfRunner(loader, constants, models)
+    runner = mlperfRunner(loader, constants, models, benchConfig)
     runner.start()
 
     try:
         sut = mlperf_loadgen.ConstructSUT(
-            runner.runOne, infbench.model.flushQueries, infbench.model.processLatencies)
+            runner.runOne, infbench.model.flushQueries, runner.processLatencies)
 
         qsl = mlperf_loadgen.ConstructQSL(
             loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
@@ -181,3 +187,11 @@ def mlperfBench(modelSpec, testing=False, inline=False, useActors=False):
         runner.stop()
 
     infbench.model.reportMlPerf()
+
+# =============================================================================
+# Server Mode
+# =============================================================================
+
+
+def serveRequests(benchConfig):
+    raise ValueError("Local does not support server mode right now")

@@ -24,11 +24,15 @@ from dataclasses import dataclass
 import json
 import math
 import tempfile
-import transformers
 import numpy as np
 import string
 import re
 import pickle
+
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import transformers
 
 
 @dataclass
@@ -630,14 +634,17 @@ class bertModelBase(model.Model):
         return (pred,)
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        settings = model.getDefaultMlPerfCfg()
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 0.4
-            settings.server_target_latency_ns = model.calculateLatencyTarget(1.14)
+            maxQps = 1.5
+            medianLatency = 1.00
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            maxQps = 1.5
+            medianLatency = 0.5
         else:
-            raise ValueError("Unrecognized GPU Type " + gpuType)
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 

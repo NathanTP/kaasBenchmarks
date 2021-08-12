@@ -59,18 +59,17 @@ class superResBase():
         return (pngBuf,)
 
     @staticmethod
-    def getMlPerfCfg(gpuType, testing=False):
-        """Return a configuration for mlperf_inference. If testing==True, run a
-        potentially invalid configuration that will run fast. This should ease
-        testing for correctness."""
-        settings = model.getDefaultMlPerfCfg()
-
+    def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            settings.server_target_qps = 3
-
-            settings.server_target_latency_ns = model.calculateLatencyTarget(0.320)
+            maxQps = 3
+            medianLatency = 0.320
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            maxQps = 3
+            medianLatency = 0.320
         else:
-            raise ValueError("Unrecognized GPU Type: ", gpuType)
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
 
