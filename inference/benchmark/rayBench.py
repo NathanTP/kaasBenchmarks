@@ -867,7 +867,7 @@ class mlperfRunner():
 
         self.nGpu = util.getNGpu()
 
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.NGpu, benchConfig)
+        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
