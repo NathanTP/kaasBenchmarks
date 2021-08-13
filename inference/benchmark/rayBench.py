@@ -859,8 +859,7 @@ class mlperfRunner():
 
         self.nGpu = getNGpu()
 
-        self.pool = runnerPool.options(max_concurrency=10).remote(getNGpu(), benchConfig)
-        # self.pool = runnerPool(getNGpu(), benchConfig)
+        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(getNGpu(), benchConfig)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -950,7 +949,11 @@ class clientState():
     def __init__(self, modelName):
         self.modelSpec = util.getModelSpec(modelName)
         self.specRef = ray.put(self.modelSpec)
-        self.modelArg = self.modelSpec.getModelArg()
+
+        if self.modelSpec.modelType == "kaas":
+            self.modelArg = self.modelSpec.getModelArg()
+        else:
+            self.modelArg = ray.put(self.modelSpec.getModelArg())
 
         constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
         if constants is None:
@@ -984,10 +987,7 @@ class serverLoop():
 
         self.nGpu = getNGpu()
 
-        if self.benchConfig['actor_policy'] is not None:
-            self.pool = runnerPool(self.nGpu, policy=self.benchConfig['actor_policy'])
-        else:
-            self.pool = None
+        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(getNGpu(), benchConfig)
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -1022,7 +1022,6 @@ class serverLoop():
             clients[clientID] = cState
         else:
             # Normal Request
-
             # XXX ray.put is just going to re-pickle the data. We should really
             # require models to only pass bytes as inputs and outputs.
             data = pickle.loads(data)
