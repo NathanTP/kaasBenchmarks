@@ -633,24 +633,23 @@ class bertModelBase(model.Model):
         pred = interpret(startLogits, endLogits, example, feature)
         return (pred,)
 
+
+
+class bertModel(bertModelBase, model.tvmModel):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 1.5
             medianLatency = 1.00
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 1.5
-            medianLatency = 0.5
+            maxQps = 0.45
+            medianLatency = 1.6
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
-
-
-class bertModel(bertModelBase, model.tvmModel):
-    pass
 
 
 class bertModelKaas(bertModelBase, model.kaasModel):
@@ -667,6 +666,21 @@ class bertModelKaas(bertModelBase, model.kaasModel):
         with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
             constants = pickle.load(f)
         return [vocab] + constants
+
+    @staticmethod
+    def getMlPerfCfg(gpuType, benchConfig):
+        if gpuType == "Tesla K20c":
+            maxQps = 1.5
+            medianLatency = 1.00
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            maxQps = 4
+            medianLatency = 0.31
+        else:
+            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+
+        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+
+        return settings
 
 
 class bertLoader(dataset.loader):
