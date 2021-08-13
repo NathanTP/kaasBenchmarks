@@ -5,10 +5,10 @@ import threading
 import os
 import pickle
 import signal
-import subprocess as sp
 from pprint import pprint
 import pathlib
 import json
+import random
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -32,16 +32,6 @@ permanentScope = []
 # pass each input directly as an argument using the *batch syntax (this groups
 # remaining function arguments into a list). This way Ray waits until all
 # inputs are ready before instantiating the function.
-
-
-def getNGpu():
-    """Returns the number of available GPUs on this machine"""
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        return len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
-    else:
-        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
-                      stdout=sp.PIPE, text=True, check=True)
-        return proc.stdout.count('\n')
 
 
 def _unMarshalArgs(argMap, args):
@@ -296,9 +286,8 @@ class statusList():
         self.lock = threading.Lock()
         self.reservedCv = threading.Condition(lock=self.lock)
 
-    def updateState(self, i, newState):
+    def updateState(self, status, newState):
         assert self.lock.locked()
-        status = self.statuses[i]
         if status.state == actorStatus.RESERVED:
             self.nReserved -= 1
             status.state = newState
@@ -327,7 +316,7 @@ def pickActorBalanced(slist, timeout=None):
             for i, status in enumerate(slist.statuses):
                 if status.state == actorStatus.IDLE:
                     # Found an idle worker
-                    slist.updateState(i, actorStatus.RESERVED)
+                    slist.updateState(status, actorStatus.RESERVED)
                     return i
                 else:
                     if status.state == actorStatus.BUSY:
@@ -354,21 +343,15 @@ def pickActorBalanced(slist, timeout=None):
                             idleRunner = i
                         elif status.ref == ref:
                             assert status.state == actorStatus.BUSY
-                            slist.updateState(i, actorStatus.IDLE)
+                            slist.updateState(status, actorStatus.IDLE)
                             status.ref = None
                             idleRunner = i
 
                 if idleRunner is None:
                     # Our done list is stale, try again
-                    # print("stale list, try again")
                     continue
 
-                    # candidateStatus = slist.statuses[idleRunner]
-                    # if candidateStatus != actorStatus.IDLE:
-                    #     # stale, try again
-                    #     continue
-
-                slist.updateState(idleRunner, actorStatus.RESERVED)
+                slist.updateState(slist.statuses[idleRunner], actorStatus.RESERVED)
                 return idleRunner
 
     return idleRunner
@@ -415,13 +398,17 @@ class PolicyBalance(Policy):
         if idx is None:
             return None, None
         else:
-            return self.actors[idx], idx
+            with self.sList.reservedCv:
+                actor = self.actors[idx]
+                status = self.sList.statuses[idx]
+            return actor, status
 
     def update(self, clientID, handle, respFutures):
+        status = handle
         if isinstance(respFutures, list):
-            self.sList.statuses[handle].ref = respFutures[0]
+            status.ref = respFutures[0]
         else:
-            self.sList.statuses[handle].ref = respFutures
+            status.ref = respFutures
         with self.sList.reservedCv:
             self.sList.updateState(handle, actorStatus.BUSY)
             self.sList.reservedCv.notify()
@@ -449,36 +436,53 @@ class PolicyExclusive(Policy):
         self.clientPools = {}
 
     def _makeRoom(self, clientID):
-        with self.lock:
-            clientPool = self.clientPools[clientID]
-            clientLength = len(clientPool.actors)
+        while True:
+            with self.lock:
+                clientPool = self.clientPools[clientID]
+                clientLength = len(clientPool.actors)
 
-            if self.nRunners < self.maxRunners:
-                clientPool.scaleUp()
-                self.nRunners += 1
-                # This is guaranteed to return without blocking since there's a new
-                # idle worker
-                return clientPool.getRunner(clientID)
+                if self.nRunners < self.maxRunners:
+                    clientPool.scaleUp()
+                    self.nRunners += 1
+                    # This is guaranteed to return without blocking since there's a new
+                    # idle worker
+                    return clientPool.getRunner(clientID)
 
-            # Pick a candidate for eviction. This will be the client with the most
-            # actors.
-            maxLength = 0
-            candidate = None
-            for cID, pool in self.clientPools.items():
-                if len(pool.actors) > maxLength:
-                    maxLength = len(pool.actors)
-                    candidate = cID
+                # Pick a candidate for eviction. This will be the client with the most
+                # actors (ties are broken randomly).
+                maxLength = 0
+                for cID, pool in self.clientPools.items():
+                    if len(pool.actors) > maxLength:
+                        maxLength = len(pool.actors)
 
-            if clientLength < maxLength:
-                victimPool = self.clientPools[candidate]
-                victimPool.scaleDown()
+                candidates = []
+                for cID, pool in self.clientPools.items():
+                    if len(pool.actors) == maxLength:
+                        candidates.append(cID)
 
-                clientPool.scaleUp()
-                return clientPool.getRunner(clientID)
+                if clientLength < maxLength:
+                    # Gotta be somewhat fair. Real fairness is a problem for
+                    # another day
+                    lot = random.randrange(0, len(candidates))
+                    candidate = candidates[lot]
+                    # candidate = candidates[0]
+                    # print(f"EVICTING {candidate} for {clientID} ({lot} from choices {candidates})")
+                    victimPool = self.clientPools[candidate]
+                    victimPool.scaleDown()
 
-        # Wouldn't be fair to kill anyone, just block until something frees
-        # up. Warning, this may block.
-        return clientPool.getRunner(clientID)
+                    clientPool.scaleUp()
+                    # Won't block because we just scalued up clientPool
+                    return clientPool.getRunner(clientID)
+
+            # Wouldn't be fair to kill anyone, just block until something frees
+            # up. Warning, this may block.
+            runner = clientPool.getRunner(clientID)
+            if runner[0] is None:
+                # Something went wrong. Probably someone scaled our pool down to
+                # zero while we were waiting. Try again.
+                continue
+            else:
+                return runner
 
     def getRunner(self, clientID, **kwargs):
         with self.lock:
@@ -493,7 +497,10 @@ class PolicyExclusive(Policy):
         if runner is not None:
             return runner, handle
         else:
-            return self._makeRoom(clientID)
+            runner = self._makeRoom(clientID)
+            if runner[0] is None:
+                raise RuntimeError("Couldn't find runner")
+            return runner
 
     def update(self, clientID, handle, respFutures):
         with self.lock:
@@ -541,6 +548,7 @@ class runnerPool():
 
             # Get a free runner (may block)
             runActor, handle = self.policy.getRunner(clientID)
+            assert runActor is not None
             # t_getactor = time.time() - start
 
             if self.mode == 'actor':
@@ -669,7 +677,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(n, loader.ndata)))
 
-    pool = runnerPool.options(max_concurrency=10).remote(getNGpu(), benchConfig)
+    pool = runnerPool.options(max_concurrency=10).remote(util.getNGpu(), benchConfig)
     # pool = runnerPool(getNGpu(), benchConfig)
 
     accuracies = []
@@ -857,9 +865,9 @@ class mlperfRunner():
 
         self.specRef = ray.put(self.modelSpec)
 
-        self.nGpu = getNGpu()
+        self.nGpu = util.getNGpu()
 
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(getNGpu(), benchConfig)
+        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.NGpu, benchConfig)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -985,9 +993,9 @@ class serverLoop():
 
         IOLoop.current().add_callback(self.handleWorker)
 
-        self.nGpu = getNGpu()
+        self.nGpu = util.getNGpu()
 
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(getNGpu(), benchConfig)
+        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
 
         self.rayQ = ray.util.queue.Queue()
 

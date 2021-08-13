@@ -7,6 +7,7 @@ import contextlib
 import time
 import json
 import numpy as np
+import os
 
 
 clientUrl = "ipc://client.ipc"
@@ -271,3 +272,13 @@ def timer(name, timers, final=True):
                 timers[name].increment((time.time()) - start)
             else:
                 timers[name].update((time.time()) - start)
+
+
+def getNGpu():
+    """Returns the number of available GPUs on this machine"""
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        return len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
+    else:
+        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+                      stdout=sp.PIPE, text=True, check=True)
+        return proc.stdout.count('\n')

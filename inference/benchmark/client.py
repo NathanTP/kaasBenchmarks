@@ -37,9 +37,10 @@ def barrier(barrierSock):
 
 
 def preWarm(serverSock, barrierSock, inputs):
-    for i in range(10):
+    nReq = util.getNGpu()*2
+    for i in range(nReq):
         serverSock.send_multipart([bytes(1), pickle.dumps(inputs)])
-    for i in range(10):
+    for i in range(nReq):
         serverSock.recv_multipart()
 
     barrier(barrierSock)
