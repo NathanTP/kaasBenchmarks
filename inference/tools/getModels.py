@@ -233,6 +233,9 @@ def getTestModel():
     getKaasModel('sgemm')
 
 
+def getCutlassSgemm():
+    getKaasModel("cutlass")
+
 def main():
     if not modelDir.exists():
         modelDir.mkdir(mode=0o700)
@@ -248,6 +251,9 @@ def main():
 
     print("\nGetting SuperRes")
     getSuperRes()
+
+    print("\nGetting cutlassSgemm")
+    getCutlassSgem()
 
     # print("\nGetting SSD-Mobilenet")
     # getSsdMobilenet()
