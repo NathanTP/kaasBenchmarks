@@ -43,6 +43,7 @@ def launchClient(scale, model, name, test, outDir, nIter=1):
 
 
 def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
+    nCpy = 3
 
     if modelType == 'Kaas':
         policy = 'balance'
@@ -54,15 +55,16 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     prefix = f"{prefix}_{modelType}"
 
     # scale = 0.05
-    scale = 0.1
-    runners = {
-        'resnet': launchClient(scale, 'resnet50' + modelType, prefix+"_resnet", 'mlperf', outDir),
-        'bert': launchClient(scale, 'bert' + modelType, prefix+"_bert", 'mlperf', outDir),
-        # 'bert1': launchClient(scale, 'bert' + modelType, prefix+"_bert1", 'mlperf', outDir),
-        'bert2': launchClient(scale, 'bert' + modelType, prefix+"_bert2", 'mlperf', outDir)
-        # 'resnet1': launchClient(scale, 'resnet50' + modelType, prefix+"_resnet1", 'mlperf', outDir)
-        # 'superres': launchClient(scale, 'superRes' + modelType, prefix+"_superRes", 'mlperf', outDir)
-    }
+    scale = 0.015
+    runners = {}
+    for i in range(nCpy):
+        # runners['resnet' + str(i)] = launchClient(
+        #     scale, 'resnet50' + modelType, prefix+"_resnet" + str(i), 'mlperf', outDir)
+        runners['bert' + str(i)] = launchClient(
+            scale, 'bert' + modelType, prefix+"_bert" + str(i), 'mlperf', outDir)
+        runners['superres' + str(i)] = launchClient(
+            scale, 'superRes' + modelType, prefix+"_superRes" + str(i), 'mlperf', outDir)
+
     server = launchServer(outDir, len(runners), modelType, policy)
 
     failed = []
@@ -116,6 +118,8 @@ if __name__ == "__main__":
 
     # if nShot('superres', 'Tvm', outDir=resultsDir, nIter=32):
     # if mlperfOne('resnet50', 'Tvm', outDir=resultsDir):
+    # if nShot('superRes', 'Kaas', outDir=resultsDir, nIter=32):
+    # if mlperfOne('superRes', 'Tvm', outDir=resultsDir):
     if mlperfMulti('Kaas', outDir=resultsDir):
         print("Success")
     else:
