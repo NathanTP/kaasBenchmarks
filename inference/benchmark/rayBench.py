@@ -9,6 +9,8 @@ from pprint import pprint
 import pathlib
 import json
 import random
+import time
+import re
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -91,7 +93,9 @@ def _run(model, inputs, completionQ, queryId):
     """Internal run function"""
     constants, data = _unMarshalArgs(model.runMap, inputs)
 
+    start = time.time()
     results = model.run(constants + list(data))
+    print("Took: ", time.time() - start)
 
     if completionQ is not None:
         completionQ.put((results, queryId))
@@ -206,6 +210,9 @@ class runActor():
 
     def runNative(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
+        if clientID not in self.stats:
+            self.stats[clientID] = util.profCollection()
+
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
         # runTask but is ignored here.
@@ -215,12 +222,15 @@ class runActor():
             model = modelSpec.modelClass(modelArg)
             self.modelCache[clientID] = model
 
-        return _run(model, inputs, completionQ, queryId)
+        result = _run(model, inputs, completionQ, queryId)
+        return result
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
         if clientID not in self.stats:
             self.stats[clientID] = util.profCollection()
+        start = time.time()
         results = kaasRay.kaasServeRay(req, stats=self.stats[clientID])
+        print("Took: ", time.time() - start)
 
         if completionQ is not None:
             completionQ.put((results, queryId))
@@ -231,7 +241,10 @@ class runActor():
         ray.actor.exit_actor()
 
     def getStats(self):
-        return self.stats
+        """Returns any stats collected so far and resets them internally"""
+        stats = self.stats
+        self.stats = {}
+        return stats
 
 
 class Policy():
@@ -506,6 +519,10 @@ class PolicyExclusive(Policy):
         with self.lock:
             self.clientPools[clientID].update(clientID, handle, respFutures)
 
+    def getStats(self):
+        #XXX not implemented yet
+        return {}
+
 
 @ray.remote
 class runnerPool():
@@ -651,91 +668,62 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
     return postOut
 
 
-def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
-    ray.init()
-
-    stats = util.profCollection()
-
-    specRef = ray.put(modelSpec)
-
-    with util.timer("t_registerModel", stats):
-        if modelSpec.modelType == "kaas":
-            modelArg = modelSpec.getModelArg()
+def analyzeStats(stats):
+    pat = re.compile("t_.*")
+    timeStats = {}
+    otherStats = {}
+    for m, v in stats.items():
+        if pat.match(m):
+            timeStats[m] = v['mean']
         else:
-            modelArg = ray.put(modelSpec.getModelArg())
+            otherStats[m] = v['mean']
 
-        constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+    print("Time Stats:")
+    pprint(timeStats)
 
-        if constants is None:
-            constRefs = None
-        else:
-            constRefs = []
-            for const in constants:
-                constRefs.append(ray.put(const))
+    print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
 
-    with util.timer("t_initLoader", stats):
-        loader = modelSpec.loader(modelSpec.dataDir)
-        loader.preLoad(range(min(n, loader.ndata)))
+    # print("Other Stats:")
+    # pprint(otherStats)
 
-    pool = runnerPool.options(max_concurrency=10).remote(util.getNGpu(), benchConfig)
-    # pool = runnerPool(getNGpu(), benchConfig)
 
-    accuracies = []
+def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
+    refs = []
+    for i in range(n):
+        idx = i % loader.ndata
+        inp = loader.get(idx)
+
+        # Ray is lazy and asynchronous so it's difficult to collect more
+        # detailed metrics than e2e. Details within the remote functions
+        # should match localBench results anyway.
+        refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
+                    inline=benchConfig['inline'], runPool=pool,
+                    cacheModel=benchConfig['cache']))
+
+    # This isn't super accurate, but _runOne should return instantly and the
+    # real work only happens when ray.get is called
+    with util.timer('t_e2e', stats):
+        results = []
+        for i, ref in enumerate(refs):
+            idx = i % loader.ndata
+
+            # Dereference answer from post or the router's reference from run
+            # (if nopost)
+            res = ray.get(ref)
+            if modelSpec.modelClass.noPost:
+                # Dereference the answer from run itself
+                res = ray.get(res)
+
+                if modelSpec.modelType == 'kaas':
+                    res = maybeDereference(res)
+
+            results.append(res)
+
+    return results
+
+
+def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     results = []
-
-    # #XXX prewarm
-    # inp = loader.get(0)
-    # warmRefs = []
-    # for i in range(1):
-    #     # Ray is lazy and asynchronous so it's difficult to collect more
-    #     # detailed metrics than e2e. Details within the remote functions
-    #     # should match localBench results anyway.
-    #     warmRefs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
-    #                 inline=benchConfig['inline'], runPool=pool,
-    #                 cacheModel=benchConfig['cache']))
-    # for warmRef in warmRefs:
-    #     # Dereference answer from post or the router's reference from run
-    #     # (if nopost)
-    #     res = ray.get(warmRef)
-    #     if modelSpec.modelClass.noPost:
-    #         # Dereference the answer from run itself
-    #         res = ray.get(res)
-    #
-    #         if modelSpec.modelType == 'kaas':
-    #             res = maybeDereference(res)
-    #
-    # #XXX
-    # with util.timer('t_e2e', stats):
-    #     refs = []
-    #     for i in range(n):
-    #         idx = i % loader.ndata
-    #         inp = loader.get(idx)
-    #
-    #         # Ray is lazy and asynchronous so it's difficult to collect more
-    #         # detailed metrics than e2e. Details within the remote functions
-    #         # should match localBench results anyway.
-    #         refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
-    #                     inline=benchConfig['inline'], runPool=pool,
-    #                     cacheModel=benchConfig['cache']))
-    #
-    #     for i, ref in enumerate(refs):
-    #         idx = i % loader.ndata
-    #
-    #         # Dereference answer from post or the router's reference from run
-    #         # (if nopost)
-    #         res = ray.get(ref)
-    #         if modelSpec.modelClass.noPost:
-    #             # Dereference the answer from run itself
-    #             res = ray.get(res)
-    #
-    #             if modelSpec.modelType == 'kaas':
-    #                 res = maybeDereference(res)
-    #
-    #         results.append(res)
-    #
-    #         if loader.checkAvailable:
-    #             accuracies.append(loader.check(res, idx))
-
     for i in range(n):
         idx = i % loader.ndata
         inp = loader.get(idx)
@@ -760,21 +748,63 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
         results.append(res)
 
-        if loader.checkAvailable:
-            accuracies.append(loader.check(res, idx))
+    return results
+
+
+def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
+    ray.init()
+
+    coldStats = util.profCollection()
+    warmStats = util.profCollection()
+
+    specRef = ray.put(modelSpec)
+
+    with util.timer("t_registerModel", warmStats):
+        if modelSpec.modelType == "kaas":
+            modelArg = modelSpec.getModelArg()
+        else:
+            modelArg = ray.put(modelSpec.getModelArg())
+
+        constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+
+        if constants is None:
+            constRefs = None
+        else:
+            constRefs = []
+            for const in constants:
+                constRefs.append(ray.put(const))
+
+    with util.timer("t_initLoader", warmStats):
+        loader = modelSpec.loader(modelSpec.dataDir)
+        loader.preLoad(range(min(n, loader.ndata)))
+
+    pool = runnerPool.options(max_concurrency=10).remote(util.getNGpu(), benchConfig)
+
+    # Cold Start, done async to maximize the chances of everything getting warm
+    # when there are multiple GPUs
+    print(f"Running {2*util.getNGpu()} warmup passes")
+    results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
+    # getting stats resets them for the warm runs
+    ray.get(pool.getStats.remote())
+
+    # Warm Runs
+    print("Beginning warm runs")
+    # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats)
+    results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    warmPoolStats = ray.get(pool.getStats.remote())
 
     if loader.checkAvailable:
+        accuracies = [loader.check(res, idx) for idx, res in enumerate(results)]
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
         print("Accuracy checking not supported by this dataset")
 
-    report = stats.report()
+    report = warmStats.report()
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
 
-    # print("KaaS Stats: ")
-    # poolStats = ray.get(pool.getStats.remote())
-    # pprint({cID: s.report() for cID, s in poolStats.items()})
+    print("\nDetailed Stats: ")
+    analyzeStats(warmPoolStats[None].report())
 
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath).resolve()
