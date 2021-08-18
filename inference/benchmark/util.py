@@ -282,11 +282,18 @@ def timer(name, timers, final=True):
                 timers[name].update((time.time()) - start)
 
 
+nGpu = None
+
+
 def getNGpu():
     """Returns the number of available GPUs on this machine"""
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        return len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
-    else:
-        proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
-                      stdout=sp.PIPE, text=True, check=True)
-        return proc.stdout.count('\n')
+    global nGpu
+    if nGpu is None:
+        if "CUDA_VISIBLE_DEVICES" in os.environ:
+            nGpu = len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
+        else:
+            proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+                          stdout=sp.PIPE, text=True, check=True)
+            nGpu = proc.stdout.count('\n')
+
+    return nGpu
