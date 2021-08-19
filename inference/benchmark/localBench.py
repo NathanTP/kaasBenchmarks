@@ -121,8 +121,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         constKeys = None
 
     # Cold starts
-    # for i in range(util.getNGpu()):
-    for i in range(1):
+    for i in range(util.getNGpu()):
         inputs = loader.get(0)
         _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
 
