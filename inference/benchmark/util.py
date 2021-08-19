@@ -132,6 +132,15 @@ def getModelSpec(modelName):
         raise ValueError("Unrecognized model: ", modelName)
 
 
+def packInputs(maps, const=None, inp=None, pre=None, run=None):
+    inputs = []
+    for (argMap, data) in zip(maps, [const, inp, pre, run]):
+        if argMap is not None:
+            assert data is not None
+            inputs.extend([data[i] for i in argMap])
+    return inputs
+
+
 def getGpuType():
     """Return a string describing the first available GPU"""
     proc = sp.run(['nvidia-smi', '-L'], text=True, stdout=sp.PIPE, check=True)

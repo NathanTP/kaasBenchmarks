@@ -9,6 +9,7 @@ import pickle
 import collections
 import re
 from pprint import pprint
+import time
 
 import mlperf_loadgen
 
@@ -344,7 +345,6 @@ class tvmModel(Model):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
-
         for idx, inpMeta in enumerate(self.meta['inputs']):
             inputDat = dat[idx]
             datNp = np.frombuffer(inputDat, dtype=inpMeta['type'])
@@ -352,6 +352,10 @@ class tvmModel(Model):
             self.model.set_input(inpMeta['name'], tvm.nd.array(datNp))
 
         self.model.run()
+        # dev = tvm.device('cuda', 0)
+        # ftimer = self.model.module.time_evaluator("run", dev)
+        # prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
+        # print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 
         outputs = []
         for i, outMeta in enumerate(self.meta['outputs']):
@@ -396,7 +400,7 @@ class kaasModel(Model):
             constants = pickle.load(f)
         return constants
 
-    def run(self, dat):
+    def run(self, dat, outKeys=None):
         """Unlike other Models, kaas accepts keys or references to inputs in
         dat rather than actual values. Run here will submit the model to KaaS
         and returns a list of references/keys to the outputs."""
@@ -411,6 +415,10 @@ class kaasModel(Model):
 
         for idx, inp in enumerate(self.meta['inputs']):
             renameMap[inp['name']] = inputs[idx]
+
+        if outKeys is not None:
+            for name, key in outKeys:
+                renameMap[name] = key
 
         # In theory, we should also remap the output keys but ray doesn't
         # support setting the output key anyway and kaasBench isn't set up to

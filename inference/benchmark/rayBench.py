@@ -170,32 +170,23 @@ def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
     constants = refs[:model.nConst]
     inputs = refs[model.nConst:]
 
-    preInp = _getInputs(model.preMap, const=constants, inp=inputs)
+    preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
     preOut = model.pre(preInp)
 
-    runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
+    runInp = util.packInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
     modOut = model.run(runInp)
 
     if model.noPost:
         postOut = modOut
     else:
-        postInp = _getInputs(model.postMap, const=constants, inp=inputs,
-                             pre=preOut, run=modOut)
+        postInp = util.packInputs(model.postMap, const=constants, inp=inputs,
+                                  pre=preOut, run=modOut)
         postOut = model.post(postInp)
 
     if completionQ is not None:
         completionQ.put((postOut, queryId))
 
     return postOut
-
-
-def _getInputs(maps, const=None, inp=None, pre=None, run=None):
-    inputs = []
-    for (argMap, data) in zip(maps, [const, inp, pre, run]):
-        if argMap is not None:
-            assert data is not None
-            inputs.extend([data[i] for i in argMap])
-    return inputs
 
 
 @ray.remote(num_gpus=1)
@@ -620,14 +611,14 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 .remote(specRef, modelArg, *varArgs)
     else:
         # Pre
-        preInp = _getInputs(mClass.preMap, const=constRefs, inp=inputRefs)
+        preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
 
         preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
         if mClass.nOutPre == 1:
             preOut = [preOut]
 
         # Run
-        runInp = _getInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
+        runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
 
         if modelSpec.modelType == "kaas":
             model = modelArg
@@ -658,8 +649,8 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if mClass.noPost:
             postOut = runOut
         else:
-            postInp = _getInputs(mClass.postMap, const=constRefs,
-                                 inp=inputRefs, pre=preOut, run=runOut)
+            postInp = util.packInputs(mClass.postMap, const=constRefs,
+                                      inp=inputRefs, pre=preOut, run=runOut)
             postOut = post.options(num_returns=mClass.nOutPost) \
                 .remote(specRef, *postInp, completionQ=completionQ, queryId=queryId)
 
@@ -681,7 +672,7 @@ def analyzeStats(stats):
     print("Time Stats:")
     pprint(timeStats)
 
-    print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
+    # print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
 
     # print("Other Stats:")
     # pprint(otherStats)
@@ -717,7 +708,7 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
                 if modelSpec.modelType == 'kaas':
                     res = maybeDereference(res)
 
-            results.append(res)
+            results.append((idx, res))
 
     return results
 
@@ -746,7 +737,7 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
                 if modelSpec.modelType == 'kaas':
                     res = maybeDereference(res)
 
-        results.append(res)
+        results.append((idx, res))
 
     return results
 
@@ -794,7 +785,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     warmPoolStats = ray.get(pool.getStats.remote())
 
     if loader.checkAvailable:
-        accuracies = [loader.check(res, idx) for idx, res in enumerate(results)]
+        accuracies = [loader.check(res, idx) for idx, res in results]
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
         print("Accuracy checking not supported by this dataset")
