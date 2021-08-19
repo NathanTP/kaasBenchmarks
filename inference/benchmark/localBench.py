@@ -15,6 +15,10 @@ import libff.kv
 import libff.kaas as kaas
 import libff.kaas.kaasFF
 
+# for cuda profiling
+import pycuda.driver as cuda
+
+
 def _getHandlers(modelSpec):
     loader = modelSpec.loader(modelSpec.dataDir)
 
@@ -116,14 +120,22 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         kaasHandle = None
         constKeys = None
 
+    # Cold starts
+    # for i in range(util.getNGpu()):
+    for i in range(1):
+        inputs = loader.get(0)
+        _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
+
     accuracies = []
     results = []
     for i in range(n):
         idx = i % loader.ndata
         inputs = loader.get(idx)
 
+        cuda.start_profiler()
         with util.timer("t_e2e", stats):
             result = _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
+        cuda.stop_profiler()
 
         results.append(result)
 
