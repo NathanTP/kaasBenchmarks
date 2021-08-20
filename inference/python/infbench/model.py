@@ -9,11 +9,12 @@ import pickle
 import collections
 import re
 from pprint import pprint
-import time
+import copy
 
 import mlperf_loadgen
 
 import libff.kaas as kaas
+from . import util
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -317,7 +318,7 @@ class Model(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def run(self, dat):
+    def run(self, dat, stats=None):
         """Run the model against input 'dat'. The format of dat is dependent on
         the concrete model type."""
         ...
@@ -341,7 +342,7 @@ class tvmModel(Model):
     def __init__(self, modelDesc):
         self.model, self.meta = loadModel(modelDesc)
 
-    def run(self, dat):
+    def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
@@ -400,14 +401,15 @@ class kaasModel(Model):
             constants = pickle.load(f)
         return constants
 
-    def run(self, dat, outKeys=None):
+    def run(self, dat, outKeys=None, stats=None):
         """Unlike other Models, kaas accepts keys or references to inputs in
         dat rather than actual values. Run here will submit the model to KaaS
         and returns a list of references/keys to the outputs."""
         constants = dat[:self.nConst]
         inputs = dat[self.nConst:]
 
-        req = kaas.kaasReq.fromDict(self.reqTemplate)
+        with util.timer('t_kaas_req_copy', stats):
+            req = kaas.kaasReq.fromDict(self.reqTemplate)
 
         renameMap = {}
         for idx, const in enumerate(self.meta['constants']):
