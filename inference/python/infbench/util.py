@@ -133,6 +133,10 @@ class profCollection(collections.abc.MutableMapping):
             mod.reset()
 
 
+# ms
+timeScale = 1E3
+
+
 @contextlib.contextmanager
 def timer(name, timers, final=True):
     if timers is None:
@@ -143,6 +147,6 @@ def timer(name, timers, final=True):
             yield
         finally:
             if final:
-                timers[name].increment((time.time()) - start)
+                timers[name].increment((time.time() - start)*timeScale)
             else:
-                timers[name].update((time.time()) - start)
+                timers[name].update((time.time() - start)*timeScale)

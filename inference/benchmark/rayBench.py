@@ -66,6 +66,14 @@ def maybeDereference(res):
         return res
 
 
+def mergePerClientStats(base, delta):
+    for cID, deltaClient in delta.items():
+        if cID in base:
+            base[cID].merge(deltaClient)
+        else:
+            base[cID] = deltaClient
+
+
 @ray.remote
 def pre(modelSpec, *inputs):
     mClass = modelSpec.modelClass
@@ -219,7 +227,7 @@ class runActor():
             self.stats[clientID] = infbench.profCollection()
 
         with infbench.timer('t_model_run', self.stats[clientID]):
-            results = kaasRay.kaasServeRay(req, stats=self.stats[clientID])
+            results = kaasRay.kaasServeRay(req, stats=self.stats[clientID].mod('kaas'))
 
         if completionQ is not None:
             completionQ.put((results, queryId))
@@ -364,6 +372,9 @@ class PolicyBalance(Policy):
     actor. It will attempt to balance load across the actors based on
     estimated outstanding work."""
     def __init__(self, nRunner):
+        # List of Ray references representing stats from dead actors
+        self.pendingActorStats = []
+
         self.actors = []
         for i in range(nRunner):
             newActor = runActor.remote()
@@ -389,6 +400,8 @@ class PolicyBalance(Policy):
         with self.sList.reservedCv:
             self.sList.statuses.pop()
             toKill = self.actors.pop()
+
+            self.pendingActorStats.append(toKill.getStats.remote())
             toKill.terminate.remote()
 
     def getRunner(self, clientID, **kwargs):
@@ -416,14 +429,17 @@ class PolicyBalance(Policy):
             self.sList.reservedCv.notify()
 
     def getStats(self):
+        """Return a map of clientIDs to profCollection. Resets stats."""
         stats = {}
+
         for actor in self.actors:
-            actorStats = ray.get(actor.getStats.remote())
-            for cID, clientStats in actorStats.items():
-                if cID in stats:
-                    stats[cID].merge(clientStats)
-                else:
-                    stats[cID] = clientStats
+            self.pendingActorStats.append(actor.getStats.remote())
+
+        actorStats = ray.get(self.pendingActorStats)
+        for actorStat in actorStats:
+            mergePerClientStats(stats, actorStat)
+
+        self.pendingActorStats = []
         return stats
 
 
@@ -509,8 +525,12 @@ class PolicyExclusive(Policy):
             self.clientPools[clientID].update(clientID, handle, respFutures)
 
     def getStats(self):
-        #XXX not implemented yet
-        return {}
+        stats = {}
+        for pool in self.clientPools.values():
+            poolStats = pool.getStats()
+            mergePerClientStats(stats, poolStats)
+
+        return stats
 
 
 @ray.remote
@@ -652,14 +672,14 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
 
 def analyzeStats(stats):
-    pat = re.compile("t_.*")
+    pat = re.compile("(.*\:)?t_.*")  # NOQA
     timeStats = {}
     otherStats = {}
     for m, v in stats.items():
         if pat.match(m):
-            timeStats[m] = v['mean']
+            timeStats[m] = v['p50']
         else:
-            otherStats[m] = v['mean']
+            otherStats[m] = v['p50']
 
     print("Time Stats:")
     pprint(timeStats)
@@ -787,10 +807,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     print("\nDetailed Stats: ")
     report = warmStats.report()
     analyzeStats(report)
-
-    # print("E2E Results:")
-    # pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
-
     # analyzeStats(warmPoolStats[None].report())
 
     if not isinstance(reportPath, pathlib.Path):
@@ -872,6 +888,9 @@ class mlperfRunner():
         self.constants = constantRefs
         self.benchConfig = benchConfig
 
+        self.coldStats = infbench.profCollection()
+        self.warmStats = infbench.profCollection()
+
         if modelSpec.modelType == "kaas":
             self.modelArg = modelSpec.getModelArg()
         else:
@@ -905,9 +924,12 @@ class mlperfRunner():
             for i in range(self.nGpu*2):
                 results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
                                self.constants, inputs, inline=self.benchConfig['inline'],
-                               runPool=self.pool))
+                               runPool=self.pool, stats=self.coldStats))
             for res in results:
                 ray.get(res)
+
+            coldPoolStats = ray.get(self.pool.getStats.remote())
+            self.coldStats.merge(coldPoolStats[None])
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
@@ -916,7 +938,7 @@ class mlperfRunner():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inp, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
-                    cacheModel=self.benchConfig['cache'], runPool=self.pool)
+                    cacheModel=self.benchConfig['cache'], runPool=self.pool, stats=self.warmStats)
 
         self.nIssued += len(queryBatch)
 
@@ -927,6 +949,11 @@ class mlperfRunner():
         self.completionQueue.put((self.nIssued, None))
         print("Waiting for completion handler to finish")
         self.completionHandler.join()
+
+        warmPoolStats = ray.get(self.pool.getStats.remote())
+        self.warmStats.merge(warmPoolStats[None])
+
+        return (self.coldStats, self.warmStats)
 
 
 def mlperfBench(modelSpec, benchConfig):
@@ -958,10 +985,15 @@ def mlperfBench(modelSpec, benchConfig):
     mlperf_loadgen.DestroyQSL(qsl)
     mlperf_loadgen.DestroySUT(sut)
 
-    runner.stop()
+    coldStats, warmStats = runner.stop()
 
     print("\nResults:")
     mlPerfMetrics = infbench.model.parseMlPerf('mlperf_log_')
+
+    print("\nStats:")
+    report = warmStats.report()
+    analyzeStats(report)
+
     infbench.model.saveReport({**runner.latMetrics, **mlPerfMetrics}, benchConfig, 'results.json')
 
 
