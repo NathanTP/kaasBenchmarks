@@ -3,6 +3,7 @@ from . import dataset
 import numpy as np
 import yaml
 
+
 class sgemmBase(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0, 1))
@@ -72,8 +73,6 @@ class sgemmKaas(sgemmBase, model.kaasModel):
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
-
-
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
@@ -91,8 +90,8 @@ class sgemmKaas(sgemmBase, model.kaasModel):
 
 
 class cutlassSgemmLoader(dataset.loader):
-
     checkAvailable = True
+
     def __init__(self, dataDir):
         self.M = 10000
         self.N = 8000
@@ -121,9 +120,6 @@ class cutlassSgemmLoader(dataset.loader):
         print(temp.dtype)
         temp = temp.tobytes()
         print(np.frombuffer(temp, dtype=np.float32))
-        #temp = np.reshape(np.array(result).astype(np.float32), (10000, 8000))
-        #print(temp.shape)
-        #print(temp)
         print(np.matmul(self.a, self.b))
         print(np.matmul(self.a, self.b).shape)
         return True

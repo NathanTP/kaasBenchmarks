@@ -634,7 +634,6 @@ class bertModelBase(model.Model):
         return (pred,)
 
 
-
 class bertModel(bertModelBase, model.tvmModel):
     @staticmethod
     def getMlPerfCfg(gpuType, benchConfig):

@@ -469,7 +469,6 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.min_duration_ms = int(60*1E3)
         settings.max_duration_ms = int(60*1E3)
 
-
     return settings
 
 
