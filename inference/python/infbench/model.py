@@ -9,7 +9,6 @@ import pickle
 import collections
 import re
 from pprint import pprint
-import copy
 
 import mlperf_loadgen
 
@@ -478,7 +477,6 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         # settings.max_duration_ms = int(300*1E3)
         settings.min_duration_ms = int(60*1E3)
         settings.max_duration_ms = int(60*1E3)
-
 
     return settings
 

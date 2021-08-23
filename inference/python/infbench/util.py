@@ -4,6 +4,7 @@ import json
 import contextlib
 import time
 
+
 class prof():
     def __init__(self, fromDict=None, detail=True):
         """A profiler object for a metric or event type. The counter can be
@@ -55,6 +56,7 @@ class prof():
             rep['events'] = self.events
 
         return rep
+
 
 class profCollection(collections.abc.MutableMapping):
     """This is basically a dictionary and can be used anywhere a dictionary of

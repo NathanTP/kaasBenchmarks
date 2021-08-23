@@ -5,4 +5,4 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from . import dataset  # NOQA
 from . import model  # NOQA
-from .util import *
+from .util import *  # NOQA
