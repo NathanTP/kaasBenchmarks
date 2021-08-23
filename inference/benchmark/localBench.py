@@ -9,6 +9,15 @@ from pprint import pprint
 import json
 import pathlib
 
+import libff as ff
+import libff.invoke
+import libff.kv
+import libff.kaas as kaas
+import libff.kaas.kaasFF
+
+# for cuda profiling
+import pycuda.driver as cuda
+
 
 def _getHandlers(modelSpec):
     loader = modelSpec.loader(modelSpec.dataDir)
@@ -22,29 +31,66 @@ def _getHandlers(modelSpec):
     return (loader, models)
 
 
-def _getInputs(maps, const=None, inp=None, pre=None, run=None):
-    inputs = []
-    for (argMap, data) in zip(maps, [const, inp, pre, run]):
-        if argMap is not None:
-            assert data is not None
-            inputs.extend([data[i] for i in argMap])
-    return inputs
+# KaaS requires an immutable object store. This means that keys must be unique.
+# This counter ensures that
+kaasNextId = 0
 
 
-def _runOne(model, constants, inputs, stats=None):
+def runKaas(model, kaasCtx, kaasHandle, constants, inputs, preOut):
+    """Run a kaas model. inputs and preOut are literal values, constants should
+    be keys in kaasCtx.kv for the constants"""
+    global kaasNextId
+
+    inputKeys = []
+    for inp in inputs:
+        kaasCtx.kv.put(kaasNextId, inp)
+        inputKeys.append(kaasNextId)
+        kaasNextId += 1
+
+    preKeys = []
+    for val in preOut:
+        kaasCtx.kv.put(kaasNextId, val)
+        preKeys.append(kaasNextId)
+        kaasNextId += 1
+
+    outKeys = []
+    for output in model.meta['outputs']:
+        outKeys.append((output['name'], kaasNextId))
+        kaasNextId += 1
+
+    runInp = util.packInputs(model.runMap, const=constants, inp=inputKeys, pre=preKeys)
+    req = model.run(runInp, outKeys=outKeys)
+
+    kaasHandle.Invoke(req.toDict())
+
+    outputs = []
+    for name, key in outKeys:
+        outputs.append(kaasCtx.kv.get(key))
+
+    return outputs
+
+
+def runNative(model, constants, inputs, preOut):
+    runInp = util.packInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
+    return model.run(runInp)
+
+
+def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None, constKeys=None):
     with util.timer("pre", stats):
-        preInp = _getInputs(model.preMap, const=constants, inp=inputs)
+        preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
         preOut = model.pre(preInp)
 
     with util.timer("run", stats):
-        runInp = _getInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
-        runOut = model.run(runInp)
+        if kaasCtx is not None:
+            runOut = runKaas(model, kaasCtx, kaasHandle, constKeys, inputs, preOut)
+        else:
+            runOut = runNative(model, constants, inputs, preOut)
 
     if model.noPost:
         postOut = runOut
     else:
         with util.timer("post", stats):
-            postInp = _getInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut)
+            postInp = util.packInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut)
             postOut = model.post(postInp)
 
     return postOut
@@ -52,15 +98,32 @@ def _runOne(model, constants, inputs, stats=None):
 
 def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     loader, models = _getHandlers(modelSpec)
-
-    if modelSpec.modelType == "kaas":
-        raise NotImplementedError("KaaS not supported in local mode")
-
     stats = util.profCollection()
 
     loader.preLoad(list(range(min(n, loader.ndata))))
     model = models[0]
     constants = model.getConstants(modelSpec.modelPath.parent)
+
+    if modelSpec.modelType == "kaas":
+        objStore = ff.kv.Local(copyObjs=False, serialize=False)
+        kaasCtx = ff.invoke.RemoteCtx(None, objStore)
+        kaasHandle = kaas.kaasFF.getHandle('direct', kaasCtx, stats=stats)
+
+        global kaasNextId
+        constKeys = []
+        for const in constants:
+            kaasCtx.kv.put(kaasNextId, const)
+            constKeys.append(kaasNextId)
+            kaasNextId += 1
+    else:
+        kaasCtx = None
+        kaasHandle = None
+        constKeys = None
+
+    # Cold starts
+    for i in range(util.getNGpu()):
+        inputs = loader.get(0)
+        _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
 
     accuracies = []
     results = []
@@ -68,8 +131,10 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         idx = i % loader.ndata
         inputs = loader.get(idx)
 
+        cuda.start_profiler()
         with util.timer("t_e2e", stats):
-            result = _runOne(model, constants, inputs, stats=stats)
+            result = _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
+        cuda.stop_profiler()
 
         results.append(result)
 

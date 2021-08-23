@@ -51,7 +51,7 @@ def nShot(modelSpec, n, benchConfig):
     responses. The raw results are returned."""
     clientID = benchConfig['name'].encode('utf-8')
 
-    stats = util.profCollection()
+    stats = infbench.profCollection()
 
     loader = modelSpec.loader(modelSpec.dataDir)
     loader.preLoad(range(min(n, loader.ndata)))
@@ -74,7 +74,7 @@ def nShot(modelSpec, n, benchConfig):
         idx = i % loader.ndata
         inp = loader.get(idx)
 
-        with util.timer('t_e2e', stats):
+        with infbench.timer('t_e2e', stats):
             serverSocket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
 
             respIdx, respData = serverSocket.recv_multipart()
