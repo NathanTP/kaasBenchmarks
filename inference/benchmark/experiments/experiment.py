@@ -43,7 +43,7 @@ def launchClient(scale, model, name, test, outDir, nIter=1):
 
 
 def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
-    nCpy = 3
+    nCpy = 1
 
     if modelType == 'Kaas':
         policy = 'balance'
@@ -55,7 +55,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     prefix = f"{prefix}_{modelType}"
 
     # scale = 0.05
-    scale = 0.015
+    scale = 0.3
     runners = {}
     for i in range(nCpy):
         # runners['resnet' + str(i)] = launchClient(
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     if not resultsDir.exists():
         resultsDir.mkdir(0o700)
 
-    # if nShot('superres', 'Tvm', outDir=resultsDir, nIter=32):
+    # if nShot('resnet50', 'Kaas', outDir=resultsDir, nIter=32):
     # if mlperfOne('resnet50', 'Tvm', outDir=resultsDir):
     # if nShot('superRes', 'Kaas', outDir=resultsDir, nIter=32):
     # if mlperfOne('superRes', 'Tvm', outDir=resultsDir):

@@ -202,7 +202,7 @@ class runActor():
     with actors since they cache every model they are passed."""
     def __init__(self):
         self.modelCache = {}
-        # {clientID -> libff.infbench.profCollection}
+        # {clientID -> infbench.profCollection}
         self.stats = {}
 
     def runNative(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
@@ -1044,6 +1044,7 @@ class serverLoop():
 
         self.nGpu = util.getNGpu()
 
+        self.clientStats = {}
         self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
 
         self.rayQ = ray.util.queue.Queue()
@@ -1054,6 +1055,12 @@ class serverLoop():
         print("Recieved Ready from: ", clientID.decode("utf-8"))
         self.readyClients.append(clientID)
         if len(self.readyClients) == self.benchConfig['numClient']:
+            # Get cold-start stats (if any) and reset for main warm passes
+            poolStats = ray.get(self.pool.getStats.remote())
+            self.coldStats = self.clientStats
+            mergePerClientStats(self.coldStats, poolStats)
+            self.clientStats = {}
+
             print("Releasing Barrier")
             for cID in self.readyClients:
                 self.barrierStream.send_multipart([cID, b'', b'GO'])
@@ -1071,6 +1078,9 @@ class serverLoop():
 
         cState = clients.get(clientID, None)
 
+        if clientID not in self.clientStats:
+            self.clientStats[clientID] = infbench.profCollection()
+
         if cState is None:
             # Registration
             print("Registering ", clientID)
@@ -1087,11 +1097,17 @@ class serverLoop():
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
                     cacheModel=self.benchConfig['cache'],
-                    inline=self.benchConfig['inline'], runPool=self.pool)
+                    inline=self.benchConfig['inline'], runPool=self.pool,
+                    stats=self.clientStats[clientID])
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
         IOLoop.instance().stop()
+
+        poolStats = ray.get(self.pool.getStats.remote())
+        self.warmStats = self.clientStats
+        mergePerClientStats(self.warmStats, poolStats)
+        self.clientStats = {}
 
 
 def serveRequests(benchConfig):
@@ -1113,3 +1129,8 @@ def serveRequests(benchConfig):
     print("Beginning serving loop")
     IOLoop.instance().start()
     print("Server Exiting")
+
+    print("Stats:")
+    for cID, stats in looper.warmStats.items():
+        print("Client: ", cID)
+        analyzeStats(stats.report())
