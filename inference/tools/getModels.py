@@ -100,6 +100,46 @@ def getOnnxInfo(onnxModel):
     return info
 
 
+#XXX
+import time
+from tvm.contrib import graph_executor
+import tvm.relay as relay
+import numpy as np
+def testBertManual():
+    print("loading inputs")
+    with open('bertInp0.bin', 'rb') as f:
+        inp0 = tvm.nd.array(np.load(f))
+    with open('bertInp1.bin', 'rb') as f:
+        inp1 = tvm.nd.array(np.load(f))
+    with open('bertInp2.bin', 'rb') as f:
+        inp2 = tvm.nd.array(np.load(f))
+
+    print("Loading onnx")
+    onnxModel = onnx.load('deletemeBert.onnx')
+
+    print("TVM Compiling")
+    # mod, params = relay.frontend.from_onnx(onnxModel)
+    # with tvm.transform.PassContext(opt_level=3):
+    #     module = relay.build(mod, tvm.target.cuda(), params=params)
+    # module.export_library("deletemeBert.so")
+    module = tvm.runtime.load_module("deletemeBert.so")
+
+    print("Getting graph executor")
+    model = graph_executor.GraphModule(module['default'](tvm.cuda()))
+
+
+    print("Running model")
+    start = time.time()
+
+    model.set_input("input_ids", inp0)
+    model.set_input("input_mask", inp1)
+    model.set_input("segment_ids", inp2)
+    model.run()
+    out0 = model.get_output(0).numpy().tobytes()
+    out1 = model.get_output(1).numpy().tobytes()
+    print("Took: ", time.time() - start)
+
+
 def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
     model = onnx.load(inputPath)
     if inputShapeMap is not None:
@@ -189,7 +229,6 @@ def getBert():
 
     getKaasModel('bert')
 
-
 def getSsdMobilenet():
     if not (modelDir / 'ssdMobilenet').exists():
         block = gluoncv.model_zoo.get_model("ssd_512_mobilenet1.0_coco", pretrained=True)
@@ -260,4 +299,6 @@ def main():
     # getSsdMobilenet()
 
 
-main()
+# main()
+#XXX
+testBertManual()

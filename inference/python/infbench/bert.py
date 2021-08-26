@@ -615,9 +615,19 @@ class bertModelBase(model.Model):
         # featurize() can handle batches, but we only support batch size 1 right
         # now
         inputIds, inputMask, segmentIds, otherFeature = featurize([example], vocab)[0]
+        #XXX
+        # with open("bertInp0.bin", 'wb') as f:
+        #     np.save(f, np.array(inputIds).astype(np.int64)[np.newaxis, :])
+        # with open("bertInp1.bin", 'wb') as f:
+        #     np.save(f, np.array(inputMask).astype(np.int64)[np.newaxis, :])
+        # with open("bertInp2.bin", 'wb') as f:
+        #     np.save(f, np.array(segmentIds).astype(np.int64)[np.newaxis, :])
+
         inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :].tobytes()
         inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :].tobytes()
         segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :].tobytes()
+
+
         return [inputIds, inputMask, segmentIds, otherFeature]
 
     @staticmethod
@@ -639,7 +649,7 @@ class bertModel(bertModelBase, model.tvmModel):
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 1.5
-            medianLatency = 1.00
+            medianLatency = 3.60
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 0.45
             medianLatency = 1.6
@@ -670,7 +680,7 @@ class bertModelKaas(bertModelBase, model.kaasModel):
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 1.5
-            medianLatency = 1.00
+            medianLatency = 0.941
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 4
             medianLatency = 0.31
