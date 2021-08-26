@@ -5,11 +5,9 @@ import threading
 import os
 import pickle
 import signal
-from pprint import pprint
 import pathlib
 import json
 import random
-import re
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -671,25 +669,6 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
     return postOut
 
 
-def analyzeStats(stats):
-    pat = re.compile("(.*\:)?t_.*")  # NOQA
-    timeStats = {}
-    otherStats = {}
-    for m, v in stats.items():
-        if pat.match(m):
-            timeStats[m] = v['p50']
-        else:
-            otherStats[m] = v['p50']
-
-    print("Time Stats:")
-    pprint(timeStats)
-
-    # print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
-
-    # print("Other Stats:")
-    # pprint(otherStats)
-
-
 def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     refs = []
     for i in range(n):
@@ -806,7 +785,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     print("\nDetailed Stats: ")
     report = warmStats.report()
-    analyzeStats(report)
+    util.analyzeStats(report)
     # analyzeStats(warmPoolStats[None].report())
 
     if not isinstance(reportPath, pathlib.Path):
@@ -992,7 +971,7 @@ def mlperfBench(modelSpec, benchConfig):
 
     print("\nStats:")
     report = warmStats.report()
-    analyzeStats(report)
+    util.analyzeStats(report)
 
     infbench.model.saveReport({**runner.latMetrics, **mlPerfMetrics}, benchConfig, 'results.json')
 
@@ -1070,6 +1049,13 @@ class serverLoop():
         clientID = reqData[0]
         reqID = reqData[1]
 
+        # Ideally, ray would handle this in their Queue implementation but they
+        # can't recurse into datastructures so we have to fetch the result
+        # here. It's guaranteed to be ready (since any references come from
+        # KaaS which already put them into the kv store) but we do have to wait
+        # for the data transfer.
+        result = maybeDereference(result)
+
         self.clientStream.send_multipart([clientID, reqID, pickle.dumps(result)])
         IOLoop.current().add_callback(self.handleWorker)
 
@@ -1133,4 +1119,4 @@ def serveRequests(benchConfig):
     print("Stats:")
     for cID, stats in looper.warmStats.items():
         print("Client: ", cID)
-        analyzeStats(stats.report())
+        util.analyzeStats(stats.report())

@@ -3,6 +3,7 @@ import infbench.model
 import subprocess as sp
 import re
 import os
+from pprint import pprint
 
 
 clientUrl = "ipc://client.ipc"
@@ -158,3 +159,22 @@ def getNGpu():
             nGpu = proc.stdout.count('\n')
 
     return nGpu
+
+
+def analyzeStats(stats):
+    pat = re.compile("(.*\:)?t_.*")  # NOQA
+    timeStats = {}
+    otherStats = {}
+    for m, v in stats.items():
+        if pat.match(m):
+            timeStats[m] = v['p50']
+        else:
+            otherStats[m] = v['p50']
+
+    print("Time Stats:")
+    pprint(timeStats)
+
+    # print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
+
+    print("Other Stats:")
+    pprint(otherStats)

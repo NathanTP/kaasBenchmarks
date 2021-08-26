@@ -118,6 +118,7 @@ def testBertManual():
     onnxModel = onnx.load('deletemeBert.onnx')
 
     print("TVM Compiling")
+
     # mod, params = relay.frontend.from_onnx(onnxModel)
     # with tvm.transform.PassContext(opt_level=3):
     #     module = relay.build(mod, tvm.target.cuda(), params=params)

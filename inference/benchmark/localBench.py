@@ -76,11 +76,11 @@ def runNative(model, constants, inputs, preOut):
 
 
 def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None, constKeys=None):
-    with util.timer("pre", stats):
+    with infbench.timer("t_pre", stats):
         preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
         preOut = model.pre(preInp)
 
-    with util.timer("run", stats):
+    with infbench.timer("t_run", stats):
         if kaasCtx is not None:
             runOut = runKaas(model, kaasCtx, kaasHandle, constKeys, inputs, preOut)
         else:
@@ -89,7 +89,7 @@ def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None,
     if model.noPost:
         postOut = runOut
     else:
-        with util.timer("post", stats):
+        with infbench.timer("t_post", stats):
             postInp = util.packInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut)
             postOut = model.post(postInp)
 
@@ -98,7 +98,7 @@ def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None,
 
 def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     loader, models = _getHandlers(modelSpec)
-    stats = util.profCollection()
+    stats = infbench.profCollection()
 
     loader.preLoad(list(range(min(n, loader.ndata))))
     model = models[0]
@@ -132,7 +132,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         inputs = loader.get(idx)
 
         cuda.start_profiler()
-        with util.timer("t_e2e", stats):
+        with infbench.timer("t_e2e", stats):
             result = _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
         cuda.stop_profiler()
 
@@ -147,6 +147,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         print("Dataset does not support accuracy calculation")
 
     report = stats.report()
+    print("Detailed Profile: ")
+    # util.analyzeStats(report)
+    pprint(kaasHandle.getStats().report())
+    # util.analyzeStats(kaasHandle.getStats().report())
+
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
 
