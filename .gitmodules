@@ -6,4 +6,4 @@
 	url = git@github.com:mlcommons/inference.git
 [submodule "dependencies/tvm"]
 	path = dependencies/tvm
-	url = https://github.com/apache/tvm
+	url = git@github.com:NathanTP/tvm.git 
