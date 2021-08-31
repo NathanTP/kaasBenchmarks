@@ -615,18 +615,10 @@ class bertModelBase(model.Model):
         # featurize() can handle batches, but we only support batch size 1 right
         # now
         inputIds, inputMask, segmentIds, otherFeature = featurize([example], vocab)[0]
-        #XXX
-        # with open("bertInp0.bin", 'wb') as f:
-        #     np.save(f, np.array(inputIds).astype(np.int64)[np.newaxis, :])
-        # with open("bertInp1.bin", 'wb') as f:
-        #     np.save(f, np.array(inputMask).astype(np.int64)[np.newaxis, :])
-        # with open("bertInp2.bin", 'wb') as f:
-        #     np.save(f, np.array(segmentIds).astype(np.int64)[np.newaxis, :])
 
         inputIds = np.array(inputIds).astype(np.int64)[np.newaxis, :].tobytes()
         inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :].tobytes()
         segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :].tobytes()
-
 
         return [inputIds, inputMask, segmentIds, otherFeature]
 
