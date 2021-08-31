@@ -73,6 +73,9 @@ class profCollection(collections.abc.MutableMapping):
 
         self.profs = dict()
 
+    def __contains__(self, key):
+        return key in self.profs
+
     def __getitem__(self, key):
         if key not in self.profs:
             self.profs[key] = prof(detail=self.detail)
