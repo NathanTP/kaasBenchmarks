@@ -146,11 +146,13 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     else:
         print("Dataset does not support accuracy calculation")
 
+    # make sure kaasHandle stats are fully up to date
+    if modelSpec.modelType == "kaas":
+        kaasHandle.getStats()
+
     report = stats.report()
     print("Detailed Profile: ")
-    # util.analyzeStats(report)
-    pprint(kaasHandle.getStats().report())
-    # util.analyzeStats(kaasHandle.getStats().report())
+    util.analyzeStats(report)
 
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
