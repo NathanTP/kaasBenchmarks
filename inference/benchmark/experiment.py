@@ -105,7 +105,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     nCpy = 1
 
     models = [
-        "bert",
+        "resnet50",
         "superRes"
     ]
 
@@ -189,12 +189,12 @@ if __name__ == "__main__":
                         choices=['bert', 'resnet50', 'superRes'],
                         help="Model to run. Not used in mlperfMulti mode.")
     parser.add_argument("-e", "--experiment",
-                        choices=['nShot', 'mlperfOne', 'mlperfMulti'],
+                        choices=['nshot', 'mlperfOne', 'mlperfMulti'],
                         help="Which experiment to run.")
     parser.add_argument("--findPeak",
                         default=False, action="store_true",
                         help="In mlperfOne mode, find peak performance rather than run a fixed-length experiment.")
-    parser.add_argument("-t", "--modelType",
+    parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
 
     args = parser.parse_args()
@@ -203,8 +203,8 @@ if __name__ == "__main__":
     # to convert the first character to uppercase.
     args.modelType = args.modelType[:1].upper() + args.modelType[1:]
 
-    if args.experiment == 'nShot':
-        print("Starting nShot")
+    if args.experiment == 'nshot':
+        print("Starting nshot")
         nShot(args.model, args.modelType, outDir=resultsDir, nIter=32)
     elif args.experiment == 'mlperfOne':
         print("Starting mlperfOne")
