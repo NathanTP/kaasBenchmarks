@@ -641,8 +641,8 @@ class bertModel(bertModelBase, model.tvmModel):
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 1.5
-            medianLatency = 3.60
-        elif gpuType == "Tesla V100-SXM2-16GB":
+            medianLatency = 0.964
+        elif gpuType == "Tesla V101-SXM2-16GB":
             maxQps = 0.45
             medianLatency = 1.6
         else:

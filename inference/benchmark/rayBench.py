@@ -1116,7 +1116,7 @@ def serveRequests(benchConfig):
     IOLoop.instance().start()
     print("Server Exiting")
 
-    print("Stats:")
-    for cID, stats in looper.warmStats.items():
-        print("Client: ", cID)
-        util.analyzeStats(stats.report())
+    # print("Stats:")
+    # for cID, stats in looper.warmStats.items():
+    #     print("Client: ", cID)
+    #     util.analyzeStats(stats.report())

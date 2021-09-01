@@ -35,13 +35,17 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     if nGpu is not None:
         env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(nGpu)])
 
-    return sp.Popen([expRoot / "benchmark.py",
+    cmd = [expRoot / "benchmark.py",
                      "-t", "server",
                      '-b', 'ray',
                      modeArg,
                      '--runner_policy=' + policy,
-                     '--numClient=' + str(nClient)],
-                    cwd=outDir, stdout=sys.stdout, env=env)
+                     '--numClient=' + str(nClient)]
+
+    #XXX
+    print("LAUNCHING SERVER: ", ' '.join(map(str, cmd)))
+
+    return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
 def launchClient(scale, model, name, test, outDir, nIter=1):
@@ -68,10 +72,11 @@ def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
 
     runners = {}
     for i in range(nCpy):
-        for modelName in modelNames:
-            runners[modelName + str(i)] = launchClient(
+        for j, modelName in enumerate(modelNames):
+            instanceName = f"{prefix}_{modelName}_{j}_{i}"
+            runners[instanceName] = launchClient(
                 scale,
-                modelName + modelType, f"{prefix}_{modelName}{i}",
+                modelName + modelType, instanceName,
                 'mlperf', resultsDir)
 
     server = launchServer(resultsDir, len(runners), modelType, policy)
@@ -106,7 +111,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
     models = [
         "resnet50",
-        "superRes"
+        "bert"
     ]
 
     prefix = f"{prefix}_{modelType}"
@@ -119,7 +124,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     failureScale = scale
 
     # Minimum step size when searching
-    step = 0.01
+    step = 0.025
 
     # Binary Search
     found = False
