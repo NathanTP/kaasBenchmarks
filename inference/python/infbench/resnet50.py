@@ -76,7 +76,7 @@ class resnet50(model.tvmModel, resnet50Base):
         elif gpuType == "Tesla V100-SXM2-16GB":
             # Really wish I understood why this was so bad...
             maxQps = 6
-            medianLatency = 0.14
+            medianLatency = 0.15
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
@@ -96,7 +96,7 @@ class resnet50Kaas(model.kaasModel, resnet50Base):
             medianLatency = 0.070
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 24
-            medianLatency = 0.05
+            medianLatency = 0.054
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 

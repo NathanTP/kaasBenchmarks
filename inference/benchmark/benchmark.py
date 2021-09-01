@@ -74,9 +74,11 @@ def main():
 
     if args.test == 'nshot':
         spec = util.getModelSpec(args.model)
+        benchConfig['model_type'] = spec.modelType
         backend.nShot(spec, args.numRun, benchConfig)
     elif args.test == 'mlperf':
         spec = util.getModelSpec(args.model)
+        benchConfig['model_type'] = spec.modelType
         backend.mlperfBench(spec, benchConfig)
     elif args.test == 'server':
         backend.serveRequests(benchConfig)

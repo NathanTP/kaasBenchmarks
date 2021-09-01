@@ -143,10 +143,10 @@ def getResnet50():
     if not resnetDir.exists():
         resnetDir.mkdir()
 
-        modelPath = resnetDir / 'resnet50.onnx'
-        if not modelPath.exists():
-            wget.download("https://zenodo.org/record/4735647/files/resnet50_v1.onnx", str(modelPath))
-        getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
+    modelPath = resnetDir / 'resnet50.onnx'
+    if not modelPath.exists():
+        wget.download("https://zenodo.org/record/4735647/files/resnet50_v1.onnx", str(modelPath))
+    getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
 
     getKaasModel('resnet50')
 

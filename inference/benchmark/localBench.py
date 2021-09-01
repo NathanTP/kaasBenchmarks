@@ -76,11 +76,11 @@ def runNative(model, constants, inputs, preOut):
 
 
 def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None, constKeys=None):
-    with infbench.timer("pre", stats):
+    with infbench.timer("t_pre", stats):
         preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
         preOut = model.pre(preInp)
 
-    with infbench.timer("run", stats):
+    with infbench.timer("t_run", stats):
         if kaasCtx is not None:
             runOut = runKaas(model, kaasCtx, kaasHandle, constKeys, inputs, preOut)
         else:
@@ -89,7 +89,7 @@ def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None,
     if model.noPost:
         postOut = runOut
     else:
-        with infbench.timer("post", stats):
+        with infbench.timer("t_post", stats):
             postInp = util.packInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut)
             postOut = model.post(postInp)
 
