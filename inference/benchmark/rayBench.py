@@ -8,6 +8,7 @@ import signal
 import pathlib
 import json
 import random
+import collections
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -373,7 +374,7 @@ class PolicyBalance(Policy):
         # List of Ray references representing stats from dead actors
         self.pendingActorStats = []
 
-        self.actors = []
+        self.actors = collections.deque()
         for i in range(nRunner):
             newActor = runActor.remote()
             permanentScope.append(newActor)
@@ -383,7 +384,7 @@ class PolicyBalance(Policy):
         # that if any returns are ready, then the runner is done. If None, then
         # the runner is idle.
         self.sList = statusList()
-        self.sList.statuses = [actorStatus() for i in range(nRunner)]
+        self.sList.statuses = collections.deque([actorStatus() for i in range(nRunner)])
 
     def scaleUp(self):
         """Add a worker to this policy"""
@@ -396,8 +397,8 @@ class PolicyBalance(Policy):
     def scaleDown(self):
         """Remove a worker from this policy"""
         with self.sList.reservedCv:
-            self.sList.statuses.pop()
-            toKill = self.actors.pop()
+            self.sList.statuses.popleft()
+            toKill = self.actors.popleft()
 
             self.pendingActorStats.append(toKill.getStats.remote())
             toKill.terminate.remote()
@@ -443,6 +444,10 @@ class PolicyBalance(Policy):
 
 class PolicyExclusive(Policy):
     def __init__(self, nRunner):
+        """This policy provides exclusive access to a pool of actors for each
+        client. Requests from two clients will never go to the same actor.
+        Pools are sized to maximize fairness. If more clients register than
+        available GPUs, the system will kill existing actors to make room."""
         self.maxRunners = nRunner
         self.nRunners = 0
 
@@ -487,11 +492,9 @@ class PolicyExclusive(Policy):
                     victimPool.scaleDown()
 
                     clientPool.scaleUp()
-                    # Won't block because we just scalued up clientPool
-                    return clientPool.getRunner(clientID)
 
-            # Wouldn't be fair to kill anyone, just block until something frees
-            # up. Warning, this may block.
+            # Wouldn't be fair to kill anyone (or we just did), just block
+            # until something frees up. Warning, this may block.
             runner = clientPool.getRunner(clientID)
             if runner[0] is None:
                 # Something went wrong. Probably someone scaled our pool down to
