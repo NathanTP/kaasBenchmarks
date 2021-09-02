@@ -107,11 +107,11 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    nCpy = 1
+    nCpy = 2
 
     models = [
         "resnet50",
-        "bert"
+        "resnet50"
     ]
 
     prefix = f"{prefix}_{modelType}"

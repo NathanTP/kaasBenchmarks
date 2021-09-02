@@ -125,6 +125,12 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         inputs = loader.get(0)
         _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
 
+    # make sure kaasHandle stats are fully up to date
+    if modelSpec.modelType == "kaas":
+        kaasHandle.getStats()
+    coldReport = stats.report()
+    stats.reset()
+
     accuracies = []
     results = []
     for i in range(n):

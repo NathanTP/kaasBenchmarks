@@ -15,7 +15,8 @@ def kaasBreakdown(stats):
     report['CUDA MM'] = stats['worker:t_cudaMM']
     report['Zero Buffers'] = stats['worker:t_zero']
     report['Load Inputs'] = stats['worker:t_htod']
-    report['Kernel'] = stats['worker:t_invoke']
+    # report['Kernel'] = stats['worker:t_invoke']
+    report['Kernel'] = stats['worker:t_invokeExternal']
     report['Copy Results'] = stats['worker:t_dtoh']
     report['Write Results'] = stats['worker:t_hostDWriteBack']
     report['Other'] = stats['worker:t_e2e'] - sum(report.values())
