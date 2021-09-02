@@ -34,8 +34,6 @@ def setupZmq(clientID, context=None):
 def barrier(barrierSock):
     barrierSock.send(b'READY')
     barrierSock.recv()
-    #XXX
-    print("LEAVING BARRIER")
 
 
 def preWarm(serverSock, barrierSock, inputs):

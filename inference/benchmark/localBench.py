@@ -128,7 +128,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # make sure kaasHandle stats are fully up to date
     if modelSpec.modelType == "kaas":
         kaasHandle.getStats()
-    coldReport = stats.report()
+    # coldReport = stats.report()
     stats.reset()
 
     accuracies = []

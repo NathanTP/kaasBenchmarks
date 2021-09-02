@@ -42,9 +42,6 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
                      '--runner_policy=' + policy,
                      '--numClient=' + str(nClient)]
 
-    #XXX
-    print("LAUNCHING SERVER: ", ' '.join(map(str, cmd)))
-
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
