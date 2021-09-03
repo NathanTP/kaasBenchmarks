@@ -250,6 +250,8 @@ class runnerPool():
                 self.policy = policy.PolicyRR(nRunner, runActor)
             elif benchConfig['runner_policy'] == 'exclusive':
                 self.policy = policy.PolicyAffinity(nRunner, runActor, exclusive=True)
+            elif benchConfig['runner_policy'] == 'affinity':
+                self.policy = policy.PolicyAffinity(nRunner, runActor, exclusive=False)
             elif benchConfig['runner_policy'] == 'balance':
                 self.policy = policy.PolicyBalance(nRunner, runActor)
             else:

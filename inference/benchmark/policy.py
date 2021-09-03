@@ -80,65 +80,6 @@ class statusList():
             status.state = newState
 
 
-def pickActorBalanced(slist, timeout=None):
-    """Given a list of actor statuses, return the first idle actor. Statuses
-    are either ray references for busy actors, or None for idle. If timeout is
-    provided, None may be returned if there are no free actors within
-    timeout."""
-
-    while True:
-        with slist.reservedCv:
-            if len(slist.statuses) == 0:
-                return None
-
-            while slist.nReserved == len(slist.statuses):
-                slist.reservedCv.wait()
-
-            outstanding = []
-            for i, status in enumerate(slist.statuses):
-                if status.state == actorStatus.IDLE:
-                    # Found an idle worker
-                    slist.updateState(status, actorStatus.RESERVED)
-                    return i
-                else:
-                    if status.state == actorStatus.BUSY:
-                        outstanding.append(status.ref)
-
-            assert len(outstanding) != 0
-
-        # Block until at least one actor is idle
-        done, notReady = ray.wait(outstanding, fetch_local=False, timeout=timeout)
-
-        with slist.reservedCv:
-            if len(done) == 0:
-                # There aren't any free workers within the timeout.  This could
-                # theoretically be stale, but it probably isn't and we'll let
-                # the policy decide if it's worth trying again
-                return None
-            else:
-                idleRunner = None
-                for ref in done:
-                    for i, status in enumerate(slist.statuses):
-                        if status.state == actorStatus.IDLE:
-                            # Someone may have processed the actor while we
-                            # waited on the lock
-                            idleRunner = i
-                        elif status.ref == ref:
-                            assert status.state == actorStatus.BUSY
-                            slist.updateState(status, actorStatus.IDLE)
-                            status.ref = None
-                            idleRunner = i
-
-                if idleRunner is None:
-                    # Our done list is stale, try again
-                    continue
-
-                slist.updateState(slist.statuses[idleRunner], actorStatus.RESERVED)
-                return idleRunner
-
-    return idleRunner
-
-
 class PolicyBalance(Policy):
     """Routes requests to actors with potentially multiple clients per
     actor. It will attempt to balance load across the actors based on
@@ -187,14 +128,56 @@ class PolicyBalance(Policy):
         that must be passed to update() along with the clientID and
         respFutures"""
         timeout = kwargs.get('timeout', None)
-        idx = pickActorBalanced(self.sList, timeout=timeout)
-        if idx is None:
-            return None, None
-        else:
+
+        while True:
             with self.sList.reservedCv:
-                actor = self.actors[idx]
-                status = self.sList.statuses[idx]
-            return actor, status
+                if len(self.sList.statuses) == 0:
+                    return None, None
+
+                while self.sList.nReserved == len(self.sList.statuses):
+                    self.sList.reservedCv.wait()
+
+                outstanding = []
+                for i, status in enumerate(self.sList.statuses):
+                    if status.state == actorStatus.IDLE:
+                        # Found an idle worker
+                        self.sList.updateState(status, actorStatus.RESERVED)
+                        return self.actors[i], self.sList.statuses[i]
+                    else:
+                        if status.state == actorStatus.BUSY:
+                            outstanding.append(status.ref)
+
+                assert len(outstanding) != 0
+
+            # Block until at least one actor is idle
+            done, notReady = ray.wait(outstanding, fetch_local=False, timeout=timeout)
+
+            with self.sList.reservedCv:
+                if len(done) == 0:
+                    # There aren't any free workers within the timeout.  This could
+                    # theoretically be stale, but it probably isn't and we'll let
+                    # the policy decide if it's worth trying again
+                    return None, None
+                else:
+                    idleRunner = None
+                    for ref in done:
+                        for i, status in enumerate(self.sList.statuses):
+                            if status.state == actorStatus.IDLE:
+                                # Someone may have processed the actor while we
+                                # waited on the lock
+                                idleRunner = i
+                            elif status.ref == ref:
+                                assert status.state == actorStatus.BUSY
+                                self.sList.updateState(status, actorStatus.IDLE)
+                                status.ref = None
+                                idleRunner = i
+
+                    if idleRunner is None:
+                        # Our done list is stale, try again
+                        continue
+
+                    self.sList.updateState(self.sList.statuses[idleRunner], actorStatus.RESERVED)
+                    return self.actors[idleRunner], self.sList.statuses[idleRunner]
 
     def update(self, clientID, handle, respFutures):
         status = handle

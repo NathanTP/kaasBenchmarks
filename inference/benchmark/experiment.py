@@ -61,7 +61,7 @@ def launchClient(scale, model, name, test, outDir, nIter=1):
 
 def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
     if modelType == 'Kaas':
-        policy = 'balance'
+        policy = 'affinity'
     elif modelType == 'Tvm':
         policy = 'exclusive'
     else:

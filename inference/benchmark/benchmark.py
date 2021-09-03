@@ -27,7 +27,7 @@ def main():
     parser.add_argument("-t", "--test", default="nshot", choices=['nshot', 'mlperf', 'server'], help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("--runner_mode", choices=['task', 'actor', 'kaas'], default='task', help="How to run models")
-    parser.add_argument("--runner_policy", choices=['rr', 'exclusive', 'balance'], default=None, help="Scheduling policy to use for actor and KaaS mode.")
+    parser.add_argument("--runner_policy", choices=['rr', 'exclusive', 'affinity', 'balance'], default=None, help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--no_cache", action="store_true", help="Don't cache models on workers")
     parser.add_argument("--inline", action="store_true", help="Inline pre and post processing with them model run (only meaningful for ray mode)")
     parser.add_argument("--scale", type=float, help="Rate at which to submit requests in mlperf mode (as a fraction of peak throughput). If not provided, mlperf is run in FindPeakPerformance mode.")
