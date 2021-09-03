@@ -104,9 +104,10 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    nCpy = 2
+    nCpy = 1
 
     models = [
+        "resnet50",
         "resnet50",
         "resnet50"
     ]
@@ -123,6 +124,9 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     # Minimum step size when searching
     step = 0.025
 
+    #XXX
+    scale = 0.1
+
     # Binary Search
     found = False
     while not found:
@@ -138,6 +142,9 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
             found = True
         else:
             scale = succeedScale + ((failureScale - succeedScale) / 2)
+
+        #XXX  for correctness testing of policies
+        found = True
 
     print("Max achievable scale: ", scale)
     return succeedScale
