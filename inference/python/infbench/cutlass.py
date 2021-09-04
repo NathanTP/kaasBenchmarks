@@ -82,7 +82,7 @@ class sgemmKaas(sgemmBase, model.kaasModel):
             maxQps = 0
             medianLatency = 0.05
         else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
+            raise ValueError("Unrecognized GPU Type" + gpuType)
 
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
@@ -96,30 +96,34 @@ class cutlassSgemmLoader(dataset.loader):
         self.M = 10000
         self.N = 8000
         self.K = 10000
+        self.A = [0 for i in range(self.ndata)]
+        self.B = [0 for i in range(self.ndata)]
 
     @property
     def ndata(self):
-        return 1000
+        return 20
 
     def preLoad(self, idxs):
-        pass
+        for idx in idxs:
+            rng = np.random.default_rng(idx)
+            a = rng.random((self.M, self.K), dtype=np.float32)
+            b = rng.random((self.K, self.N), dtype=np.float32)
+
+            a = np.asfortranarray(a)
+            b = np.asfortranarray(b)
+
+            self.A[idx] = a
+            self.B[idx] = b
 
     def unLoad(self, idxs):
-        pass
+        self.A = [0 for i in range(self.ndata)]
+        self.B = [0 for i in range(self.ndata)]
 
     def get(self, idx):
-        rng = np.random.default_rng(0)
-        a = rng.random((self.M, self.K), dtype=np.float32)
-        b = rng.random((self.K, self.N), dtype=np.float32)
-        self.a = a
-        self.b = b
-        return (a, b)
+        return (self.A[idx], self.B[idx])
 
     def check(self, result, idx):
-        temp = np.array(result)
-        print(temp.dtype)
-        temp = temp.tobytes()
-        print(np.frombuffer(temp, dtype=np.float32))
-        print(np.matmul(self.a, self.b))
-        print(np.matmul(self.a, self.b).shape)
-        return True
+        checker = np.asfortranarray(np.array(result).view('<f4'))
+        checker = checker.reshape(self.M, self.N, order='F')
+        true_value = np.matmul(self.A[idx], self.B[idx])
+        return np.allclose(checker, true_value)
