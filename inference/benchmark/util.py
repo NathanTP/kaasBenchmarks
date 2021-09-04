@@ -55,6 +55,14 @@ def getModelSpec(modelName):
                          modelClass=infbench.cutlass.sgemmKaas,
                          modelType="kaas")
 
+    elif modelName == "cutlassSgemm":
+        import infbench.cutlass
+        return ModelSpec(name="cutlassSgemm",
+                         loader=infbench.cutlass.cutlassSgemmLoader,
+                         modelPath=modelDir / "cutlassSgemm",
+                         modelClass=infbench.cutlass.cutlassSgemm,
+                         modelType="direct")
+
     elif modelName == "superResKaas":
         import infbench.superres
         return ModelSpec(name="superResKaas",
