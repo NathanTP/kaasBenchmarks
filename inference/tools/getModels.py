@@ -235,6 +235,7 @@ def getTestModel():
 
 def getCutlassSgemm():
     getKaasModel("cutlass")
+    sp.run(['make'], cwd="../models/cutlassSgemm", check=True)
 
 
 def main():
