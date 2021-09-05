@@ -94,7 +94,7 @@ class cutlassSgemm(sgemmBase):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
-        import pycuda.autoinit #NOQA
+        import pycuda.autoinit  # NOQA
 
         lda = self.M
         ldb = self.K
