@@ -219,7 +219,7 @@ class PolicyAffinity(Policy):
 
         if not self.exclusive:
             self.actors = []
-            for i in range(nRunner):
+            for i in range(self.maxRunners):
                 newActor = self.runnerClass.remote()
                 permanentScope.append(newActor)
                 self.actors.append(newActor)
