@@ -8,6 +8,11 @@ import signal
 import pathlib
 import json
 
+#XXX
+import time
+import asyncio
+import pprint
+
 from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
@@ -229,68 +234,6 @@ class runActor():
         return stats
 
 
-@ray.remote
-class runnerPool():
-    def __init__(self, nRunner, benchConfig):
-        """RunnerPool is responsible for launching run requests.
-                - nRunner: If using actors, number of actors to allocate
-                - policy: Scheduling policy (when using actors)
-                - mode: ['actors', 'kaas', 'task']. Actors and KaaS will run in
-                actors while 'task' will use ray tasks instead.
-        """
-        self.maxRunners = nRunner
-        self.mode = benchConfig['runner_mode']
-        benchConfig['runner_policy']
-
-        if self.mode not in ['task', 'actor', 'kaas']:
-            raise ValueError("Unrecognized mode: " + self.mode)
-
-        if self.mode != 'task':
-            if benchConfig['runner_policy'] == 'rr':
-                self.policy = policy.PolicyRR(nRunner, runActor)
-            elif benchConfig['runner_policy'] == 'exclusive':
-                self.policy = policy.PolicyAffinity(nRunner, runActor, exclusive=True)
-            elif benchConfig['runner_policy'] == 'affinity':
-                self.policy = policy.PolicyAffinity(nRunner, runActor, exclusive=False)
-            elif benchConfig['runner_policy'] == 'balance':
-                self.policy = policy.PolicyBalance(nRunner, runActor)
-            else:
-                raise ValueError("Unrecognized policy: " + benchConfig['runner_policy'])
-
-    def getStats(self):
-        return self.policy.getStats()
-
-    def run(self, nReturn, clientID, inputRefs, args, kwargs={}):
-        """Run a model. Args and kwargs will be passed to the appropriate runner"""
-        if self.mode == 'task':
-            respFutures = runTask.options(num_returns=nReturn).remote(*args, **kwargs)
-        else:
-            # Block until the inputs are ready
-            ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
-
-            # Get a free runner (may block)
-            runActor, handle = self.policy.getRunner(clientID)
-            assert runActor is not None
-
-            if self.mode == 'actor':
-                respFutures = runActor.runNative.options(num_returns=nReturn).remote(*args, **kwargs)
-            elif self.mode == 'kaas':
-                respFutures = runActor.runKaas.options(num_returns=nReturn).remote(*args, **kwargs)
-            else:
-                raise RuntimeError("Unrecognized mode: ", self.mode)
-
-            self.policy.update(clientID, handle, respFutures)
-
-        # Wait until the runner is done before returning, this ensures that
-        # anyone waiting on our response (e.g. post()) can immediately
-        # ray.get the answer without blocking.
-        if nReturn == 1:
-            ray.wait([respFutures], num_returns=1, fetch_local=False)
-        else:
-            ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
-        return respFutures
-
-
 def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             completionQ=None, queryId=None, cacheModel=False, clientID=None,
             runPool=None, stats=None):
@@ -339,17 +282,16 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                     remote(mClass.nOutRun, clientID, runInp, [req], {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun).remote(mClass.nOutRun, clientID, runInp, [req], {"clientID": clientID})
-        else:
+        else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote(mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, runInp,
                            [specRef, modelArg] + runInp,
                            {"completionQ": completionQ, "queryId": queryId,
                             "cacheModel": cacheModel, "clientID": clientID})
-
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote(mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, runInp,
                            [specRef, modelArg] + runInp, {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
@@ -706,6 +648,22 @@ class clientState():
 clients = {}
 
 
+@ray.remote(num_gpus=1)
+def fakeRayModel(clientID, reqID, rayQ):
+    time.sleep(.07)
+    rayQ.put(([b''], (clientID, reqID)))
+
+
+@ray.remote
+class fakeActorModel():
+    def run(self, clientID, reqID, rayQ):
+        time.sleep(.07)
+        rayQ.put(([b''], (clientID, reqID)))
+
+        # Return value is used as a completion notification
+        return True
+
+
 class serverLoop():
     """ServerTask"""
     def __init__(self, clientSock, barrierSock, benchConfig):
@@ -719,14 +677,27 @@ class serverLoop():
         self.barrierStream.on_recv(self.handleBarrier)
         self.readyClients = []
 
+        self.profs = infbench.profCollection()
+        self.lastArrival = None
+
         IOLoop.current().add_callback(self.handleWorker)
 
         self.nGpu = util.getNGpu()
 
         self.clientStats = {}
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
+        # self.pool = policy.Pool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig['runner_policy'], runActor)
+        self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+            remote(1, 'balance', runActor)
+
+        #XXX fake actor
+        # self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+        #     remote(3, 'rr', fakeActorModel)
 
         self.rayQ = ray.util.queue.Queue()
+
+        #XXX asyncio one
+        # self.sem = asyncio.Semaphore(2)
+
 
     def handleBarrier(self, msg):
         clientID = msg[0]
@@ -735,10 +706,11 @@ class serverLoop():
         self.readyClients.append(clientID)
         if len(self.readyClients) == self.benchConfig['numClient']:
             # Get cold-start stats (if any) and reset for main warm passes
-            poolStats = ray.get(self.pool.getStats.remote())
-            self.coldStats = self.clientStats
-            util.mergePerClientStats(self.coldStats, poolStats)
-            self.clientStats = {}
+            # poolStats = ray.get(self.pool.getStats.remote())
+            # self.coldStats = self.clientStats
+            # util.mergePerClientStats(self.coldStats, poolStats)
+            # self.clientStats = {}
+            self.profs = infbench.profCollection()
 
             print("Releasing Barrier")
             for cID in self.readyClients:
@@ -756,16 +728,27 @@ class serverLoop():
         # for the data transfer.
         result = maybeDereference(result)
 
-        self.clientStream.send_multipart([clientID, reqID, pickle.dumps(result)])
+        self.clientStream.send_multipart([clientID, reqID] + result)
         IOLoop.current().add_callback(self.handleWorker)
+
+    async def fakeModel(self, clientID, reqID, startTime=None):
+        startTime = time.time()
+        await self.sem.acquire()
+        self.profs['t_queue'].increment(time.time() - startTime)
+
+        await asyncio.sleep(0.070)
+        self.sem.release()
+
+        self.profs['t_e2e'].increment(time.time() - startTime)
+        self.clientStream.send_multipart([clientID, reqID, b''])
 
     def handleClients(self, msg):
         clientID, reqID, data = msg
 
         cState = clients.get(clientID, None)
 
-        if clientID not in self.clientStats:
-            self.clientStats[clientID] = infbench.profCollection()
+        # if clientID not in self.clientStats:
+        #     self.clientStats[clientID] = infbench.profCollection()
 
         if cState is None:
             # Registration
@@ -774,6 +757,10 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
+            # IOLoop.current().add_callback(self.fakeModel, clientID, reqID, startTime=time.time())
+            # self.pool.run.remote('run', 1, clientID, [], [clientID, reqID, self.rayQ])
+            # return
+
             # Normal Request
             # XXX ray.put is just going to re-pickle the data. We should really
             # require models to only pass bytes as inputs and outputs.

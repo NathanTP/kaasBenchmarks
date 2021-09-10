@@ -3,6 +3,7 @@ import collections
 import ray
 import random
 import abc
+import infbench
 
 import util
 
@@ -19,13 +20,174 @@ class Policy(abc.ABC):
 
     @abc.abstractmethod
     def getRunner(self, clientID, *args):
-        """Return the next actor to send a request to"""
+        """Returns: (runner, handle)
+
+        runner: The next actor to send a request to
+        handle: An opaque handle that must be passed to update() after sending
+                a request to the runner."""
         pass
 
     @abc.abstractmethod
     def update(self, *args):
         """Update the policy with any additional metadata from the last runner used"""
         pass
+
+
+@ray.remote
+class PoolAsync():
+    def __init__(self, nRunner, policy, runActor):
+        """RunnerPool is responsible for launching run requests.
+                - nRunner: Maximum number of actors to allocate
+                - policy: Scheduling policy (when using actors)
+                - runActor: Actor class to use for runners in this pool
+
+        How it works:
+            Policies maintain a pool of actors and decide which one should be
+            run next based on clientID and the current state of the system. The
+            pool is a remote actor that makes a policy asynchronous, allowing
+            multiple clients to send requests simultaneously and for policies
+            to arbitrate concurrent requests. It does this by spawining a
+            function for each request that sits in its own thread (Ray does
+            this for multiple requests to actors). Policies are thread-safe and
+            designed to only return when its time to run their request. In
+            practice, the Pool actor has many idle threads blocked on a call to
+            a policy in either a lock or some other blocking call like
+            ray.wait.  Whenever one of these policies unblocks, the thread
+            forwards the request to the actor and returns a future representing
+            that call.
+        """
+        self.maxRunners = nRunner
+
+        #XXX
+        self.policy = PolicyStatic(nRunner, runActor)
+        # self.policy = policy.PolicyBalance(nRunner, runActor)
+        # if policy == 'rr':
+        #     self.policy = PolicyRR(nRunner, runActor)
+        # elif policy == 'exclusive':
+        #     self.policy = PolicyAffinity(nRunner, runActor, exclusive=True)
+        # elif policy == 'affinity':
+        #     self.policy = PolicyAffinity(nRunner, runActor, exclusive=False)
+        # elif policy == 'balance':
+        #     self.policy = PolicyBalance(nRunner, runActor)
+        # else:
+        #     raise ValueError("Unrecognized policy: " + policy)
+
+    def getStats(self):
+        return self.policy.getStats()
+
+    async def run(self, funcName, nReturn, clientID, inputRefs, args, kwargs={}):
+        """Run a model. Args and kwargs will be passed to the appropriate runner"""
+        # Block until the inputs are ready
+        ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
+
+        # Get a free runner (may block)
+        runActor, handle = self.policy.getRunner(clientID)
+        assert runActor is not None
+
+        respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
+
+        self.policy.update(clientID, handle, respFutures)
+
+        # Wait until the runner is done before returning, this ensures that
+        # anyone waiting on our response (e.g. post()) can immediately
+        # ray.get the answer without blocking. This still isn't ideal for
+        # multi-node deployments since the caller may still block while the
+        # data is fetched to the local data store
+        if nReturn == 1:
+            ray.wait([respFutures], num_returns=1, fetch_local=False)
+        else:
+            ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
+
+        return respFutures
+
+
+
+@ray.remote
+class Pool():
+    def __init__(self, nRunner, policy, runActor):
+        """RunnerPool is responsible for launching run requests.
+                - nRunner: Maximum number of actors to allocate
+                - policy: Scheduling policy (when using actors)
+                - runActor: Actor class to use for runners in this pool
+
+        How it works:
+            Policies maintain a pool of actors and decide which one should be
+            run next based on clientID and the current state of the system. The
+            pool is a remote actor that makes a policy asynchronous, allowing
+            multiple clients to send requests simultaneously and for policies
+            to arbitrate concurrent requests. It does this by spawining a
+            function for each request that sits in its own thread (Ray does
+            this for multiple requests to actors). Policies are thread-safe and
+            designed to only return when its time to run their request. In
+            practice, the Pool actor has many idle threads blocked on a call to
+            a policy in either a lock or some other blocking call like
+            ray.wait.  Whenever one of these policies unblocks, the thread
+            forwards the request to the actor and returns a future representing
+            that call.
+        """
+        self.maxRunners = nRunner
+
+        if policy == 'static':
+            print("WARNING: the static policy is hard-coded and only useful for manual experiments and debugging")
+            self.policy = PolicyStatic(nRunner, runActor)
+        elif policy == 'rr':
+            self.policy = PolicyRR(nRunner, runActor)
+        elif policy == 'exclusive':
+            self.policy = PolicyAffinity(nRunner, runActor, exclusive=True)
+        elif policy == 'affinity':
+            self.policy = PolicyAffinity(nRunner, runActor, exclusive=False)
+        elif policy == 'balance':
+            self.policy = PolicyBalance(nRunner, runActor)
+        else:
+            raise ValueError("Unrecognized policy: " + policy)
+
+    def getStats(self):
+        return self.policy.getStats()
+
+    def run(self, funcName, nReturn, clientID, inputRefs, args, kwargs={}):
+        """Run a model. Args and kwargs will be passed to the appropriate runner"""
+        # Block until the inputs are ready
+        ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
+
+        # Get a free runner (may block)
+        runActor, handle = self.policy.getRunner(clientID)
+        assert runActor is not None
+
+        respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
+
+        self.policy.update(clientID, handle, respFutures)
+
+        # Wait until the runner is done before returning, this ensures that
+        # anyone waiting on our response (e.g. post()) can immediately
+        # ray.get the answer without blocking. This still isn't ideal for
+        # multi-node deployments since the caller may still block while the
+        # data is fetched to the local data store
+        if nReturn == 1:
+            ray.wait([respFutures], num_returns=1, fetch_local=False)
+        else:
+            ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
+
+        return respFutures
+
+
+class PolicyStatic(Policy):
+    def __init__(self, nRunner, runnerClass):
+        self.actors = [runnerClass.options(max_concurrency=1).remote() for i in range(nRunner)]
+        permanentScope.extend(self.actors)
+
+    def getRunner(self, clientID, *args):
+        if clientID[-3] == 48:
+            return self.actors[0], None
+        elif clientID[-3] == 49:
+            return self.actors[1], None
+        else:
+            raise RuntimeError("Ya done goofed")
+
+    def update(self, *args):
+        pass
+
+    def getStats(self):
+        return infbench.profCollection()
 
 
 class PolicyRR(Policy):
@@ -36,7 +198,9 @@ class PolicyRR(Policy):
         self.last = 0
         self.actors = []
         for i in range(nRunner):
-            newActor = self.runnerClass.remote()
+            # We set the max concurrency to 1 because functions aren't
+            # necessarily thread safe (and to match other policies)
+            newActor = self.runnerClass.options(max_concurrency=1).remote()
             permanentScope.append(newActor)
             self.actors.append(newActor)
 
@@ -45,7 +209,7 @@ class PolicyRR(Policy):
             self.last = (self.last + 1) % len(self.actors)
             actor = self.actors[self.last]
 
-        return actor
+        return actor, None
 
     def update(self, *args):
         pass

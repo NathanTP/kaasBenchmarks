@@ -107,8 +107,8 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     nCpy = 1
 
     models = [
-        "resnet50",
-        "resnet50",
+        # "resnet50",
+        # "resnet50",
         "resnet50"
     ]
 
@@ -118,14 +118,19 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
     nModel = nCpy * len(models)
     scale = (1 / nModel) * util.getNGpu()
 
+    #XXX
+    # scale = 0.25
+    # scale = 0.3
+    scale = 0.5
+    # scale = 0.75
+    # scale = 1.0
+    # scale = 1.5
+
     succeedScale = 0
     failureScale = scale
 
     # Minimum step size when searching
     step = 0.025
-
-    #XXX
-    scale = 0.1
 
     # Binary Search
     found = False
@@ -142,9 +147,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
             found = True
         else:
             scale = succeedScale + ((failureScale - succeedScale) / 2)
-
-        #XXX  for correctness testing of policies
-        found = True
+        found = True #XXX
 
     print("Max achievable scale: ", scale)
     return succeedScale
@@ -152,7 +155,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
 def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", findPeak=True):
     if modelType == 'Kaas':
-        policy = 'balance'
+        policy = 'affinity'
     elif modelType == 'Tvm':
         policy = 'exclusive'
     else:

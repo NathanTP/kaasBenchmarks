@@ -77,11 +77,14 @@ def nShot(modelSpec, n, benchConfig):
         with infbench.timer('t_e2e', stats):
             serverSocket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
 
-            respIdx, respData = serverSocket.recv_multipart()
-            respIdx = int.from_bytes(respIdx, sys.byteorder)
+            # respIdx, respData = serverSocket.recv_multipart()
+            # respIdx = int.from_bytes(respIdx, sys.byteorder)
+            resp = serverSocket.recv_multipart()
+            respIdx = int.from_bytes(resp[0], sys.byteorder)
 
             assert (respIdx == idx)
-            results.append(pickle.loads(respData))
+            # results.append(pickle.loads(respData))
+            results.append(resp[1:])
 
         if loader.checkAvailable:
             accuracies.append(loader.check(results[-1], idx))
@@ -186,7 +189,8 @@ class mlperfLoop():
 
     def handleServer(self, msg):
         """Handle responses from the server"""
-        reqID, data = msg
+        # reqID, data = msg
+        reqID = msg[0]
 
         # We use a 1-byte 0 reqID for non mlperf queries
         if len(reqID) == 8:

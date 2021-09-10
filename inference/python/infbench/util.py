@@ -41,7 +41,7 @@ class prof():
             self.events.append(self.currentEvent)
             self.currentEvent = 0.0
 
-    def report(self):
+    def report(self, includeEvents=True):
         """Report the average value per event"""
         rep = {}
         rep['total'] = self.total
@@ -50,10 +50,12 @@ class prof():
             events = np.array(self.events)
             rep['min'] = events.min()
             rep['max'] = events.max()
+            rep['std'] = np.std(events)
             rep['p50'] = np.quantile(events, 0.50)
             rep['p90'] = np.quantile(events, 0.90)
             rep['p99'] = np.quantile(events, 0.99)
-            rep['events'] = self.events
+            if includeEvents:
+                rep['events'] = self.events
 
         return rep
 
@@ -118,11 +120,11 @@ class profCollection(collections.abc.MutableMapping):
                 self.mods[name] = profCollection(detail=self.detail)
             self.mods[name].merge(mod)
 
-    def report(self):
-        flattened = {name: v.report() for name, v in self.profs.items()}
+    def report(self, includeEvents=True):
+        flattened = {name: v.report(includeEvents=includeEvents) for name, v in self.profs.items()}
 
         for name, mod in self.mods.items():
-            flattened = {**flattened, **{name+":"+itemName: v for itemName, v in mod.report().items()}}
+            flattened = {**flattened, **{name+":"+itemName: v for itemName, v in mod.report(includeEvents=includeEvents).items()}}
 
         return flattened
 

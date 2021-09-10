@@ -2,6 +2,7 @@ import numpy as np
 import pathlib
 import tempfile
 import os
+import sys
 import abc
 import json
 import yaml
@@ -460,6 +461,8 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
     settings.server_target_latency_percentile = 0.9
 
     settings.server_target_latency_ns = int((medianLat*4)*1E9)
+
+    settings.schedule_rng_seed = int.from_bytes(os.urandom(8), byteorder=sys.byteorder)
 
     if benchConfig['scale'] is None:
         # Even in client/server mode, if FindPeakPerformance starts with a QPS
