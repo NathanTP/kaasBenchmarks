@@ -8,10 +8,8 @@ import signal
 import pathlib
 import json
 
-#XXX
 import time
 import asyncio
-import pprint
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -402,12 +400,15 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(max(n, util.getNGpu()*2), loader.ndata)))
 
-    pool = runnerPool.options(max_concurrency=10).remote(util.getNGpu(), benchConfig)
+    nGpu = util.getNGpu()
+    pool = policy.Pool.options(max_concurrency=2*nGpu). \
+        remote(nGpu, benchConfig['runner_policy'], runActor)
 
     # Cold Start, done async to maximize the chances of everything getting warm
     # when there are multiple GPUs
     print(f"Running {2*util.getNGpu()} warmup passes")
-    results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
+    results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef,
+                          modelArg, constRefs, pool, benchConfig, coldStats)
     # getting stats resets them for the warm runs
     ray.get(pool.getStats.remote())
 
@@ -524,7 +525,8 @@ class mlperfRunner():
 
         self.nGpu = util.getNGpu()
 
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
+        self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+            remote(self.nGpu, benchConfig['runner_policy'], runActor)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -677,27 +679,15 @@ class serverLoop():
         self.barrierStream.on_recv(self.handleBarrier)
         self.readyClients = []
 
-        self.profs = infbench.profCollection()
-        self.lastArrival = None
-
         IOLoop.current().add_callback(self.handleWorker)
 
         self.nGpu = util.getNGpu()
 
         self.clientStats = {}
-        # self.pool = policy.Pool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig['runner_policy'], runActor)
         self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
-            remote(1, 'balance', runActor)
-
-        #XXX fake actor
-        # self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
-        #     remote(3, 'rr', fakeActorModel)
+            remote(self.nGpu, benchConfig['runner_policy'], runActor)
 
         self.rayQ = ray.util.queue.Queue()
-
-        #XXX asyncio one
-        # self.sem = asyncio.Semaphore(2)
-
 
     def handleBarrier(self, msg):
         clientID = msg[0]
@@ -706,11 +696,10 @@ class serverLoop():
         self.readyClients.append(clientID)
         if len(self.readyClients) == self.benchConfig['numClient']:
             # Get cold-start stats (if any) and reset for main warm passes
-            # poolStats = ray.get(self.pool.getStats.remote())
-            # self.coldStats = self.clientStats
-            # util.mergePerClientStats(self.coldStats, poolStats)
-            # self.clientStats = {}
-            self.profs = infbench.profCollection()
+            poolStats = ray.get(self.pool.getStats.remote())
+            self.coldStats = self.clientStats
+            util.mergePerClientStats(self.coldStats, poolStats)
+            self.clientStats = {}
 
             print("Releasing Barrier")
             for cID in self.readyClients:
@@ -747,8 +736,8 @@ class serverLoop():
 
         cState = clients.get(clientID, None)
 
-        # if clientID not in self.clientStats:
-        #     self.clientStats[clientID] = infbench.profCollection()
+        if clientID not in self.clientStats:
+            self.clientStats[clientID] = infbench.profCollection()
 
         if cState is None:
             # Registration
@@ -757,11 +746,6 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
-            # IOLoop.current().add_callback(self.fakeModel, clientID, reqID, startTime=time.time())
-            # self.pool.run.remote('run', 1, clientID, [], [clientID, reqID, self.rayQ])
-            # return
-
-            # Normal Request
             # XXX ray.put is just going to re-pickle the data. We should really
             # require models to only pass bytes as inputs and outputs.
             data = pickle.loads(data)

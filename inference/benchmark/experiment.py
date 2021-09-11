@@ -98,7 +98,7 @@ def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
     return True
 
 
-def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
+def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"multi_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -108,7 +108,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
     models = [
         # "resnet50",
-        # "resnet50",
+        "resnet50",
         "resnet50"
     ]
 
@@ -116,18 +116,14 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
     # Attempt to find a valid scale, starting with "perfect" scaling
     nModel = nCpy * len(models)
-    scale = (1 / nModel) * util.getNGpu()
-
-    #XXX
-    # scale = 0.25
-    # scale = 0.3
-    scale = 0.5
-    # scale = 0.75
-    # scale = 1.0
-    # scale = 1.5
-
-    succeedScale = 0
-    failureScale = scale
+    if scale is None:
+        scale = (1 / nModel) * util.getNGpu()
+        succeedScale = 0
+        failureScale = scale
+    else:
+        # This tricks the system into only running one iteration
+        succeedScale = scale
+        failureScale = scale
 
     # Minimum step size when searching
     step = 0.025
@@ -147,7 +143,6 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
             found = True
         else:
             scale = succeedScale + ((failureScale - succeedScale) / 2)
-        found = True #XXX
 
     print("Max achievable scale: ", scale)
     return succeedScale

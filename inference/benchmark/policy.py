@@ -58,19 +58,16 @@ class PoolAsync():
         """
         self.maxRunners = nRunner
 
-        #XXX
-        self.policy = PolicyStatic(nRunner, runActor)
-        # self.policy = policy.PolicyBalance(nRunner, runActor)
-        # if policy == 'rr':
-        #     self.policy = PolicyRR(nRunner, runActor)
-        # elif policy == 'exclusive':
-        #     self.policy = PolicyAffinity(nRunner, runActor, exclusive=True)
-        # elif policy == 'affinity':
-        #     self.policy = PolicyAffinity(nRunner, runActor, exclusive=False)
-        # elif policy == 'balance':
-        #     self.policy = PolicyBalance(nRunner, runActor)
-        # else:
-        #     raise ValueError("Unrecognized policy: " + policy)
+        if policy == 'rr':
+            self.policy = PolicyRR(nRunner, runActor)
+        elif policy == 'exclusive':
+            self.policy = PolicyAffinity(nRunner, runActor, exclusive=True)
+        elif policy == 'affinity':
+            self.policy = PolicyAffinity(nRunner, runActor, exclusive=False)
+        elif policy == 'balance':
+            self.policy = PolicyBalance(nRunner, runActor)
+        else:
+            raise ValueError("Unrecognized policy: " + policy)
 
     def getStats(self):
         return self.policy.getStats()
@@ -99,7 +96,6 @@ class PoolAsync():
             ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
 
         return respFutures
-
 
 
 @ray.remote
