@@ -24,13 +24,6 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     """Launch the benchmark server. outDir is the directory where experiment
     outputs should go. Returns a Popen object. If nGpu is none, all gpus are
     used, otherwise we restrict the server to nGpu."""
-    if modelType == 'Kaas':
-        modeArg = '--runner_mode=kaas'
-    elif modelType == 'Tvm':
-        modeArg = '--runner_mode=actor'
-    else:
-        raise ValueError("Unrecognized model type: " + modelType)
-
     env = os.environ
     if nGpu is not None:
         env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(nGpu)])
@@ -38,8 +31,7 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     cmd = [expRoot / "benchmark.py",
                      "-t", "server",
                      '-b', 'ray',
-                     modeArg,
-                     '--runner_policy=' + policy,
+                     '--policy=' + policy,
                      '--numClient=' + str(nClient)]
 
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
@@ -61,7 +53,7 @@ def launchClient(scale, model, name, test, outDir, nIter=1):
 
 def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
     if modelType == 'Kaas':
-        policy = 'balance'
+        policy = 'affinity'
     elif modelType == 'Tvm':
         policy = 'exclusive'
     else:
@@ -98,15 +90,16 @@ def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
     return True
 
 
-def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
+def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"multi_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    nCpy = 2
+    nCpy = 1
 
     models = [
+        # "resnet50",
         "resnet50",
         "resnet50"
     ]
@@ -115,10 +108,14 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
     # Attempt to find a valid scale, starting with "perfect" scaling
     nModel = nCpy * len(models)
-    scale = (1 / nModel) * util.getNGpu()
-
-    succeedScale = 0
-    failureScale = scale
+    if scale is None:
+        scale = (1 / nModel) * util.getNGpu()
+        succeedScale = 0
+        failureScale = scale
+    else:
+        # This tricks the system into only running one iteration
+        succeedScale = scale
+        failureScale = scale
 
     # Minimum step size when searching
     step = 0.025
@@ -145,7 +142,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results"):
 
 def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", findPeak=True):
     if modelType == 'Kaas':
-        policy = 'balance'
+        policy = 'affinity'
     elif modelType == 'Tvm':
         policy = 'exclusive'
     else:

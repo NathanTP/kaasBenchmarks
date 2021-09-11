@@ -3,11 +3,12 @@ import ray.util.queue
 import infbench
 import threading
 import os
-import pickle
 import signal
 import pathlib
 import json
-import random
+
+import time
+import asyncio
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -17,11 +18,7 @@ import mlperf_loadgen
 import libff.kaas.kaasRay as kaasRay
 
 import util
-
-# There is a bug in ray where if actors ever go out of scope, any reference
-# held elsewhere can break. We hack around that issue by preventing actors from
-# ever leaving scope with this global.
-permanentScope = []
+import policy
 
 # All steps (pre/run/post) take in multiple arguments (even if there's one
 # argument, it's passed as a tuple). If we passed a list of futures, we would
@@ -62,14 +59,6 @@ def maybeDereference(res):
                 res[i] = ray.get(res[i])
 
         return res
-
-
-def mergePerClientStats(base, delta):
-    for cID, deltaClient in delta.items():
-        if cID in base:
-            base[cID].merge(deltaClient)
-        else:
-            base[cID] = deltaClient
 
 
 @ray.remote
@@ -242,355 +231,6 @@ class runActor():
         return stats
 
 
-class Policy():
-    def __init__(self, nRunner):
-        pass
-
-    def getRunner(self, clientID, *args):
-        """Return the next actor to send a request to"""
-        pass
-
-    def update(self, *args):
-        """Update the policy with any additional metadata from the last runner used"""
-        pass
-
-
-class PolicyRR(Policy):
-    """A simple round-robin policy with no affinity"""
-    def __init__(self, nRunner):
-        self.lock = threading.Lock()
-        self.last = 0
-        self.actors = []
-        for i in range(nRunner):
-            newActor = runActor.remote()
-            permanentScope.append(newActor)
-            self.actors.append(newActor)
-
-    def getRunner(self, clientID, *args):
-        with self.lock:
-            self.last = (self.last + 1) % len(self.actors)
-            actor = self.actors[self.last]
-
-        return actor
-
-    def update(self, *args):
-        pass
-
-
-class actorStatus():
-    RESERVED = 0
-    IDLE = 1
-    BUSY = 2
-
-    def __init__(self):
-        self.state = actorStatus.IDLE
-        self.ref = None
-
-
-class statusList():
-    def __init__(self):
-        self.statuses = []
-        self.nReserved = 0
-        self.lock = threading.Lock()
-        self.reservedCv = threading.Condition(lock=self.lock)
-
-    def updateState(self, status, newState):
-        assert self.lock.locked()
-        if status.state == actorStatus.RESERVED:
-            self.nReserved -= 1
-            status.state = newState
-        elif newState == actorStatus.RESERVED:
-            self.nReserved += 1
-            status.state = newState
-        else:
-            status.state = newState
-
-
-def pickActorBalanced(slist, timeout=None):
-    """Given a list of actor statuses, return the first idle actor. Statuses
-    are either ray references for busy actors, or None for idle. If timeout is
-    provided, None may be returned if there are no free actors within
-    timeout."""
-
-    while True:
-        with slist.reservedCv:
-            if len(slist.statuses) == 0:
-                return None
-
-            while slist.nReserved == len(slist.statuses):
-                slist.reservedCv.wait()
-
-            outstanding = []
-            for i, status in enumerate(slist.statuses):
-                if status.state == actorStatus.IDLE:
-                    # Found an idle worker
-                    slist.updateState(status, actorStatus.RESERVED)
-                    return i
-                else:
-                    if status.state == actorStatus.BUSY:
-                        outstanding.append(status.ref)
-
-            assert len(outstanding) != 0
-
-        # Block until at least one actor is idle
-        done, notReady = ray.wait(outstanding, fetch_local=False, timeout=timeout)
-
-        with slist.reservedCv:
-            if len(done) == 0:
-                # There aren't any free workers within the timeout.  This could
-                # theoretically be stale, but it probably isn't and we'll let
-                # the policy decide if it's worth trying again
-                return None
-            else:
-                idleRunner = None
-                for ref in done:
-                    for i, status in enumerate(slist.statuses):
-                        if status.state == actorStatus.IDLE:
-                            # Someone may have processed the actor while we
-                            # waited on the lock
-                            idleRunner = i
-                        elif status.ref == ref:
-                            assert status.state == actorStatus.BUSY
-                            slist.updateState(status, actorStatus.IDLE)
-                            status.ref = None
-                            idleRunner = i
-
-                if idleRunner is None:
-                    # Our done list is stale, try again
-                    continue
-
-                slist.updateState(slist.statuses[idleRunner], actorStatus.RESERVED)
-                return idleRunner
-
-    return idleRunner
-
-
-class PolicyBalance(Policy):
-    """Routes requests to actors with potentially multiple clients per
-    actor. It will attempt to balance load across the actors based on
-    estimated outstanding work."""
-    def __init__(self, nRunner):
-        # List of Ray references representing stats from dead actors
-        self.pendingActorStats = []
-
-        self.actors = []
-        for i in range(nRunner):
-            newActor = runActor.remote()
-            permanentScope.append(newActor)
-            self.actors.append(newActor)
-
-        # List of futures to the first return value of the runner. We assume
-        # that if any returns are ready, then the runner is done. If None, then
-        # the runner is idle.
-        self.sList = statusList()
-        self.sList.statuses = [actorStatus() for i in range(nRunner)]
-
-    def scaleUp(self):
-        """Add a worker to this policy"""
-        with self.sList.reservedCv:
-            self.sList.statuses.append(actorStatus())
-            newActor = runActor.remote()
-            permanentScope.append(newActor)
-            self.actors.append(newActor)
-
-    def scaleDown(self):
-        """Remove a worker from this policy"""
-        with self.sList.reservedCv:
-            self.sList.statuses.pop()
-            toKill = self.actors.pop()
-
-            self.pendingActorStats.append(toKill.getStats.remote())
-            toKill.terminate.remote()
-
-    def getRunner(self, clientID, **kwargs):
-        """Returns an actor suitable for running a request and an opaque handle
-        that must be passed to update() along with the clientID and
-        respFutures"""
-        timeout = kwargs.get('timeout', None)
-        idx = pickActorBalanced(self.sList, timeout=timeout)
-        if idx is None:
-            return None, None
-        else:
-            with self.sList.reservedCv:
-                actor = self.actors[idx]
-                status = self.sList.statuses[idx]
-            return actor, status
-
-    def update(self, clientID, handle, respFutures):
-        status = handle
-        if isinstance(respFutures, list):
-            status.ref = respFutures[0]
-        else:
-            status.ref = respFutures
-        with self.sList.reservedCv:
-            self.sList.updateState(handle, actorStatus.BUSY)
-            self.sList.reservedCv.notify()
-
-    def getStats(self):
-        """Return a map of clientIDs to profCollection. Resets stats."""
-        stats = {}
-
-        for actor in self.actors:
-            self.pendingActorStats.append(actor.getStats.remote())
-
-        actorStats = ray.get(self.pendingActorStats)
-        for actorStat in actorStats:
-            mergePerClientStats(stats, actorStat)
-
-        self.pendingActorStats = []
-        return stats
-
-
-class PolicyExclusive(Policy):
-    def __init__(self, nRunner):
-        self.maxRunners = nRunner
-        self.nRunners = 0
-
-        self.lock = threading.Lock()
-
-        # {clientID -> PolicyBalance()}
-        self.clientPools = {}
-
-    def _makeRoom(self, clientID):
-        while True:
-            with self.lock:
-                clientPool = self.clientPools[clientID]
-                clientLength = len(clientPool.actors)
-
-                if self.nRunners < self.maxRunners:
-                    clientPool.scaleUp()
-                    self.nRunners += 1
-                    # This is guaranteed to return without blocking since there's a new
-                    # idle worker
-                    return clientPool.getRunner(clientID)
-
-                # Pick a candidate for eviction. This will be the client with the most
-                # actors (ties are broken randomly).
-                maxLength = 0
-                for cID, pool in self.clientPools.items():
-                    if len(pool.actors) > maxLength:
-                        maxLength = len(pool.actors)
-
-                candidates = []
-                for cID, pool in self.clientPools.items():
-                    if len(pool.actors) == maxLength:
-                        candidates.append(cID)
-
-                if clientLength < maxLength:
-                    # Gotta be somewhat fair. Real fairness is a problem for
-                    # another day
-                    lot = random.randrange(0, len(candidates))
-                    candidate = candidates[lot]
-                    # candidate = candidates[0]
-                    # print(f"EVICTING {candidate} for {clientID} ({lot} from choices {candidates})")
-                    victimPool = self.clientPools[candidate]
-                    victimPool.scaleDown()
-
-                    clientPool.scaleUp()
-                    # Won't block because we just scalued up clientPool
-                    return clientPool.getRunner(clientID)
-
-            # Wouldn't be fair to kill anyone, just block until something frees
-            # up. Warning, this may block.
-            runner = clientPool.getRunner(clientID)
-            if runner[0] is None:
-                # Something went wrong. Probably someone scaled our pool down to
-                # zero while we were waiting. Try again.
-                continue
-            else:
-                return runner
-
-    def getRunner(self, clientID, **kwargs):
-        with self.lock:
-            if clientID in self.clientPools:
-                clientPool = self.clientPools[clientID]
-            else:
-                clientPool = PolicyBalance(0)
-                self.clientPools[clientID] = clientPool
-
-        runner, handle = clientPool.getRunner(clientID, timeout=0.01)
-
-        if runner is not None:
-            return runner, handle
-        else:
-            runner = self._makeRoom(clientID)
-            if runner[0] is None:
-                raise RuntimeError("Couldn't find runner")
-            return runner
-
-    def update(self, clientID, handle, respFutures):
-        with self.lock:
-            self.clientPools[clientID].update(clientID, handle, respFutures)
-
-    def getStats(self):
-        stats = {}
-        for pool in self.clientPools.values():
-            poolStats = pool.getStats()
-            mergePerClientStats(stats, poolStats)
-
-        return stats
-
-
-@ray.remote
-class runnerPool():
-    def __init__(self, nRunner, benchConfig):
-        """RunnerPool is responsible for launching run requests.
-                - nRunner: If using actors, number of actors to allocate
-                - policy: Scheduling policy (when using actors)
-                - mode: ['actors', 'kaas', 'task']. Actors and KaaS will run in
-                actors while 'task' will use ray tasks instead.
-        """
-        self.maxRunners = nRunner
-        self.mode = benchConfig['runner_mode']
-        benchConfig['runner_policy']
-
-        if self.mode not in ['task', 'actor', 'kaas']:
-            raise ValueError("Unrecognized mode: " + self.mode)
-
-        if self.mode != 'task':
-            if benchConfig['runner_policy'] == 'rr':
-                self.policy = PolicyRR(nRunner)
-            elif benchConfig['runner_policy'] == 'exclusive':
-                self.policy = PolicyExclusive(nRunner)
-            elif benchConfig['runner_policy'] == 'balance':
-                self.policy = PolicyBalance(nRunner)
-            else:
-                raise ValueError("Unrecognized policy: " + benchConfig['runner_policy'])
-
-    def getStats(self):
-        return self.policy.getStats()
-
-    def run(self, nReturn, clientID, inputRefs, args, kwargs={}):
-        """Run a model. Args and kwargs will be passed to the appropriate runner"""
-        if self.mode == 'task':
-            respFutures = runTask.options(num_returns=nReturn).remote(*args, **kwargs)
-        else:
-            # Block until the inputs are ready
-            ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
-
-            # Get a free runner (may block)
-            runActor, handle = self.policy.getRunner(clientID)
-            assert runActor is not None
-
-            if self.mode == 'actor':
-                respFutures = runActor.runNative.options(num_returns=nReturn).remote(*args, **kwargs)
-            elif self.mode == 'kaas':
-                respFutures = runActor.runKaas.options(num_returns=nReturn).remote(*args, **kwargs)
-            else:
-                raise RuntimeError("Unrecognized mode: ", self.mode)
-
-            self.policy.update(clientID, handle, respFutures)
-
-        # Wait until the runner is done before returning, this ensures that
-        # anyone waiting on our response (e.g. post()) can immediately
-        # ray.get the answer without blocking.
-        if nReturn == 1:
-            ray.wait([respFutures], num_returns=1, fetch_local=False)
-        else:
-            ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
-        return respFutures
-
-
 def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             completionQ=None, queryId=None, cacheModel=False, clientID=None,
             runPool=None, stats=None):
@@ -636,20 +276,22 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote(mClass.nOutRun, clientID, runInp, [req], {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
+                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                           {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
-                runOut = runPool.run.options(num_returns=mClass.nOutRun).remote(mClass.nOutRun, clientID, runInp, [req], {"clientID": clientID})
-        else:
+                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
+                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                           {"clientID": clientID})
+        else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote(mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, runInp,
                            [specRef, modelArg] + runInp,
                            {"completionQ": completionQ, "queryId": queryId,
                             "cacheModel": cacheModel, "clientID": clientID})
-
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote(mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, runInp,
                            [specRef, modelArg] + runInp, {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
@@ -760,18 +402,21 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(max(n, util.getNGpu()*2), loader.ndata)))
 
-    pool = runnerPool.options(max_concurrency=10).remote(util.getNGpu(), benchConfig)
+    nGpu = util.getNGpu()
+    pool = policy.Pool.options(max_concurrency=2*nGpu). \
+        remote(nGpu, benchConfig['policy'], runActor)
 
     # Cold Start, done async to maximize the chances of everything getting warm
     # when there are multiple GPUs
     print(f"Running {2*util.getNGpu()} warmup passes")
-    results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
+    results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef,
+                          modelArg, constRefs, pool, benchConfig, coldStats)
     # getting stats resets them for the warm runs
     ray.get(pool.getStats.remote())
 
     # Warm Runs
     print("Beginning warm runs")
-    # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats)
+    # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     warmPoolStats = ray.get(pool.getStats.remote())
 
@@ -882,7 +527,8 @@ class mlperfRunner():
 
         self.nGpu = util.getNGpu()
 
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
+        self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+            remote(self.nGpu, benchConfig['policy'], runActor)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -1006,6 +652,22 @@ class clientState():
 clients = {}
 
 
+@ray.remote(num_gpus=1)
+def fakeRayModel(clientID, reqID, rayQ):
+    time.sleep(.07)
+    rayQ.put(([b''], (clientID, reqID)))
+
+
+@ray.remote
+class fakeActorModel():
+    def run(self, clientID, reqID, rayQ):
+        time.sleep(.07)
+        rayQ.put(([b''], (clientID, reqID)))
+
+        # Return value is used as a completion notification
+        return True
+
+
 class serverLoop():
     """ServerTask"""
     def __init__(self, clientSock, barrierSock, benchConfig):
@@ -1024,7 +686,8 @@ class serverLoop():
         self.nGpu = util.getNGpu()
 
         self.clientStats = {}
-        self.pool = runnerPool.options(max_concurrency=2*self.nGpu).remote(self.nGpu, benchConfig)
+        self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+            remote(self.nGpu, benchConfig['policy'], runActor)
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -1037,7 +700,7 @@ class serverLoop():
             # Get cold-start stats (if any) and reset for main warm passes
             poolStats = ray.get(self.pool.getStats.remote())
             self.coldStats = self.clientStats
-            mergePerClientStats(self.coldStats, poolStats)
+            util.mergePerClientStats(self.coldStats, poolStats)
             self.clientStats = {}
 
             print("Releasing Barrier")
@@ -1056,11 +719,27 @@ class serverLoop():
         # for the data transfer.
         result = maybeDereference(result)
 
-        self.clientStream.send_multipart([clientID, reqID, pickle.dumps(result)])
+        outBufs = [clientID, reqID]
+        outBufs.extend(result)
+        self.clientStream.send_multipart(outBufs)
         IOLoop.current().add_callback(self.handleWorker)
 
+    async def fakeModel(self, clientID, reqID, startTime=None):
+        startTime = time.time()
+        await self.sem.acquire()
+        self.profs['t_queue'].increment(time.time() - startTime)
+
+        await asyncio.sleep(0.070)
+        self.sem.release()
+
+        self.profs['t_e2e'].increment(time.time() - startTime)
+        self.clientStream.send_multipart([clientID, reqID, b''])
+
     def handleClients(self, msg):
-        clientID, reqID, data = msg
+        clientID = msg[0]
+        reqID = msg[1]
+        data = msg[2:]
+        # clientID, reqID, data = msg
 
         cState = clients.get(clientID, None)
 
@@ -1074,11 +753,6 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
-            # Normal Request
-            # XXX ray.put is just going to re-pickle the data. We should really
-            # require models to only pass bytes as inputs and outputs.
-            data = pickle.loads(data)
-
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
@@ -1092,7 +766,7 @@ class serverLoop():
 
         poolStats = ray.get(self.pool.getStats.remote())
         self.warmStats = self.clientStats
-        mergePerClientStats(self.warmStats, poolStats)
+        util.mergePerClientStats(self.warmStats, poolStats)
         self.clientStats = {}
 
 
