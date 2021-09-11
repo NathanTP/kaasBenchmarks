@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import sys
-import pickle
 import threading
 from tornado.ioloop import IOLoop
 import zmq
@@ -36,10 +35,16 @@ def barrier(barrierSock):
     barrierSock.recv()
 
 
+def sendReq(socket, clientID, data):
+    payload = [clientID]
+    payload.extend(data)
+    socket.send_multipart(payload)
+
+
 def preWarm(serverSock, barrierSock, inputs):
     nReq = util.getNGpu()*2
     for i in range(nReq):
-        serverSock.send_multipart([bytes(1), pickle.dumps(inputs)])
+        sendReq(serverSock, bytes(1), inputs)
     for i in range(nReq):
         serverSock.recv_multipart()
 
@@ -61,7 +66,7 @@ def nShot(modelSpec, n, benchConfig):
 
     # Registration
     print("Registering client: ", benchConfig['name'])
-    serverSocket.send_multipart([benchConfig['model'].encode('utf-8'), b''])
+    sendReq(serverSocket, benchConfig['model'].encode('utf-8'), b'')
 
     print("Waiting for other clients:")
     barrier(barrierSocket)
@@ -75,7 +80,7 @@ def nShot(modelSpec, n, benchConfig):
         inp = loader.get(idx)
 
         with infbench.timer('t_e2e', stats):
-            serverSocket.send_multipart([idx.to_bytes(4, sys.byteorder), pickle.dumps(inp)])
+            sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
 
             # respIdx, respData = serverSocket.recv_multipart()
             # respIdx = int.from_bytes(respIdx, sys.byteorder)
@@ -83,7 +88,6 @@ def nShot(modelSpec, n, benchConfig):
             respIdx = int.from_bytes(resp[0], sys.byteorder)
 
             assert (respIdx == idx)
-            # results.append(pickle.loads(respData))
             results.append(resp[1:])
 
         if loader.checkAvailable:
@@ -115,7 +119,7 @@ class mlperfRunner(threading.Thread):
         for q in queryBatch:
             self.nQuery += 1
             inp = self.loader.get(q.index)
-            self.sutSock.send_multipart([q.id.to_bytes(8, sys.byteorder), pickle.dumps(inp)])
+            sendReq(self.sutSock, q.id.to_bytes(8, sys.byteorder), inp)
 
     def processLatencies(self, latencies):
         self.metrics = {**infbench.model.processLatencies(self.benchConfig, latencies), **self.metrics}
@@ -169,7 +173,7 @@ class mlperfLoop():
         self.serverStream.on_recv(self.handleServer)
 
         # Register with the benchmark server
-        self.serverSocket.send_multipart([self.benchConfig['model'].encode('utf-8'), b''])
+        sendReq(self.serverSocket, self.benchConfig['model'].encode('utf-8'), b'')
 
         # PreWarm
         loader = modelSpec.loader(modelSpec.dataDir)

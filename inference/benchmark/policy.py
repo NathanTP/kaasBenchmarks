@@ -33,6 +33,7 @@ class Policy(abc.ABC):
         pass
 
 
+#XXX Work in progress. I'm wondering if using asyncio instead of threads will improve performance. In particular, it should allow me to elide a bunch of locking and also have more outstanding requests in the scheduler. Not really sure if it will work in practice or what affects it will have on policies (could be deep changes)
 @ray.remote
 class PoolAsync():
     def __init__(self, nRunner, policy, runActor):

@@ -88,7 +88,7 @@ def load(dataPath):
             for qa in paragraph["qas"]:
                 question_text = qa["question"]
 
-                example = SquadExample(question=question_text, docTokens=doc_tokens)
+                example = pickle.dumps(SquadExample(question=question_text, docTokens=doc_tokens))
                 examples.append((example, qa))
 
     return examples
@@ -610,7 +610,7 @@ class bertModelBase(model.Model):
     @staticmethod
     def pre(inputs):
         vocab = inputs[0]
-        example = inputs[1]
+        example = pickle.loads(inputs[1])
 
         # featurize() can handle batches, but we only support batch size 1 right
         # now
@@ -624,7 +624,7 @@ class bertModelBase(model.Model):
 
     @staticmethod
     def post(inputs):
-        example = inputs[0]
+        example = pickle.loads(inputs[0])
         feature = inputs[1]
         startLogits = inputs[2]
         endLogits = inputs[3]
@@ -633,7 +633,7 @@ class bertModelBase(model.Model):
         endLogits = np.frombuffer(endLogits, dtype=np.float32).tolist()
 
         pred = interpret(startLogits, endLogits, example, feature)
-        return (pred,)
+        return (pred.encode('utf-8'),)
 
 
 class bertModel(bertModelBase, model.tvmModel):
@@ -717,5 +717,5 @@ class bertLoader(dataset.loader):
 
     def check(self, result, idx):
         origData = self.examples[idx][1]
-        result = result[0]
+        result = result[0].decode('utf-8')
         return check(result, origData)

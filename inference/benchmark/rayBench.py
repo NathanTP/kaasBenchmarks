@@ -3,7 +3,6 @@ import ray.util.queue
 import infbench
 import threading
 import os
-import pickle
 import signal
 import pathlib
 import json
@@ -277,9 +276,12 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote(mClass.nOutRun, clientID, runInp, [req], {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
+                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                           {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
-                runOut = runPool.run.options(num_returns=mClass.nOutRun).remote(mClass.nOutRun, clientID, runInp, [req], {"clientID": clientID})
+                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
+                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                           {"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
@@ -402,7 +404,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     nGpu = util.getNGpu()
     pool = policy.Pool.options(max_concurrency=2*nGpu). \
-        remote(nGpu, benchConfig['runner_policy'], runActor)
+        remote(nGpu, benchConfig['policy'], runActor)
 
     # Cold Start, done async to maximize the chances of everything getting warm
     # when there are multiple GPUs
@@ -526,7 +528,7 @@ class mlperfRunner():
         self.nGpu = util.getNGpu()
 
         self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
-            remote(self.nGpu, benchConfig['runner_policy'], runActor)
+            remote(self.nGpu, benchConfig['policy'], runActor)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -685,7 +687,7 @@ class serverLoop():
 
         self.clientStats = {}
         self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
-            remote(self.nGpu, benchConfig['runner_policy'], runActor)
+            remote(self.nGpu, benchConfig['policy'], runActor)
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -717,7 +719,9 @@ class serverLoop():
         # for the data transfer.
         result = maybeDereference(result)
 
-        self.clientStream.send_multipart([clientID, reqID] + result)
+        outBufs = [clientID, reqID]
+        outBufs.extend(result)
+        self.clientStream.send_multipart(outBufs)
         IOLoop.current().add_callback(self.handleWorker)
 
     async def fakeModel(self, clientID, reqID, startTime=None):
@@ -732,7 +736,10 @@ class serverLoop():
         self.clientStream.send_multipart([clientID, reqID, b''])
 
     def handleClients(self, msg):
-        clientID, reqID, data = msg
+        clientID = msg[0]
+        reqID = msg[1]
+        data = msg[2:]
+        # clientID, reqID, data = msg
 
         cState = clients.get(clientID, None)
 
@@ -746,10 +753,6 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
-            # XXX ray.put is just going to re-pickle the data. We should really
-            # require models to only pass bytes as inputs and outputs.
-            data = pickle.loads(data)
-
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,

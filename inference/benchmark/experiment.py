@@ -24,13 +24,6 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     """Launch the benchmark server. outDir is the directory where experiment
     outputs should go. Returns a Popen object. If nGpu is none, all gpus are
     used, otherwise we restrict the server to nGpu."""
-    if modelType == 'Kaas':
-        modeArg = '--runner_mode=kaas'
-    elif modelType == 'Tvm':
-        modeArg = '--runner_mode=actor'
-    else:
-        raise ValueError("Unrecognized model type: " + modelType)
-
     env = os.environ
     if nGpu is not None:
         env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(nGpu)])
@@ -38,8 +31,7 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     cmd = [expRoot / "benchmark.py",
                      "-t", "server",
                      '-b', 'ray',
-                     modeArg,
-                     '--runner_policy=' + policy,
+                     '--policy=' + policy,
                      '--numClient=' + str(nClient)]
 
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
