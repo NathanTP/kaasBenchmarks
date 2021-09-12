@@ -177,8 +177,6 @@ def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
         raise RuntimeError("Run Failed")
 
 
-# def findParams(model):
-
 if __name__ == "__main__":
     if not resultsDir.exists():
         resultsDir.mkdir(0o700)

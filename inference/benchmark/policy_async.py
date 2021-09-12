@@ -1,9 +1,7 @@
-import threading
 import collections
 import ray
 import random
 import abc
-import infbench
 import asyncio
 
 import util
@@ -116,7 +114,7 @@ class PolicyStatic(Policy):
         self.actors = [runnerClass.options(max_concurrency=1).remote() for i in range(nRunner)]
         permanentScope.extend(self.actors)
 
-    def getRunner(self, clientID, *args):
+    async def getRunner(self, clientID, *args):
         if clientID[-3] == 48:
             return self.actors[0], None
         elif clientID[-3] == 49:
@@ -127,8 +125,15 @@ class PolicyStatic(Policy):
     def update(self, *args):
         pass
 
-    def getStats(self):
-        return infbench.profCollection()
+    async def getStats(self):
+        statFutures = [a.getStats.remote() for a in self.actors]
+        perActorStats = await asyncio.gather(*statFutures)
+
+        stats = {}
+        for actorStat in perActorStats:
+            util.mergePerClientStats(stats, actorStat)
+
+        return stats
 
 
 class PolicyRR(Policy):
@@ -293,8 +298,6 @@ class PolicyAffinity(Policy):
         self.runnerClass = runnerClass
         self.exclusive = exclusive
 
-        self.lock = threading.Lock()
-
         if not self.exclusive:
             self.actors = []
             for i in range(self.maxRunners):
@@ -305,51 +308,50 @@ class PolicyAffinity(Policy):
         # {clientID -> PolicyBalance()}
         self.clientPools = {}
 
-    def _makeRoom(self, clientID):
+    async def _makeRoom(self, clientID):
         while True:
-            with self.lock:
-                clientPool = self.clientPools[clientID]
-                clientLength = len(clientPool.actors)
+            clientPool = self.clientPools[clientID]
+            clientLength = len(clientPool.runners)
 
-                if self.nRunners < self.maxRunners:
-                    if self.exclusive:
-                        clientPool.scaleUp()
-                    else:
-                        clientPool.scaleUp(newActor=self.actors.pop())
-                    self.nRunners += 1
-                    # This is guaranteed to return without blocking since there's a new
-                    # idle worker
-                    return clientPool.getRunner(clientID)
+            if self.nRunners < self.maxRunners:
+                if self.exclusive:
+                    clientPool.scaleUp()
+                else:
+                    clientPool.scaleUp(newActor=self.actors.pop())
+                self.nRunners += 1
+                runner = await clientPool.getRunner(clientID)
+                if runner[0] is None:
+                    continue
+                else:
+                    return runner
 
-                # Pick a candidate for eviction. This will be the client with the most
-                # actors (ties are broken randomly).
-                maxLength = 0
-                for cID, pool in self.clientPools.items():
-                    if len(pool.actors) > maxLength:
-                        maxLength = len(pool.actors)
+            # Pick a candidate for eviction. This will be the client with the most
+            # actors (ties are broken randomly).
+            maxLength = 0
+            for cID, pool in self.clientPools.items():
+                if len(pool.runners) > maxLength:
+                    maxLength = len(pool.runners)
 
-                candidates = []
-                for cID, pool in self.clientPools.items():
-                    if len(pool.actors) == maxLength:
-                        candidates.append(cID)
+            candidates = []
+            for cID, pool in self.clientPools.items():
+                if len(pool.runners) == maxLength:
+                    candidates.append(cID)
 
-                if clientLength < maxLength:
-                    # Gotta be somewhat fair. Real fairness is a problem for
-                    # another day
-                    lot = random.randrange(0, len(candidates))
-                    candidate = candidates[lot]
-                    # print(f"EVICTING {candidate} for {clientID} ({lot} from choices {candidates})")
-                    victimPool = self.clientPools[candidate]
-                    evictedActor = victimPool.scaleDown(kill=self.exclusive)
+            if clientLength < maxLength:
+                # Gotta be somewhat fair. Real fairness is a problem for
+                # another day
+                lot = random.randrange(0, len(candidates))
+                candidate = candidates[lot]
+                # print(f"EVICTING {candidate} for {clientID} ({lot} from choices {candidates})")
+                victimPool = self.clientPools[candidate]
+                evictedActor = victimPool.scaleDown(kill=self.exclusive)
 
-                    if self.exclusive:
-                        clientPool.scaleUp()
-                    else:
-                        clientPool.scaleUp(newActor=evictedActor)
+                if self.exclusive:
+                    clientPool.scaleUp()
+                else:
+                    clientPool.scaleUp(newActor=evictedActor)
 
-            # Wouldn't be fair to kill anyone (or we just did), just block
-            # until something frees up. Warning, this may block.
-            runner = clientPool.getRunner(clientID)
+            runner = await clientPool.getRunner(clientID)
             if runner[0] is None:
                 # Something went wrong. Probably someone scaled our pool down to
                 # zero while we were waiting. Try again.
@@ -357,32 +359,30 @@ class PolicyAffinity(Policy):
             else:
                 return runner
 
-    def getRunner(self, clientID, **kwargs):
-        with self.lock:
-            if clientID in self.clientPools:
-                clientPool = self.clientPools[clientID]
-            else:
-                clientPool = PolicyBalance(0, self.runnerClass)
-                self.clientPools[clientID] = clientPool
+    async def getRunner(self, clientID, **kwargs):
+        if clientID in self.clientPools:
+            clientPool = self.clientPools[clientID]
+        else:
+            clientPool = PolicyBalance(0, self.runnerClass)
+            self.clientPools[clientID] = clientPool
 
-        runner, handle = clientPool.getRunner(clientID, timeout=0.01)
+        runner, handle = await clientPool.getRunner(clientID, timeout=0.01)
 
         if runner is not None:
             return runner, handle
         else:
-            runner = self._makeRoom(clientID)
+            runner = await self._makeRoom(clientID)
             if runner[0] is None:
                 raise RuntimeError("Couldn't find runner")
             return runner
 
     def update(self, clientID, handle, respFutures):
-        with self.lock:
-            self.clientPools[clientID].update(clientID, handle, respFutures)
+        self.clientPools[clientID].update(clientID, handle, respFutures)
 
-    def getStats(self):
+    async def getStats(self):
         stats = {}
-        for pool in self.clientPools.values():
-            poolStats = pool.getStats()
-            util.mergePerClientStats(stats, poolStats)
+        poolStats = await asyncio.gather(*[pool.getStats() for pool in self.clientPools.values()])
+        for poolStat in poolStats:
+            util.mergePerClientStats(stats, poolStat)
 
         return stats

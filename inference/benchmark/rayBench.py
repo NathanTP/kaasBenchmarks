@@ -18,7 +18,8 @@ import mlperf_loadgen
 import libff.kaas.kaasRay as kaasRay
 
 import util
-import policy
+import policy_async as policy
+# import policy
 
 # All steps (pre/run/post) take in multiple arguments (even if there's one
 # argument, it's passed as a tuple). If we passed a list of futures, we would

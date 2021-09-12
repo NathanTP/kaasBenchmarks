@@ -145,6 +145,9 @@ class PolicyRR(Policy):
     def update(self, *args):
         pass
 
+    def getStats(self):
+        return infbench.profCollection()
+
 
 class actorStatus():
     RESERVED = 0
