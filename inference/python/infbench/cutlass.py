@@ -90,7 +90,7 @@ class cutlassSgemm(sgemmBase):
         self.beta = 0
         self.modelDir = modelArgs
 
-    def run(self, dat):
+    def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
