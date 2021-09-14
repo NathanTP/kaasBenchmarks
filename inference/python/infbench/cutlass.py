@@ -154,7 +154,6 @@ class sgemmKaas(sgemmBase, model.kaasModel):
         KaaS model. If a path is passed, it should be a directory containing:
         name.cubin, name_meta.yaml, and name_model.yaml (where name is the
         name of the directory)."""
-        print(modelArg)
         # In some cases, it's easier to pass a pre-initialized model as an
         # argument, typically to keep abstractions clean on the client side.
         if isinstance(modelArg, model.kaasModel):
@@ -195,8 +194,9 @@ class cutlassSgemmLoader(dataset.loader):
         self.M = 10000
         self.N = 8000
         self.K = 10000
-        self.A = [0 for i in range(self.ndata)]
-        self.B = [0 for i in range(self.ndata)]
+        nPoints = 20
+        self.A = [0 for i in range(nPoints)]
+        self.B = [0 for i in range(nPoints)]
 
     @property
     def ndata(self):
