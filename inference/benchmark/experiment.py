@@ -140,7 +140,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     return succeedScale
 
 
-def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", findPeak=True):
+def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=None):
     if modelType == 'Kaas':
         policy = 'affinity'
     elif modelType == 'Tvm':
@@ -149,11 +149,11 @@ def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", findPe
         raise ValueError("Unrecognized Model Type: " + modelType)
 
     model = baseModel + modelType
-    if findPeak:
+    if scale is None:
         runner = launchClient(None, model, prefix, 'mlperf', outDir)
         server = launchServer(outDir, 1, modelType, policy, nGpu=1)
     else:
-        runner = launchClient(1.0, model, prefix, 'mlperf', outDir)
+        runner = launchClient(scale, model, prefix, 'mlperf', outDir)
         server = launchServer(outDir, 1, modelType, policy)
 
     runner.wait()
@@ -188,11 +188,9 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--experiment",
                         choices=['nshot', 'mlperfOne', 'mlperfMulti'],
                         help="Which experiment to run.")
-    parser.add_argument("--findPeak",
-                        default=False, action="store_true",
-                        help="In mlperfOne mode, find peak performance rather than run a fixed-length experiment.")
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
+    parser.add_argument("-s", "--scale", help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance.")
 
     args = parser.parse_args()
 
@@ -205,10 +203,10 @@ if __name__ == "__main__":
         nShot(args.model, args.modelType, outDir=resultsDir, nIter=32)
     elif args.experiment == 'mlperfOne':
         print("Starting mlperfOne")
-        mlperfOne(args.model, args.modelType, outDir=resultsDir, findPeak=args.findPeak)
+        mlperfOne(args.model, args.modelType, outDir=resultsDir, scale=args.scale)
     elif args.experiment == 'mlperfMulti':
         print("Starting mlperfMulti")
-        mlperfMulti(args.modelType, outDir=resultsDir)
+        mlperfMulti(args.modelType, outDir=resultsDir, scale=args.scale)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 
