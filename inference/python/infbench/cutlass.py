@@ -83,8 +83,8 @@ class sgemmBase(model.Model):
 
 class cutlassSgemm(sgemmBase):
     def __init__(self, modelArgs):
-        self.M = 10000
-        self.N = 8000
+        self.M = 1000
+        self.N = 800
         self.K = 10000
         self.alpha = 1
         self.beta = 0
@@ -191,8 +191,8 @@ class cutlassSgemmLoader(dataset.loader):
     checkAvailable = True
 
     def __init__(self, dataDir):
-        self.M = 10000
-        self.N = 8000
+        self.M = 1000
+        self.N = 800
         self.K = 10000
         nPoints = 20
         self.A = [0 for i in range(nPoints)]

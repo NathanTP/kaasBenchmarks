@@ -28,8 +28,8 @@ if __name__ == "__main__":
 
     sp.run(['make'], cwd=cwd, check=True)
 
-    M = 10000
-    N = 8000
+    M = 1000
+    N = 800
     K = 10000
     alpha = 1
     beta = 1
