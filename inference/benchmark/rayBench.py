@@ -18,7 +18,20 @@ import mlperf_loadgen
 import libff.kaas.kaasRay as kaasRay
 
 import util
-import policy
+
+# If you switch to the threaded policies, you must set a concurrency
+# limit or performance will tank. This is probably due to a combination
+# of Python's thread scheduler and lock contention. The tradeoff is
+# that fewer threads can cause one client to block another even if the
+# policy would be more fair since only so many outstanding requests can
+# be queued up at one time, independent of client.
+# Asyncio-based policies have no concurrency limit because asycnio
+# events are efficient and there is no locking
+USE_THREADED_POLICY = False
+if USE_THREADED_POLICY:
+    import policy
+else:
+    import policy_async as policy
 
 # All steps (pre/run/post) take in multiple arguments (even if there's one
 # argument, it's passed as a tuple). If we passed a list of futures, we would
@@ -403,8 +416,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader.preLoad(range(min(max(n, util.getNGpu()*2), loader.ndata)))
 
     nGpu = util.getNGpu()
-    pool = policy.Pool.options(max_concurrency=2*nGpu). \
-        remote(nGpu, benchConfig['policy'], runActor)
+    if USE_THREADED_POLICY:
+        pool = policy.Pool.options(max_concurrency=2*nGpu). \
+            remote(nGpu, benchConfig['policy'], runActor)
+    else:
+        pool = policy.Pool.remote(nGpu, benchConfig['policy'], runActor)
 
     # Cold Start, done async to maximize the chances of everything getting warm
     # when there are multiple GPUs
@@ -527,8 +543,11 @@ class mlperfRunner():
 
         self.nGpu = util.getNGpu()
 
-        self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
-            remote(self.nGpu, benchConfig['policy'], runActor)
+        if USE_THREADED_POLICY:
+            self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+                remote(self.nGpu, benchConfig['policy'], runActor)
+        else:
+            self.pool = policy.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -686,8 +705,12 @@ class serverLoop():
         self.nGpu = util.getNGpu()
 
         self.clientStats = {}
-        self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
-            remote(self.nGpu, benchConfig['policy'], runActor)
+
+        if USE_THREADED_POLICY:
+            self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+                remote(self.nGpu, benchConfig['policy'], runActor)
+        else:
+            self.pool = policy.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
 
         self.rayQ = ray.util.queue.Queue()
 
