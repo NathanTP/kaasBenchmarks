@@ -101,7 +101,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     models = [
         # "resnet50",
         "resnet50",
-        "resnet50"
+        "bert"
     ]
 
     prefix = f"{prefix}_{modelType}"
@@ -190,7 +190,7 @@ if __name__ == "__main__":
                         help="Which experiment to run.")
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
-    parser.add_argument("-s", "--scale", help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance.")
+    parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance.")
 
     args = parser.parse_args()
 

@@ -19,19 +19,41 @@ import libff.kaas.kaasRay as kaasRay
 
 import util
 
-# If you switch to the threaded policies, you must set a concurrency
-# limit or performance will tank. This is probably due to a combination
-# of Python's thread scheduler and lock contention. The tradeoff is
-# that fewer threads can cause one client to block another even if the
-# policy would be more fair since only so many outstanding requests can
-# be queued up at one time, independent of client.
-# Asyncio-based policies have no concurrency limit because asycnio
-# events are efficient and there is no locking
-USE_THREADED_POLICY = False
+# There are tradeoffs to using asyncio vs thread pools for policies.
+# Measurements have been inconclusive. Asyncio currently has a performance bug
+# due to asyncio.wait being an order of magnitude slower than ray.wait. Best to
+# use threads for now.
+USE_THREADED_POLICY = True
 if USE_THREADED_POLICY:
     import policy
+    # This is effectively the outstanding request window for policies. It's not
+    # clear the impact of more threads, though a very large number will
+    # certainly cause problems. Tuning this parameter has been ad-hoc so far.
+    # If we have a large backlog of requests, we probably have bigger problems
+    # than running an optimal policy.
+    policyNThread = 32
 else:
     import policy_async as policy
+
+# Prof levels control the level of detail recorded, higher levels may have an
+# impact on performance.
+PROF_LEVEL = 1  # minimal performance impact
+# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+
+level1Stats = {
+    't_e2e',  # total time for the whole pipeline as observed from the client
+    't_model_run',  # Time to run just the model from the perspective of the run task
+    't_kaas_generate_req',  # Time to create the KaaS req on the client
+    't_register_model',  # One-time setup of the model (loading constants, etc)
+    't_init_loader',  # Loader init and preload time
+}
+
+level2Stats = {
+    't_pre',  # total time to run pre() as observed from the client
+    't_run',  # total time to run run() as observed from the client
+    't_post'  # total time to run post() as observed from the client
+}
+
 
 # All steps (pre/run/post) take in multiple arguments (even if there's one
 # argument, it's passed as a tuple). If we passed a list of futures, we would
@@ -280,12 +302,17 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if mClass.nOutPre == 1:
             preOut = [preOut]
 
+        if PROF_LEVEL > 1:
+            with infbench.timer("t_pre", stats):
+                ray.wait(preOut)
+
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
 
         if modelSpec.modelType == "kaas":
             model = modelArg
-            req = model.run(runInp, stats=stats)
+            with infbench.timer('t_kaas_generate_req', stats):
+                req = model.run(runInp, stats=stats)
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
@@ -310,6 +337,10 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if mClass.nOutRun == 1:
             runOut = [runOut]
 
+        if PROF_LEVEL > 1:
+            with infbench.timer("t_run", stats):
+                ray.wait(runOut)
+
         # Post
         if mClass.noPost:
             postOut = runOut
@@ -321,6 +352,11 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if mClass.nOutPost == 1:
                 postOut = [postOut]
+
+            if PROF_LEVEL > 1:
+                with infbench.timer("t_post", stats):
+                    ray.wait(postOut)
+
     return postOut
 
 
@@ -396,7 +432,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     specRef = ray.put(modelSpec)
 
-    with infbench.timer("t_registerModel", warmStats):
+    with infbench.timer("t_register_model", warmStats):
         if modelSpec.modelType == "kaas":
             modelArg = modelSpec.getModelArg()
         else:
@@ -411,13 +447,13 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
             for const in constants:
                 constRefs.append(ray.put(const))
 
-    with infbench.timer("t_initLoader", warmStats):
+    with infbench.timer("t_init_loader", warmStats):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(max(n, util.getNGpu()*2), loader.ndata)))
 
     nGpu = util.getNGpu()
     if USE_THREADED_POLICY:
-        pool = policy.Pool.options(max_concurrency=2*nGpu). \
+        pool = policy.Pool.options(max_concurrency=policyNThread). \
             remote(nGpu, benchConfig['policy'], runActor)
     else:
         pool = policy.Pool.remote(nGpu, benchConfig['policy'], runActor)
@@ -445,9 +481,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     warmStats.merge(warmPoolStats[None])
 
     print("\nDetailed Stats: ")
-    report = warmStats.report()
+    report = warmStats.report(includeEvents=False)
     util.analyzeStats(report)
-    # analyzeStats(warmPoolStats[None].report())
 
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath).resolve()
@@ -544,7 +579,7 @@ class mlperfRunner():
         self.nGpu = util.getNGpu()
 
         if USE_THREADED_POLICY:
-            self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+            self.pool = policy.Pool.options(max_concurrency=policyNThread). \
                 remote(self.nGpu, benchConfig['policy'], runActor)
         else:
             self.pool = policy.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
@@ -707,7 +742,7 @@ class serverLoop():
         self.clientStats = {}
 
         if USE_THREADED_POLICY:
-            self.pool = policy.Pool.options(max_concurrency=2*self.nGpu). \
+            self.pool = policy.Pool.options(max_concurrency=policyNThread). \
                 remote(self.nGpu, benchConfig['policy'], runActor)
         else:
             self.pool = policy.Pool.remote(self.nGpu, benchConfig['policy'], runActor)

@@ -3,7 +3,6 @@ import collections
 import ray
 import random
 import abc
-import infbench
 
 import util
 
@@ -118,7 +117,13 @@ class PolicyStatic(Policy):
         pass
 
     def getStats(self):
-        return infbench.profCollection()
+        stats = {}
+
+        actorStats = ray.get([actor.getStats.remote() for actor in self.actors])
+        for actorStat in actorStats:
+            util.mergePerClientStats(stats, actorStat)
+
+        return stats
 
 
 class PolicyRR(Policy):
@@ -146,7 +151,13 @@ class PolicyRR(Policy):
         pass
 
     def getStats(self):
-        return infbench.profCollection()
+        stats = {}
+
+        actorStats = ray.get([actor.getStats.remote() for actor in self.actors])
+        for actorStat in actorStats:
+            util.mergePerClientStats(stats, actorStat)
+
+        return stats
 
 
 class actorStatus():

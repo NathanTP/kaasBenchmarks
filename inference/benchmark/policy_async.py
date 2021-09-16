@@ -3,6 +3,7 @@ import ray
 import random
 import abc
 import asyncio
+import infbench
 
 import util
 
@@ -71,12 +72,38 @@ class Pool():
         else:
             raise ValueError("Unrecognized policy: " + policy)
 
+        self.stats = infbench.profCollection()
+
+        # asyncio.wait is 2 orders of magnitude slower than ray.wait, it turns
+        # out that asyncio.wait uses ray.get under the covers and doesn't batch
+        # anything. The hope is using a threadpool could let us use an async
+        # ray.wait but still give us the benefits of cooperative
+        # multithreading. This is a WIP, just leaving here in case we decide to
+        # revisit the issue.
+        # self.asyncioLoop = asyncio.get_running_loop()
+        # self.threadPool = concurrent.futures.ThreadPoolExecutor(max_workers=64)
+
     async def getStats(self):
-        return await self.policy.getStats()
+        policyStats = await self.policy.getStats()
+        self.stats.merge(policyStats)
+        return self.stats
+
+    # async def waitForRefs(self, refs):
+    #     """Use an asyncio thread pool and use ray.wait instead of asyncio.wait."""
+    #     await self.asyncioLoop.run_in_executor(self.threadPool,
+    #                                            lambda: ray.wait(refs, num_returns=len(refs), fetch_local=False))
 
     async def run(self, funcName, nReturn, clientID, inputRefs, args, kwargs={}):
         """Run a model. Args and kwargs will be passed to the appropriate runner"""
-        # Block until the inputs are ready
+        if clientID not in self.stats:
+            self.stats[clientID] = infbench.profCollection()
+
+        # with infbench.timer('t_policyWaitInput', self.stats[clientID]):
+        #     # Block until the inputs are ready
+        #     # await self.waitForRefs(inputRefs)
+        # #     # print(len(inputRefs))
+        #     await asyncio.wait(inputRefs)
+        # #     # ray.wait(inputRefs, num_returns=len(inputRefs))
         await asyncio.wait(inputRefs)
 
         # Get a free runner (may block).
