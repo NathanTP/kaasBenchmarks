@@ -234,7 +234,7 @@ def getTestModel():
 
 
 def getCutlassSgemm():
-    getKaasModel("cutlass")
+    getKaasModel("cutlassSgemm")
     sp.run(['make'], cwd="../models/cutlassSgemm", check=True)
 
 
@@ -243,16 +243,16 @@ def main():
         modelDir.mkdir(mode=0o700)
 
     print("Getting testModel (sgemm)")
-    getTestModel()
+    #getTestModel()
 
     print("Getting BERT")
-    getBert()
+    #getBert()
 
     print("\nGetting Resnet")
-    getResnet50()
+    #getResnet50()
 
     print("\nGetting SuperRes")
-    getSuperRes()
+    #getSuperRes()
 
     print("\nGetting cutlassSgemm")
     getCutlassSgemm()
