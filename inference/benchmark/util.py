@@ -186,3 +186,11 @@ def analyzeStats(stats):
 
     print("Other Stats:")
     pprint(otherStats)
+
+
+def mergePerClientStats(base, delta):
+    for cID, deltaClient in delta.items():
+        if cID in base:
+            base[cID].merge(deltaClient)
+        else:
+            base[cID] = deltaClient
