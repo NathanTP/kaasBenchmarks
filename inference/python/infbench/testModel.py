@@ -67,7 +67,7 @@ class testModelNP(testModel, model.Model):
             consts.append(const)
         return consts
 
-    def run(self, data):
+    def run(self, data, stats=None):
         constants = data[:self.nConst]
         inputs = data[self.nConst:]
 
@@ -137,7 +137,7 @@ class testModelNative(testModel, model.Model):
             constants = pickle.load(f)
         return constants
 
-    def run(self, data):
+    def run(self, data, stats=None):
         constants = data[:self.nConst]
         hInp = data[self.nConst]
 

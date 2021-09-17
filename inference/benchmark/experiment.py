@@ -85,6 +85,11 @@ def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
         with open(summaryFile, 'r') as f:
             summary = f.read()
         if "INVALID" in summary:
+            if "Min queries satisfied : NO" in summary:
+                raise RuntimeError("Test didn't meet minimum queries, try again with a longer runtime")
+            if "Min duration satisfied : NO" in summary:
+                raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
+
             return False
 
     return True
@@ -99,9 +104,9 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     nCpy = 1
 
     models = [
-        # "resnet50",
         "resnet50",
-        "bert"
+        "resnet50"
+        # "bert"
     ]
 
     prefix = f"{prefix}_{modelType}"

@@ -4,6 +4,7 @@ import random
 import abc
 import asyncio
 import infbench
+import concurrent.futures
 
 import util
 
@@ -11,6 +12,20 @@ import util
 # held elsewhere can break. We hack around that issue by preventing actors from
 # ever leaving scope with this global.
 permanentScope = []
+
+
+async def defaultWaiter(refs, timeout=None, return_when=asyncio.ALL_COMPLETED, returnIdxs=False):
+    """Wait for ray object refs "refs" and return a list of indexes of completed references"""
+    # We have to explictly wrap the futures in a task, otherwise there is no
+    # way to correlate the done list with refFutures
+    refFutures = [asyncio.wrap_future(ref.future()) for ref in refs]
+
+    done, pending = await asyncio.wait(refFutures, timeout=timeout, return_when=return_when)
+
+    if returnIdxs:
+        return [refFutures.index(doneTask) for doneTask in done]
+    else:
+        return
 
 
 class Policy(abc.ABC):
@@ -58,86 +73,101 @@ class Pool():
         """
         self.maxRunners = nRunner
 
+        self.asyncioLoop = asyncio.get_running_loop()
+        self.threadPool = concurrent.futures.ThreadPoolExecutor(max_workers=32)
+        self.waiter = self.waitForRefs
+        # self.waiter = defaultWaiter
+
         if policy == 'static':
             print("WARNING: the static policy is hard-coded and only useful for manual experiments and debugging")
-            self.policy = PolicyStatic(nRunner, runActor)
+            self.policy = PolicyStatic(nRunner, runActor, waiter=self.waiter)
         elif policy == 'rr':
-            self.policy = PolicyRR(nRunner, runActor)
+            self.policy = PolicyRR(nRunner, runActor, waiter=self.waiter)
         elif policy == 'exclusive':
-            self.policy = PolicyAffinity(nRunner, runActor, exclusive=True)
+            self.policy = PolicyAffinity(nRunner, runActor, exclusive=True, waiter=self.waiter)
         elif policy == 'affinity':
-            self.policy = PolicyAffinity(nRunner, runActor, exclusive=False)
+            self.policy = PolicyAffinity(nRunner, runActor, exclusive=False, waiter=self.waiter)
         elif policy == 'balance':
-            self.policy = PolicyBalance(nRunner, runActor)
+            self.policy = PolicyBalance(nRunner, runActor, waiter=self.waiter)
         else:
             raise ValueError("Unrecognized policy: " + policy)
 
-        self.stats = infbench.profCollection()
-
-        # asyncio.wait is 2 orders of magnitude slower than ray.wait, it turns
-        # out that asyncio.wait uses ray.get under the covers and doesn't batch
-        # anything. The hope is using a threadpool could let us use an async
-        # ray.wait but still give us the benefits of cooperative
-        # multithreading. This is a WIP, just leaving here in case we decide to
-        # revisit the issue.
-        # self.asyncioLoop = asyncio.get_running_loop()
-        # self.threadPool = concurrent.futures.ThreadPoolExecutor(max_workers=64)
+        self.stats = {}
 
     async def getStats(self):
+        stats = {}
         policyStats = await self.policy.getStats()
-        self.stats.merge(policyStats)
-        return self.stats
+        util.mergePerClientStats(stats, policyStats)
+        util.mergePerClientStats(stats, self.stats)
 
-    # async def waitForRefs(self, refs):
-    #     """Use an asyncio thread pool and use ray.wait instead of asyncio.wait."""
-    #     await self.asyncioLoop.run_in_executor(self.threadPool,
-    #                                            lambda: ray.wait(refs, num_returns=len(refs), fetch_local=False))
+        # clear existing stats
+        self.stats = {}
+
+        return stats
+
+    async def waitForRefs(self, refs, timeout=None, return_when=asyncio.ALL_COMPLETED, returnIdxs=False):
+        """Use an asyncio thread pool to use ray.wait instead of asyncio.wait.
+        ray.wait is asymptotically better than asyncio.wait, ~100x faster for resnetKaas."""
+        if return_when == asyncio.ALL_COMPLETED:
+            numReturn = len(refs)
+        elif return_when == asyncio.FIRST_COMPLETED:
+            numReturn = 1
+        else:
+            raise ValueError("Unrecognized return_when argument: " + return_when)
+
+        done, pending = await self.asyncioLoop. \
+            run_in_executor(self.threadPool,
+                            lambda: ray.wait(refs, num_returns=numReturn, fetch_local=False, timeout=timeout))
+
+        if returnIdxs:
+            return [refs.index(doneRef) for doneRef in done]
+        else:
+            return
 
     async def run(self, funcName, nReturn, clientID, inputRefs, args, kwargs={}):
         """Run a model. Args and kwargs will be passed to the appropriate runner"""
         if clientID not in self.stats:
             self.stats[clientID] = infbench.profCollection()
 
-        # with infbench.timer('t_policyWaitInput', self.stats[clientID]):
-        #     # Block until the inputs are ready
-        #     # await self.waitForRefs(inputRefs)
-        # #     # print(len(inputRefs))
-        #     await asyncio.wait(inputRefs)
-        # #     # ray.wait(inputRefs, num_returns=len(inputRefs))
-        await asyncio.wait(inputRefs)
+        with infbench.timer("t_policy_run", self.stats[clientID]):
+            with infbench.timer('t_policy_wait_input', self.stats[clientID]):
+                # Block until the inputs are ready
+                await self.waiter(inputRefs, return_when=asyncio.ALL_COMPLETED, returnIdxs=False)
 
-        # Get a free runner (may block).
-        runActor = None
-        retries = 0
-        while runActor is None:
-            runActor, handle = await self.policy.getRunner(clientID)
+            # Get a free runner (may block).
+            runActor = None
+            retries = 0
+            with infbench.timer("t_policy_wait_runner", self.stats[clientID]):
+                while runActor is None:
+                    runActor, handle = await self.policy.getRunner(clientID)
 
-            # getRunner should usually return a valid runActor, but certain
-            # race conditions may require a retry. Too many retries is probably
-            # a bug.
-            retries += 1
-            if retries == 10:
-                print("WARNING: Policy being starved: Are you sure getRunner should be failing this often?")
+                    # getRunner should usually return a valid runActor, but certain
+                    # race conditions may require a retry. Too many retries is probably
+                    # a bug.
+                    retries += 1
+                    if retries == 10:
+                        print("WARNING: Policy being starved: Are you sure getRunner should be failing this often?")
 
-        respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
+            respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
 
-        self.policy.update(clientID, handle, respFutures)
+            self.policy.update(clientID, handle, respFutures)
 
-        # Wait until the runner is done before returning, this ensures that
-        # anyone waiting on our response (e.g. post()) can immediately
-        # ray.get the answer without blocking. This still isn't ideal for
-        # multi-node deployments since the caller may still block while the
-        # data is fetched to the local data store
-        if nReturn == 1:
-            await asyncio.wait([respFutures])
-        else:
-            await asyncio.wait(respFutures)
+            # Wait until the runner is done before returning, this ensures that
+            # anyone waiting on our response (e.g. post()) can immediately
+            # ray.get the answer without blocking. This still isn't ideal for
+            # multi-node deployments since the caller may still block while the
+            # data is fetched to the local data store
+            with infbench.timer("t_policy_wait_result", self.stats[clientID]):
+                if nReturn == 1:
+                    await self.waitForRefs([respFutures])
+                else:
+                    await self.waitForRefs(respFutures)
 
-        return respFutures
+            return respFutures
 
 
 class PolicyStatic(Policy):
-    def __init__(self, nRunner, runnerClass):
+    def __init__(self, nRunner, runnerClass, waiter=None):
         self.actors = [runnerClass.options(max_concurrency=1).remote() for i in range(nRunner)]
         permanentScope.extend(self.actors)
 
@@ -165,7 +195,7 @@ class PolicyStatic(Policy):
 
 class PolicyRR(Policy):
     """A simple round-robin policy with no affinity"""
-    def __init__(self, nRunner, runnerClass):
+    def __init__(self, nRunner, runnerClass, waiter=None):
         self.runnerClass = runnerClass
         self.last = 0
         self.actors = []
@@ -215,8 +245,11 @@ class PolicyBalance(Policy):
     """Routes requests to actors with potentially multiple clients per
     actor. It will attempt to balance load across the actors based on
     estimated outstanding work."""
-    def __init__(self, nRunner, runnerClass):
+    def __init__(self, nRunner, runnerClass, waiter=None):
         self.runnerClass = runnerClass
+
+        self.waiter = waiter
+        assert waiter is not None
 
         # List of Ray references representing stats from dead actors
         self.pendingActorStats = []
@@ -260,23 +293,21 @@ class PolicyBalance(Policy):
                 status.state = actorStatus.BUSY
                 return actor, status
             else:
-                if status.state == actorStatus.BUSY:
-                    outstanding.append((actor, status))
+                outstanding.append((actor, status))
         assert len(outstanding) != 0
 
         # Block until at least one actor is idle
-        outstandingRefs = [asyncio.wrap_future(runner[1].ref.future()) for runner in outstanding]
-        done, notReady = await asyncio.wait(outstandingRefs,
-                                            timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+        outstandingRefs = [runner[1].ref for runner in outstanding]
+        doneIdxs = await self.waiter(outstandingRefs, timeout=timeout,
+                                     return_when=asyncio.FIRST_COMPLETED, returnIdxs=True)
 
-        if len(done) == 0:
+        if len(doneIdxs) == 0:
             # There aren't any free workers within the timeout.
             return None, None
         else:
             idleActor = None
             idleStatus = None
-            for doneTask in done:
-                doneIdx = outstandingRefs.index(doneTask)
+            for doneIdx in doneIdxs:
                 doneActor, doneStatus = outstanding[doneIdx]
                 if doneStatus.state != actorStatus.DEAD:
                     actorStatus.state = actorStatus.IDLE
@@ -315,11 +346,14 @@ class PolicyBalance(Policy):
 
 
 class PolicyAffinity(Policy):
-    def __init__(self, nRunner, runnerClass, exclusive=True):
+    def __init__(self, nRunner, runnerClass, exclusive=True, waiter=None):
         """This policy provides exclusive access to a pool of actors for each
         client. Requests from two clients will never go to the same actor.
         Pools are sized to maximize fairness. If more clients register than
         available GPUs, the system will kill existing actors to make room."""
+        self.waiter = waiter
+        assert waiter is not None
+
         self.maxRunners = nRunner
         self.nRunners = 0
         self.runnerClass = runnerClass
@@ -390,7 +424,7 @@ class PolicyAffinity(Policy):
         if clientID in self.clientPools:
             clientPool = self.clientPools[clientID]
         else:
-            clientPool = PolicyBalance(0, self.runnerClass)
+            clientPool = PolicyBalance(0, self.runnerClass, waiter=self.waiter)
             self.clientPools[clientID] = clientPool
 
         runner, handle = await clientPool.getRunner(clientID, timeout=0.01)
