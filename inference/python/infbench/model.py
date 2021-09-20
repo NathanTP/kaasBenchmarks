@@ -475,13 +475,14 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
         settings.server_target_qps = maxQps * benchConfig['scale']
 
-        # settings.min_query_count = 10
+        #XXX put this back to something reasonable. Pushing bert hard breaks the minimum queries
+        # settings.min_query_count = 50
         # settings.min_duration_ms = int(300*1E3)
-        # settings.max_duration_ms = int(300*1E3)
-        # settings.min_duration_ms = int(60*1E3)
-        # settings.max_duration_ms = int(60*1E3)
-        settings.min_duration_ms = int(120*1E3)
-        settings.max_duration_ms = int(120*1E3)
+        settings.min_duration_ms = int(60*1E3)
+        settings.max_duration_ms = int(60*1E3)
+        # settings.min_duration_ms = int(120*1E3)
+        # settings.max_duration_ms = int(600*1E3)
+        # settings.max_duration_ms = int(120*1E3)
 
     return settings
 

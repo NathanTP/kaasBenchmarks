@@ -51,9 +51,54 @@ def launchClient(scale, model, name, test, outDir, nIter=1):
     return sp.Popen(cmd, stdout=sys.stdout, cwd=outDir)
 
 
+def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0):
+    if modelType == 'Kaas':
+        policy = 'balance'
+    elif modelType == 'Tvm':
+        policy = 'exclusive'
+    else:
+        raise ValueError("Unrecognized Model Type: " + modelType)
+
+    runners = {}
+    for i in range(nCpy):
+        for j, modelName in enumerate(modelNames):
+            instanceName = f"{prefix}_{modelName}_{j}_{i}"
+            runners[instanceName] = launchClient(
+                scale,
+                modelName + modelType, instanceName,
+                test, resultsDir)
+
+    server = launchServer(resultsDir, len(runners), modelType, policy)
+
+    failed = []
+    for name, runner in runners.items():
+        runner.wait()
+        if runner.returncode != 0:
+            failed.append(name)
+    server.send_signal(signal.SIGINT)
+    server.wait()
+
+    if len(failed) != 0:
+        raise RuntimeError("Some runners failed: ", failed)
+
+    if test == 'mlperf':
+        for summaryFile in resultsDir.glob("*_summary.txt"):
+            with open(summaryFile, 'r') as f:
+                summary = f.read()
+            if "INVALID" in summary:
+                if "Min queries satisfied : NO" in summary:
+                    raise RuntimeError("Test didn't meet minimum queries, try again with a longer runtime")
+                if "Min duration satisfied : NO" in summary:
+                    raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
+
+                return False
+
+    return True
+
+
 def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
     if modelType == 'Kaas':
-        policy = 'affinity'
+        policy = 'balance'
     elif modelType == 'Tvm':
         policy = 'exclusive'
     else:
@@ -106,7 +151,6 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     models = [
         "resnet50",
         "resnet50"
-        # "bert"
     ]
 
     prefix = f"{prefix}_{modelType}"
@@ -114,7 +158,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     # Attempt to find a valid scale, starting with "perfect" scaling
     nModel = nCpy * len(models)
     if scale is None:
-        scale = (1 / nModel) * util.getNGpu()
+        scale = ((1 / nModel) * util.getNGpu())
         succeedScale = 0
         failureScale = scale
     else:
@@ -129,7 +173,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     found = False
     while not found:
         print("\n\nAttempting scale: ", scale)
-        failure = not mlperfMultiOne(models, modelType, nCpy, scale, prefix, expResultsDir)
+        failure = not runTest('mlperf', models, modelType, prefix, expResultsDir, nCpy=nCpy, scale=scale)
 
         if failure:
             failureScale = scale
@@ -167,6 +211,22 @@ def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=
 
     if runner.returncode != 0:
         raise RuntimeError("Run Failed")
+
+
+def nShotMulti(n, modelType, prefix="nshot_multi", outDir="results"):
+    suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+    expResultsDir = outDir / f"multi_{modelType}_{suffix}"
+    expResultsDir.mkdir(0o700)
+    linkLatest(expResultsDir)
+
+    models = [
+        "resnet50",
+        "resnet50"
+    ]
+
+    prefix = f"{prefix}_{modelType}"
+
+    runTest('nshot', models, modelType, prefix, expResultsDir)
 
 
 def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
