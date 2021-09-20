@@ -5,6 +5,7 @@ import abc
 import asyncio
 import infbench
 import concurrent.futures
+import time
 
 import util
 
@@ -89,6 +90,8 @@ class Pool():
             self.policy = PolicyAffinity(nRunner, runActor, exclusive=False, waiter=self.waiter)
         elif policy == 'balance':
             self.policy = PolicyBalance(nRunner, runActor, waiter=self.waiter)
+        elif policy == 'hedge':
+            self.policy = PolicyHedge(nRunner, runActor, waiter=self.waiter)
         else:
             raise ValueError("Unrecognized policy: " + policy)
 
@@ -157,11 +160,18 @@ class Pool():
             # ray.get the answer without blocking. This still isn't ideal for
             # multi-node deployments since the caller may still block while the
             # data is fetched to the local data store
-            with infbench.timer("t_policy_wait_result", self.stats[clientID]):
-                if nReturn == 1:
-                    await self.waitForRefs([respFutures])
-                else:
-                    await self.waitForRefs(respFutures)
+            start = time.time()
+            # with infbench.timer("t_policy_wait_result", self.stats[clientID]):
+            if nReturn == 1:
+                await self.waitForRefs([respFutures])
+            else:
+                await self.waitForRefs(respFutures)
+            tReqRun = time.time() - start
+
+            self.stats[clientID]['t_policy_wait_result'].increment(tReqRun)
+
+            if isinstance(self.policy, PolicyHedge):
+                self.policy.updateMeta(clientID, {'t_run': tReqRun})
 
             return respFutures
 
@@ -236,9 +246,154 @@ class actorStatus():
         self.ref = None
 
 
-class statusList():
+class Runner():
+    def __init__(self, runActor):
+        self.actor = runActor
+        self.state = actorStatus.IDLE
+        self.ref = None
+
+
+class clientInfo():
     def __init__(self):
-        self.statuses = []
+        self.nMiss = 0
+
+        # We use a rolling average with infinite history because its easy and
+        # probably fine (the experiments aren't really time-varying)
+        self.latSum = 0
+        self.nSample = 0
+        self.latEstimate = 0
+
+    def expectedWait(self):
+        if self.nSample == 0:
+            return None
+        else:
+            return self.latEstimate * 1.5
+
+    def updateWait(self, lat):
+        self.latSum += lat
+        self.latEstimate = self.latSum / self.nSample
+
+    def updateMiss(self, miss):
+        if miss:
+            self.nMiss += 1
+        else:
+            self.nMiss -= 1
+
+    def resetMiss(self):
+        self.nMiss = 0
+
+    def shouldScale(self):
+        # XXX This is super naive. I should think harder about the policy here
+        if self.nMiss > 10:
+            return True
+        else:
+            return False
+
+
+class PolicyHedge(Policy):
+    """Attempts to route requests from clients to the same set of GPUs if
+    possible. If a long tail is detected, the system begins to hedge on runners
+    from outside its affinity pool."""
+    def __init__(self, nRunner, runnerClass, waiter=None):
+        self.runnerClass = runnerClass
+        self.waiter = waiter
+
+        self.allRunners = []
+        for i in range(nRunner):
+            # We set the max concurrency to 1 because functions aren't
+            # necessarily thread safe (and to match other policies)
+            newActor = self.runnerClass.options(max_concurrency=1).remote()
+            permanentScope.append(newActor)
+            self.allRunners.append(Runner(newActor))
+        self.unassigned = self.allRunners.copy()
+
+        # {clientID -> [Runner]}
+        self.affinityGroups = {}
+
+        # {clientID -> clientInfo}
+        self.clientInfos = {}
+
+    def scaleClient(self, clientID):
+        if len(self.unassigned) > 0:
+            newRunner = self.unassigned.pop()
+            self.affinityGroups[clientID].append(newRunner)
+            return
+
+        maxSize = 0
+        for affGroup in self.affinityGroups.values():
+            if len(affGroup) > maxSize:
+                maxSize = len(affGroup)
+
+        # Check if it would be fair to scale someone else down
+        if maxSize >= len(self.affinityGroups[clientID]):
+            return
+
+        # Only consider clients with the most workers
+        candidates = []
+        for cID, affGroup in self.affinityGroups.items():
+            if len(affGroup) == maxSize:
+                candidates.append(cID)
+
+        # If we still have multiple candidates, choose randomly
+        lot = random.randrange(0, len(candidates))
+        victimID = candidates[lot]
+        evictedActor = self.affinityGroups[victimID].pop()
+        self.affinityGroups[clientID].append(evictedActor)
+
+    async def getRunner(self, clientID, **kwargs):
+        if clientID not in self.affinityGroups:
+            self.affinityGroups[clientID] = []
+            self.clientInfos[clientID] = clientInfo()
+
+        affGroup = self.affinityGroups[clientID]
+        cInfo = self.clientInfos[clientID]
+
+        # Every client deserves at least one runner
+        if len(affGroup) == 0:
+            self.scaleClient(clientID)
+
+        # First try to find an idle worker in the current affinity group
+        for runner in affGroup:
+            if runner.state == actorStatus.IDLE:
+                runner.state = actorStatus.BUSY
+                cInfo.updateMiss(False)
+                return runner.actor, runner
+
+        # No obviously free workers, try running in our affinity group
+        timeout = cInfo.expectedWait()
+        doneIdxs = await self.waiter([runner.ref for runner in affGroup], timeout=timeout,
+                                     return_when=asyncio.FIRST_COMPLETED, returnIdxs=True)
+
+        for idx in doneIdxs:
+            affGroup[idx].state = actorStatus.IDLE
+
+        if len(doneIdxs) > 0:
+            runner = affGroup[doneIdxs[0]]
+            runner.state = actorStatus.BUSY
+            cInfo.updateMiss(False)
+            return runner.actor, runner
+
+        # Didn't get any workers within a reasonable time frame, try stealing
+        # from the whole pool
+        cInfo.updateMiss(True)
+        if cInfo.shouldScale():
+            self.scaleClient(clientID)
+            cInfo.resetMiss()
+
+        doneIdxs = await self.waiter([runner.ref for runner in self.allRunners], timeout=None,
+                                     return_when=asyncio.FIRST_COMPLETED, returnIdxs=True)
+
+        assert len(doneIdxs) > 0
+        runner = self.allRunners[doneIdxs[0]]
+        runner.state = actorStatus.BUSY
+        return runner.actor, runner
+
+    def update(self, clientID, handle, respFutures):
+        runner = handle
+        runner.ref = respFutures
+
+    def updateMeta(self, clientID, updates):
+        self.clientInfos[clientID].updateWait(updates['t_run'])
 
 
 class PolicyBalance(Policy):

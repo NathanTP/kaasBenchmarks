@@ -19,10 +19,9 @@ import libff.kaas.kaasRay as kaasRay
 
 import util
 
-# There are tradeoffs to using asyncio vs thread pools for policies.
-# Measurements have been inconclusive. Asyncio currently has a performance bug
-# due to asyncio.wait being an order of magnitude slower than ray.wait. Best to
-# use threads for now.
+# There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
+# a bit slower for unknown reasons, but it's easier to implement policies so
+# we're sticking with it for now
 # USE_THREADED_POLICY = True
 USE_THREADED_POLICY = False
 if USE_THREADED_POLICY:
