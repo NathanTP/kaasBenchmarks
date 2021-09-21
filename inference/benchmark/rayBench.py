@@ -6,6 +6,7 @@ import os
 import signal
 import pathlib
 import json
+import math
 
 import time
 import asyncio
@@ -507,6 +508,168 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # ray.timeline(filename="rayProfile.json")
 
     return results
+
+
+# =============================================================================
+# Throughput Test
+# =============================================================================
+class throughputLoop():
+    def __init__(self, modelSpec, benchConfig, targetTime=60):
+        """This test uses tornado IOLoop to submit requests as fast as possible
+        for targetTime seconds. It reports the total throughput acheived."""
+        self.benchConfig = benchConfig
+        self.modelSpec = modelSpec
+        self.clientID = benchConfig['name'].encode('utf-8')
+        self.loop = IOLoop.instance()
+
+        self.coldStats = infbench.profCollection()
+        self.warmStats = infbench.profCollection()
+
+        #
+        # Common Inputs
+        #
+        constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
+        if constants is None:
+            self.constRefs = None
+        else:
+            self.constRefs = []
+            for const in constants:
+                self.constRefs.append(ray.put(const))
+
+        self.specRef = ray.put(self.modelSpec)
+
+        if modelSpec.modelType == "kaas":
+            self.modelArg = modelSpec.getModelArg()
+        else:
+            self.modelArg = ray.put(modelSpec.getModelArg())
+
+        #
+        # Common Test Components
+        #
+        self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
+        self.loader.preLoad(range(self.loader.ndata))
+
+        self.nGpu = util.getNGpu()
+        if USE_THREADED_POLICY:
+            self.pool = policy.Pool.options(max_concurrency=policyNThread). \
+                remote(self.nGpu, benchConfig['policy'], runActor)
+        else:
+            self.pool = policy.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
+
+        # This info is only used to get performance estimates
+        gpuType = util.getGpuType()
+        mlperfCfg = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
+
+        self.completionQueue = ray.util.queue.Queue()
+
+        #
+        # Throughput Test Variables
+        #
+        # This can be a very rough estimate. It needs to be high enough that
+        # the pipe stays full, but low enough that we aren't waiting for a
+        # million queries to finish after the deadline.
+        self.targetOutstanding = max(5, math.ceil(mlperfCfg.server_target_qps*benchConfig['scale']))
+        self.targetTime = targetTime
+        self.nOutstanding = 0
+        self.nextIdx = 0
+        self.nCompleted = 0
+
+        #
+        # Begin Test
+        #
+        self.preWarm()
+
+        self.loop.add_callback(self.submitReqs)
+        self.loop.add_callback(self.handleResponses)
+        self.startTime = time.time()
+
+    def preWarm(self):
+        self.loader.preLoad([0])
+        inputs = self.loader.get(0)
+        results = []
+
+        # We don't control how ray handles workers, but we assume that
+        # sending a burst of nGpu*2 should be enough to trigger all the
+        # cold starts.
+        for i in range(self.nGpu*2):
+            results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
+                           self.constRefs, inputs, inline=self.benchConfig['inline'],
+                           runPool=self.pool, stats=self.coldStats))
+        for res in results:
+            ray.get(res)
+
+        coldPoolStats = ray.get(self.pool.getStats.remote())
+        self.coldStats.merge(coldPoolStats[None])
+
+    def submitReqs(self):
+        while self.nOutstanding < self.targetOutstanding:
+            inp = self.loader.get(self.nextIdx % self.loader.ndata)
+            _runOne(self.modelSpec, self.specRef, self.modelArg,
+                    self.constRefs, inp, inline=self.benchConfig['inline'],
+                    completionQ=self.completionQueue, queryId=self.nextIdx,
+                    cacheModel=self.benchConfig['cache'], runPool=self.pool,
+                    stats=self.warmStats)
+
+            self.nextIdx += 1
+            self.nOutstanding += 1
+
+    async def handleResponses(self):
+        result, reqID = await self.completionQueue.get_async()
+
+        if reqID % self.targetOutstanding == 0:
+            if time.time() - self.startTime >= self.targetTime:
+                print("Test complete, shutting down")
+                self.runTime = time.time() - self.startTime
+                IOLoop.instance().stop()
+
+        self.nOutstanding -= 1
+        self.nCompleted += 1
+
+        if self.nOutstanding < (self.targetOutstanding / 2):
+            self.loop.add_callback(self.submitReqs)
+
+        self.loop.add_callback(self.handleResponses)
+
+    def reportMetrics(self):
+        metrics = {}
+
+        # useful for debugging mostly. Ideally t_total ~= targetTime
+        metrics['n_completed'] = self.nCompleted
+        metrics['t_total'] = self.runTime * 1000  # we always report time in ms
+
+        # completions/second
+        metrics['throughput'] = self.nCompleted / self.runTime
+
+        if self.nCompleted < self.targetOutstanding:
+            print("\n*********************************************************")
+            print("WARNING: Too few queries completed!")
+            print("*********************************************************\n")
+            metrics['valid'] = False
+        elif self.runTime > self.targetTime*1.2 or self.runTime < self.targetTime*0.2:
+            print("\n*********************************************************")
+            print("WARNING: Actual runtime too far from target: ")
+            print("\tTarget: ", self.targetTime)
+            print("\tActual: ", self.runTime)
+            print("*********************************************************\n")
+            metrics['valid'] = False
+
+        else:
+            metrics['valid'] = True
+
+        return metrics
+
+
+def throughput(modelSpec, benchConfig):
+    ray.init()
+
+    if benchConfig['scale'] is None:
+        benchConfig['scale'] = 1.0
+
+    testLoop = throughputLoop(modelSpec, benchConfig, targetTime=20)
+    IOLoop.instance().start()
+
+    metrics = testLoop.reportMetrics()
+    infbench.model.saveReport(metrics, benchConfig, benchConfig['name'] + '_results.json')
 
 
 # =============================================================================
