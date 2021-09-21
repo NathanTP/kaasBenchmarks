@@ -24,7 +24,7 @@ def main():
     parser.add_argument("-n", "--name", default="test", help="Name to use internally and when saving results")
     parser.add_argument("-m", "--model", help="Model to run")
     parser.add_argument("-b", "--backend", default='local', choices=['local', 'ray', 'client'], help="Which driver to use (local or ray)")
-    parser.add_argument("-t", "--test", default="nshot", choices=['nshot', 'mlperf', 'server'], help="Which test to run")
+    parser.add_argument("-e", "--experiment", default="nshot", choices=['nshot', 'mlperf', 'server', 'throughput'], help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("-p", "--policy", choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default=None, help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--no_cache", action="store_true", help="Don't cache models on workers")
@@ -79,6 +79,10 @@ def main():
         backend.mlperfBench(spec, benchConfig)
     elif args.test == 'server':
         backend.serveRequests(benchConfig)
+    elif args.test == 'throughput':
+        spec = util.getModelSpec(args.model)
+        benchConfig['model_type'] = spec.modelType
+        backend.throughput(spec, benchConfig)
     else:
         raise ValueError("Unrecognized test: ", args.test)
 

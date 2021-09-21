@@ -8,6 +8,7 @@ from gpuinfo import GPUInfo
 from pprint import pprint
 import json
 import pathlib
+import time
 
 import libff as ff
 import libff.invoke
@@ -198,6 +199,12 @@ class mlperfRunner():
         self.constants = constants
         self.benchConfig = benchConfig
 
+        #XXX
+        self.firstTime = None
+        self.lastTime = None
+
+
+
     def start(self):
         for model in self.models:
             threading.Thread(target=self.runOneAsync, args=[model, self.queue]).start()
@@ -211,8 +218,9 @@ class mlperfRunner():
 
     def runOneAsync(self, model, queue):
         batch = queue.get()
-
+        self.firstTime = time.time()
         while batch is not None:
+            self.lastTime = time.time()
             responses = []
             for query in batch:
                 inputs = self.loader.get(query.index)
@@ -235,17 +243,12 @@ class mlperfRunner():
 def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
-    if benchConfig['inline']:
-        print("WARNING: inline does nothing in local mode (it's basically always inline)")
-    if benchConfig['actors']:
-        print("WARNING: useActors does nothing in local mode")
-
     gpuType = util.getGpuType()
 
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
 
-    settings = models[0].getMlPerfCfg(gpuType, testing=benchConfig['testing'])
+    settings = models[0].getMlPerfCfg(gpuType, benchConfig)
 
     runner = mlperfRunner(loader, constants, models, benchConfig)
     runner.start()
@@ -264,7 +267,15 @@ def mlperfBench(modelSpec, benchConfig):
     finally:
         runner.stop()
 
-    infbench.model.reportMlPerf()
+    print("Submission time range: ", runner.lastTime - runner.firstTime)
+    # print("\nResults:")
+    # mlPerfMetrics = infbench.model.parseMlPerf('mlperf_log_')
+
+    # print("\nStats:")
+    # report = warmStats.report()
+    # util.analyzeStats(report)
+    #
+    # infbench.model.saveReport(mlPerfMetrics, benchConfig, 'results.json')
 
 # =============================================================================
 # Server Mode

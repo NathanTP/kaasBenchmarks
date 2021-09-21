@@ -5,8 +5,8 @@ import threading
 from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
-from pprint import pprint
 import time
+import math
 
 import mlperf_loadgen
 
@@ -50,21 +50,27 @@ def preWarm(serverSock, barrierSock, inputs):
 
     barrier(barrierSock)
 
+# =============================================================================
+# nShot
+# =============================================================================
 
 def _nShotSync(n, loader, serverSocket, stats=None):
     results = []
-    for i in range(n):
-        idx = i % loader.ndata
-        inp = loader.get(idx)
+    stats['n_req'].increment(n)
 
-        with infbench.timer('t_e2e', stats):
-            sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
+    with infbench.timer("t_all", stats):
+        for i in range(n):
+            idx = i % loader.ndata
+            inp = loader.get(idx)
 
-            resp = serverSocket.recv_multipart()
-            respIdx = int.from_bytes(resp[0], sys.byteorder)
+            with infbench.timer('t_e2e', stats):
+                sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
 
-            assert (respIdx == idx)
-            results.append((respIdx, resp[1:]))
+                resp = serverSocket.recv_multipart()
+                respIdx = int.from_bytes(resp[0], sys.byteorder)
+
+                assert (respIdx == idx)
+                results.append((respIdx, resp[1:]))
 
     return results
 
@@ -72,19 +78,22 @@ def _nShotSync(n, loader, serverSocket, stats=None):
 def _nShotASync(n, loader, serverSocket, stats=None):
     results = []
     starts = []
-    for i in range(n):
-        idx = i % loader.ndata
-        inp = loader.get(idx)
+    with infbench.timer('t_all', stats):
+        for i in range(n):
+            idx = i % loader.ndata
+            inp = loader.get(idx)
 
-        starts.append(time.time())
-        sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
+            starts.append(time.time())
+            sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
 
-    for i in range(n):
-        resp = serverSocket.recv_multipart()
+        stats['n_req'].increment(n)
 
-        respIdx = int.from_bytes(resp[0], sys.byteorder)
-        stats['t_e2e'].increment(time.time() - starts[respIdx])
-        results.append((respIdx, resp[1:]))
+        for i in range(n):
+            resp = serverSocket.recv_multipart()
+
+            respIdx = int.from_bytes(resp[0], sys.byteorder)
+            stats['t_e2e'].increment(time.time() - starts[respIdx])
+            results.append((respIdx, resp[1:]))
 
     return results
 
@@ -117,7 +126,7 @@ def nShot(modelSpec, n, benchConfig):
 
     # Send all requests
     print("Sending Requests:")
-    results = _nShotSync(n, loader, serverSocket, stats=stats)
+    results = _nShotASync(n, loader, serverSocket, stats=stats)
     print("Test complete")
 
     if loader.checkAvailable:
@@ -130,16 +139,92 @@ def nShot(modelSpec, n, benchConfig):
     else:
         print("Accuracy checking not supported for this model")
 
-    report = stats.report()
-    print("E2E Results:")
-    pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+    report = stats.report(includeEvents=False)
+    # print("E2E Results:")
+    # pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+    #
+    report['valid'] = True
+    report['throughput'] = n / (report['t_all']['total'] / 1000)
 
-    # report['valid'] = True
-    # report['throughput'] = report['t_e2e']
-    # infbench.model.saveReport(report, benchConfig, benchConfig['name'] + '_results.json')
+    print("Writing full report to: ", benchConfig['name'] + '_results.json')
+    infbench.model.saveReport(report, benchConfig, benchConfig['name'] + '_results.json')
 
     return results
 
+
+# =============================================================================
+# Throughput
+# =============================================================================
+
+class throughputLoop():
+    def __init__(self, modelSpec, benchConfig, zmqContext, targetTime=60):
+        """This test uses tornado IOLoop to submit requests as fast as possible
+        for targetTime seconds. It reports the total throughput acheived."""
+        self.benchConfig = benchConfig
+        self.clientID = benchConfig['name'].encode('utf-8')
+        self.loop = IOLoop.instance()
+
+        # This info is only used to get performance estimates
+        gpuType = util.getGpuType()
+        mlperfCfg = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
+
+        # This can be a very rough estimate. It needs to be high enough that
+        # the pipe stays full, but low enough that we aren't waiting for a
+        # million queries to finish after the deadline.
+        self.targetOutstanding = min(5, math.ceil(mlperfCfg.server_target_qps))
+
+        self.targetTime = targetTime
+        self.nOutstanding = 0
+        self.nextIdx = 0
+        self.nCompleted = 0
+
+        self.serverSocket, self.barrierSocket = setupZmq(self.clientID, context=zmqContext)
+
+        # Register and PreWarm
+        sendReq(self.serverSocket, self.benchConfig['model'].encode('utf-8'), b'')
+        loader = modelSpec.loader(modelSpec.dataDir)
+        loader.preLoad([0])
+        inputs = loader.get(0)
+        preWarm(self.serverSocket, self.barrierSocket, inputs)
+
+        # start listening for server responses
+        self.serverStream = ZMQStream(self.serverSocket)
+        self.serverStream.on_recv(self.handleServer)
+
+        self.loop.add_callback(self.submitReqs)
+        self.startTime = time.time()
+
+    def submitReqs(self):
+        while self.nOutstanding < self.targetOutstanding:
+            inp = self.loader.get(self.nextIdx % self.loader.ndata)
+            self.serverStream.send_multipart([self.nextIdx.tobytes(8, sys.byteorder), inp])
+            self.nextIdx += 1
+            self.nOutstanding += 1
+
+    def handleServer(self, msg):
+        """Handle responses from the server"""
+        reqID = int.from_bytes(msg[0], sys.byteorder)
+
+        if reqID % self.targetOutstanding == 0:
+            if time.time() - self.startTime >= self.targetTime:
+                print("Test complete, shutting down")
+                self.sutStream.stop_on_recv()
+                self.serverStream.stop_on_recv()
+                IOLoop.instance().stop()
+
+        self.nOutstanding -= 1
+        self.nCompleted += 1
+
+        if self.nOutstanding < (self.targetOutstanding / 2):
+            self.loop.add_callback(self.submitReqs)
+
+    def reportThroughput(self):
+        return self.nCompleted / self.targetTime
+
+
+# =============================================================================
+# MlPerf
+# =============================================================================
 
 class mlperfRunner(threading.Thread):
     def __init__(self, modelSpec, benchConfig, zmqContext):
