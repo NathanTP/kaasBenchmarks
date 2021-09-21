@@ -164,6 +164,9 @@ class throughputLoop():
         self.clientID = benchConfig['name'].encode('utf-8')
         self.loop = IOLoop.instance()
 
+        self.loader = modelSpec.loader(modelSpec.dataDir)
+        self.loader.preLoad(range(self.loader.ndata))
+
         # This info is only used to get performance estimates
         gpuType = util.getGpuType()
         mlperfCfg = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
@@ -171,7 +174,7 @@ class throughputLoop():
         # This can be a very rough estimate. It needs to be high enough that
         # the pipe stays full, but low enough that we aren't waiting for a
         # million queries to finish after the deadline.
-        self.targetOutstanding = min(5, math.ceil(mlperfCfg.server_target_qps))
+        self.targetOutstanding = max(5, math.ceil(mlperfCfg.server_target_qps*benchConfig['scale']))
 
         self.targetTime = targetTime
         self.nOutstanding = 0
@@ -197,7 +200,7 @@ class throughputLoop():
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
             inp = self.loader.get(self.nextIdx % self.loader.ndata)
-            self.serverStream.send_multipart([self.nextIdx.tobytes(8, sys.byteorder), inp])
+            sendReq(self.serverStream, self.nextIdx.to_bytes(8, sys.byteorder), inp)
             self.nextIdx += 1
             self.nOutstanding += 1
 
@@ -208,7 +211,8 @@ class throughputLoop():
         if reqID % self.targetOutstanding == 0:
             if time.time() - self.startTime >= self.targetTime:
                 print("Test complete, shutting down")
-                self.sutStream.stop_on_recv()
+                self.runTime = time.time() - self.startTime
+
                 self.serverStream.stop_on_recv()
                 IOLoop.instance().stop()
 
@@ -218,8 +222,43 @@ class throughputLoop():
         if self.nOutstanding < (self.targetOutstanding / 2):
             self.loop.add_callback(self.submitReqs)
 
-    def reportThroughput(self):
-        return self.nCompleted / self.targetTime
+    def reportMetrics(self):
+        metrics = {}
+
+        # useful for debugging mostly. Ideally t_total ~= targetTime
+        metrics['n_completed'] = self.nCompleted
+        metrics['t_total'] = self.runTime * 1000  # we always report time in ms
+
+        # completions/second
+        metrics['throughput'] = self.nCompleted / self.runTime
+
+        if self.nCompleted < self.targetOutstanding:
+            print("\n*********************************************************")
+            print("WARNING: Too few queries completed!")
+            print("*********************************************************\n")
+            metrics['valid'] = False
+        elif self.runTime > self.targetTime*1.2 or self.runTime < self.targetTime*0.2:
+            print("\n*********************************************************")
+            print("WARNING: Actual runtime too far from target: ")
+            print("\tTarget: ", self.targetTime)
+            print("\tActual: ", self.runTime)
+            print("*********************************************************\n")
+            metrics['valid'] = False
+
+        else:
+            metrics['valid'] = True
+
+        return metrics
+
+
+def throughput(modelSpec, benchConfig):
+    context = zmq.Context()
+
+    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=60)
+    IOLoop.instance().start()
+
+    metrics = testLoop.reportMetrics()
+    infbench.model.saveReport(metrics, benchConfig, benchConfig['name'] + '_results.json')
 
 
 # =============================================================================

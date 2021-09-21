@@ -50,7 +50,7 @@ def main():
         "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
         "name": args.name,
         "model": args.model,
-        "test": args.test,
+        "experiment": args.experiment,
         "backend": args.backend,
         "testing": args.testing,
         "policy": args.policy,
@@ -61,7 +61,7 @@ def main():
         "numClient": args.numClient
     }
 
-    print(f"Starting {args.test} test")
+    print(f"Starting {args.experiment} experiment")
     print("\t Model: ", args.model)
     print("\t Backend: ", args.backend)
     print("\t Testing: ", args.testing)
@@ -69,17 +69,17 @@ def main():
     print("\t Cache Models: ", not args.no_cache)
     print("\t Inline: ", args.inline)
 
-    if args.test == 'nshot':
+    if args.experiment == 'nshot':
         spec = util.getModelSpec(args.model)
         benchConfig['model_type'] = spec.modelType
         backend.nShot(spec, args.numRun, benchConfig)
-    elif args.test == 'mlperf':
+    elif args.experiment == 'mlperf':
         spec = util.getModelSpec(args.model)
         benchConfig['model_type'] = spec.modelType
         backend.mlperfBench(spec, benchConfig)
-    elif args.test == 'server':
+    elif args.experiment == 'server':
         backend.serveRequests(benchConfig)
-    elif args.test == 'throughput':
+    elif args.experiment == 'throughput':
         spec = util.getModelSpec(args.model)
         benchConfig['model_type'] = spec.modelType
         backend.throughput(spec, benchConfig)

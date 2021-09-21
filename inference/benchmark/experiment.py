@@ -30,7 +30,7 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
         env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(nGpu)])
 
     cmd = [expRoot / "benchmark.py",
-                     "-t", "server",
+                     "-e", "server",
                      '-b', 'ray',
                      '--policy=' + policy,
                      '--numClient=' + str(nClient)]
@@ -40,7 +40,7 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
 
 def launchClient(scale, model, name, test, outDir, nRun=1):
     cmd = [(expRoot / "benchmark.py"),
-           "-t", test,
+           "-e", test,
            "--numRun=" + str(nRun),
            "-b", "client",
            "--name=" + name,
@@ -92,7 +92,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
                     raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
 
                 return False
-    if test == 'nshot':
+    if test == 'nshot' or test == 'throughput':
         totalThroughput = 0
         for i in range(nCpy):
             for j, modelName in enumerate(modelNames):
@@ -254,6 +254,24 @@ def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
         raise RuntimeError("Run Failed")
 
 
+def throughput(modelType, scale=1.0, prefix="throughput", outDir="results"):
+    suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+    expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
+    expResultsDir.mkdir(0o700)
+    linkLatest(expResultsDir)
+
+    if scale is None:
+        scale = 1.0
+
+    models = [
+        "resnet50"
+    ]
+
+    prefix = f"{prefix}_{modelType}"
+
+    runTest('throughput', models, modelType, prefix, expResultsDir, scale=scale)
+
+
 if __name__ == "__main__":
     if not resultsDir.exists():
         resultsDir.mkdir(0o700)
@@ -263,7 +281,7 @@ if __name__ == "__main__":
                         choices=['bert', 'resnet50', 'superRes'],
                         help="Model to run. Not used in mlperfMulti mode.")
     parser.add_argument("-e", "--experiment",
-                        choices=['nshot', 'nshotMulti', 'mlperfOne', 'mlperfMulti'],
+                        choices=['nshot', 'nshotMulti', 'mlperfOne', 'mlperfMulti', 'throughput'],
                         help="Which experiment to run.")
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
@@ -286,6 +304,9 @@ if __name__ == "__main__":
     elif args.experiment == 'mlperfMulti':
         print("Starting mlperfMulti")
         mlperfMulti(args.modelType, outDir=resultsDir, scale=args.scale)
+    elif args.experiment == 'throughput':
+        print("Starting Throughput Test")
+        throughput(args.modelType, outDir=resultsDir, scale=args.scale)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 
