@@ -62,7 +62,7 @@ class superResBase():
     def getMlPerfCfg(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
             maxQps = 4.3
-            medianLatency = 0.323
+            medianLatency = 0.325
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 3
             medianLatency = 0.320

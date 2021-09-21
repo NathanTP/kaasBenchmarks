@@ -3,6 +3,7 @@ import collections
 import ray
 import random
 import abc
+import infbench
 
 import util
 
@@ -71,33 +72,50 @@ class Pool():
         else:
             raise ValueError("Unrecognized policy: " + policy)
 
+        self.stats = {}
+
     def getStats(self):
-        return self.policy.getStats()
+        stats = {}
+        policyStats = self.policy.getStats()
+        util.mergePerClientStats(stats, policyStats)
+        util.mergePerClientStats(stats, self.stats)
+
+        # clear existing stats
+        self.stats = {}
+
+        return stats
 
     def run(self, funcName, nReturn, clientID, inputRefs, args, kwargs={}):
         """Run a model. Args and kwargs will be passed to the appropriate runner"""
-        # Block until the inputs are ready
-        ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
+        if clientID not in self.stats:
+            self.stats[clientID] = infbench.profCollection()
+        with infbench.timer('t_policy_run', self.stats[clientID]):
 
-        # Get a free runner (may block)
-        runActor, handle = self.policy.getRunner(clientID)
-        assert runActor is not None
+            # Block until the inputs are ready
+            with infbench.timer('t_policy_wait_input', self.stats[clientID]):
+                ray.wait(inputRefs, num_returns=len(inputRefs), fetch_local=False)
 
-        respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
+            # Get a free runner (may block)
+            with infbench.timer("t_policy_wait_runner", self.stats[clientID]):
+                runActor, handle = self.policy.getRunner(clientID)
+            assert runActor is not None
 
-        self.policy.update(clientID, handle, respFutures)
+            respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
 
-        # Wait until the runner is done before returning, this ensures that
-        # anyone waiting on our response (e.g. post()) can immediately
-        # ray.get the answer without blocking. This still isn't ideal for
-        # multi-node deployments since the caller may still block while the
-        # data is fetched to the local data store
-        if nReturn == 1:
-            ray.wait([respFutures], num_returns=1, fetch_local=False)
-        else:
-            ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
+            self.policy.update(clientID, handle, respFutures)
 
-        return respFutures
+            # Wait until the runner is done before returning, this ensures that
+            # anyone waiting on our response (e.g. post()) can immediately
+            # ray.get the answer without blocking. This still isn't ideal for
+            # multi-node deployments since the caller may still block while the
+            # data is fetched to the local data store
+            with infbench.timer("t_policy_wait_result", self.stats[clientID]):
+                if nReturn == 1:
+                    ray.wait([respFutures], num_returns=1, fetch_local=False)
+                else:
+                    ray.wait(respFutures, num_returns=len(respFutures), fetch_local=False)
+
+            return respFutures
 
 
 class PolicyStatic(Policy):

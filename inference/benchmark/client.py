@@ -51,6 +51,44 @@ def preWarm(serverSock, barrierSock, inputs):
     barrier(barrierSock)
 
 
+def _nShotSync(n, loader, serverSocket, stats=None):
+    results = []
+    for i in range(n):
+        idx = i % loader.ndata
+        inp = loader.get(idx)
+
+        with infbench.timer('t_e2e', stats):
+            sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
+
+            resp = serverSocket.recv_multipart()
+            respIdx = int.from_bytes(resp[0], sys.byteorder)
+
+            assert (respIdx == idx)
+            results.append((respIdx, resp[1:]))
+
+    return results
+
+
+def _nShotASync(n, loader, serverSocket, stats=None):
+    results = []
+    starts = []
+    for i in range(n):
+        idx = i % loader.ndata
+        inp = loader.get(idx)
+
+        starts.append(time.time())
+        sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
+
+    for i in range(n):
+        resp = serverSocket.recv_multipart()
+
+        respIdx = int.from_bytes(resp[0], sys.byteorder)
+        stats['t_e2e'].increment(time.time() - starts[respIdx])
+        results.append((respIdx, resp[1:]))
+
+    return results
+
+
 def nShot(modelSpec, n, benchConfig):
     """A simple nShot test. All N requests are sent before waiting for
     responses. The raw results are returned."""
@@ -68,39 +106,37 @@ def nShot(modelSpec, n, benchConfig):
     print("Registering client: ", benchConfig['name'])
     sendReq(serverSocket, benchConfig['model'].encode('utf-8'), b'')
 
+    # Cold starts
+    inp = loader.get(0)
+    for i in range(util.getNGpu()*2):
+        sendReq(serverSocket, bytes(1), inp)
+        serverSocket.recv_multipart()
+
     print("Waiting for other clients:")
     barrier(barrierSocket)
 
     # Send all requests
     print("Sending Requests:")
-    results = []
-    accuracies = []
-    for i in range(n):
-        idx = i % loader.ndata
-        inp = loader.get(idx)
+    results = _nShotSync(n, loader, serverSocket, stats=stats)
+    print("Test complete")
 
-        with infbench.timer('t_e2e', stats):
-            sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
-
-            # respIdx, respData = serverSocket.recv_multipart()
-            # respIdx = int.from_bytes(respIdx, sys.byteorder)
-            resp = serverSocket.recv_multipart()
-            respIdx = int.from_bytes(resp[0], sys.byteorder)
-
-            assert (respIdx == idx)
-            results.append(resp[1:])
-
-        if loader.checkAvailable:
-            accuracies.append(loader.check(results[-1], idx))
-
-    # Check Accuracy
-    print("Test complete, checking accuracies")
     if loader.checkAvailable:
+        print("Checking accuracy")
+        accuracies = []
+        for idx, res in results:
+            accuracies.append(loader.check(res, idx))
+
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
+    else:
+        print("Accuracy checking not supported for this model")
 
     report = stats.report()
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
+
+    # report['valid'] = True
+    # report['throughput'] = report['t_e2e']
+    # infbench.model.saveReport(report, benchConfig, benchConfig['name'] + '_results.json')
 
     return results
 

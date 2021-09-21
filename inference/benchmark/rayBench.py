@@ -19,11 +19,11 @@ import libff.kaas.kaasRay as kaasRay
 
 import util
 
-# There are tradeoffs to using asyncio vs thread pools for policies.
-# Measurements have been inconclusive. Asyncio currently has a performance bug
-# due to asyncio.wait being an order of magnitude slower than ray.wait. Best to
-# use threads for now.
-USE_THREADED_POLICY = True
+# There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
+# a bit slower for unknown reasons, but it's easier to implement policies so
+# we're sticking with it for now
+# USE_THREADED_POLICY = True
+USE_THREADED_POLICY = False
 if USE_THREADED_POLICY:
     import policy
     # This is effectively the outstanding request window for policies. It's not
@@ -339,7 +339,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
         if PROF_LEVEL > 1:
             with infbench.timer("t_run", stats):
-                ray.wait(runOut)
+                ray.wait(runOut, fetch_local=False)
 
         # Post
         if mClass.noPost:
