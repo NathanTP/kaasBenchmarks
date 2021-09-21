@@ -51,6 +51,7 @@ def getModelSpec(modelName):
         import infbench.cutlass
         return ModelSpec(name="cutlassSgemmKaas",
                          loader=infbench.cutlass.cutlassSgemmLoader,
+                         dataDir = modelDir / "cutlassSgemm",
                          modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
                          modelClass=infbench.cutlass.sgemmKaas,
                          modelType="kaas")
@@ -59,7 +60,8 @@ def getModelSpec(modelName):
         import infbench.cutlass
         return ModelSpec(name="cutlassSgemm",
                          loader=infbench.cutlass.cutlassSgemmLoader,
-                         modelPath=modelDir / "cutlassSgemm",
+                         dataDir = modelDir / "cutlassSgemm",
+                         modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
                          modelClass=infbench.cutlass.cutlassSgemm,
                          modelType="direct")
 
@@ -141,6 +143,8 @@ def packInputs(maps, const=None, inp=None, pre=None, run=None):
     for (argMap, data) in zip(maps, [const, inp, pre, run]):
         if argMap is not None:
             assert data is not None
+            if not isinstance(argMap, tuple):
+                argMap = (argMap,)
             inputs.extend([data[i] for i in argMap])
     return inputs
 

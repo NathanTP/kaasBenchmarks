@@ -4,6 +4,8 @@ import pathlib
 from cutlassSgemm import createReq
 import argparse
 import subprocess as sp
+import numpy as np
+import pickle
 
 cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
@@ -11,9 +13,10 @@ cutlassDir = modelDir / "cutlassSgemm"
 
 
 def getMeta(M, N, K):
-    outputs = [{"name": "c", "type": "float32", "shape": [M, N]}]
-    inputs = [{"name": "a", "type": "float32", "shape": [M, K]}, {"name": "b", "type": "float32", "shape": [K, N]}]
-    return {"constants": [], "inputs": inputs, "outputs": outputs}
+    constants = [{"name": "b", "type": "float32", "shape": [K, N]}, {"name": "d", "type": "float32", "shape": [N, 1]}]
+    outputs = [{"name": "e", "type": "float32", "shape": [M, 1]}]
+    inputs = [{"name": "a", "type": "float32", "shape": [M, K]}]
+    return {"constants": constants, "inputs": inputs, "outputs": outputs}
 
 
 if __name__ == "__main__":
@@ -29,10 +32,14 @@ if __name__ == "__main__":
     sp.run(['make'], cwd=cwd, check=True)
 
     M = 1000
-    N = 800
-    K = 10000
+    N = 10000
+    K = 800
     alpha = 1
-    beta = 1
+    beta = 0
+
+    rng = np.random.default_rng(0)
+    b = rng.random((K, N), dtype=np.float32)
+    d = rng.random((N, 1), dtype=np.float32)
 
     req = createReq(M, N, K, alpha, beta)
     meta_data = getMeta(M, N, K)
@@ -41,3 +48,5 @@ if __name__ == "__main__":
 
     with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta_data, f)
+    with open(targetDir / (args.name + "_params.pkl"), 'wb') as f:
+        pickle.dump([b, d], f)
