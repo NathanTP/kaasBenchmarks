@@ -7,6 +7,7 @@ import datetime
 import os
 import argparse
 import json
+from pprint import pprint
 
 import util
 
@@ -92,8 +93,8 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
                     raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
 
                 return False
-    if test == 'nshot' or test == 'throughput':
-        totalThroughput = 0
+    if test == 'nshot':
+        modelThroughputs = {name: 0 for name in modelNames}
         for i in range(nCpy):
             for j, modelName in enumerate(modelNames):
                 instanceName = f"{prefix}_{modelName}_{j}_{i}"
@@ -101,9 +102,9 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
                 with open(resultsDir / (instanceName + "_results.json"), 'r') as f:
                     instanceMetrics = json.load(f)
 
-                totalThroughput += instanceMetrics[0]['metrics']['throughput']
+                modelThroughputs[modelName] += instanceMetrics[0]['metrics']['throughput']
 
-        print("Total throughput: ", totalThroughput)
+        print("Total throughput: ", modelThroughputs)
 
     return True
 
@@ -260,16 +261,38 @@ def throughput(modelType, scale=1.0, prefix="throughput", outDir="results"):
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    if scale is None:
-        scale = 1.0
-
     models = [
-        "resnet50"
+        "bert",
+        "bert",
+        "bert",
+        "bert"
     ]
+
+    if scale is None:
+        scale = ((1 / len(models)) * util.getNGpu())
 
     prefix = f"{prefix}_{modelType}"
 
     runTest('throughput', models, modelType, prefix, expResultsDir, scale=scale)
+
+    # Total throughput is queryMS / S. That is, number of ms of actual query
+    # work done per second. Another way of thinking of this is QPS normalized
+    # by workload size. This is based on the median unloaded query latency
+    # rather than direct observation to include any additional overheads the
+    # workload might introduce.
+    results = {'normalizedThroughput': 0}
+    for resultsFile in expResultsDir.glob("*_results.json"):
+        with open(resultsFile, 'r') as f:
+            result = json.load(f)[0]
+
+        results[result['config']['name']] = result['metrics']['throughput']
+
+        modelSpec = util.getModelSpec(result['config']['model'])
+        maxQps, medianLatency = modelSpec.modelClass.getPerfEstimates(util.getGpuType())
+        results['normalizedThroughput'] += result['metrics']['throughput'] * medianLatency
+
+    print("Aggregated Results:")
+    pprint(results)
 
 
 if __name__ == "__main__":

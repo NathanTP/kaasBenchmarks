@@ -331,7 +331,18 @@ class Model(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def getMlPerfCfg(testing=False):
+    def getPerfEstimates(gpuType):
+        """Return estimated (maxQps, medianLatency) for this model. Estimates
+        are based on single-model experiments with one GPU using the remote
+        client mode (experiment.py). If different variations of a model have
+        different numbers, you may return different estimated QPS, though this
+        isn't necessary. medianLatency should be from the slowest model
+        variant."""
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def getMlPerfCfg(cls, gpuType, benchConfig):
         """Return a mlperf settings object for this model"""
         pass
 
@@ -563,24 +574,24 @@ def saveReport(metrics, benchConfig, outPath):
         print("WARNING: Results invalid, reduce target QPS and try again")
         print("*********************************************************\n")
         pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
+
+    if outPath.exists():
+        with open(outPath, 'r') as f:
+            allMetrics = json.load(f)
     else:
-        if outPath.exists():
-            with open(outPath, 'r') as f:
-                allMetrics = json.load(f)
-        else:
-            allMetrics = []
+        allMetrics = []
 
-        record = {
-            "config": benchConfig,
-            "metrics": metrics
-        }
-        allMetrics.append(record)
+    record = {
+        "config": benchConfig,
+        "metrics": metrics
+    }
+    allMetrics.append(record)
 
-        print("Saving metrics to: ", outPath)
-        with open(outPath, 'w') as f:
-            json.dump(allMetrics, f)
+    print("Saving metrics to: ", outPath)
+    with open(outPath, 'w') as f:
+        json.dump(allMetrics, f)
 
-        print("Results:")
-        # pprint(record)
-        print()
-        pprint({m: record['metrics'][m] for m in metrics.keys() if m != "latencies"})
+    print("Results:")
+    # pprint(record)
+    print()
+    pprint({m: record['metrics'][m] for m in metrics.keys() if m != "latencies"})

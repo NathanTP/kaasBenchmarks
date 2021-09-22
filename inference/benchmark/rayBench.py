@@ -558,7 +558,7 @@ class throughputLoop():
 
         # This info is only used to get performance estimates
         gpuType = util.getGpuType()
-        mlperfCfg = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
+        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -568,7 +568,7 @@ class throughputLoop():
         # This can be a very rough estimate. It needs to be high enough that
         # the pipe stays full, but low enough that we aren't waiting for a
         # million queries to finish after the deadline.
-        self.targetOutstanding = max(5, math.ceil(mlperfCfg.server_target_qps*benchConfig['scale']))
+        self.targetOutstanding = max(5, math.ceil(maxQps*benchConfig['scale']))
         self.targetTime = targetTime
         self.nOutstanding = 0
         self.nextIdx = 0

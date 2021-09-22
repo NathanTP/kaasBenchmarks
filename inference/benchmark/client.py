@@ -50,6 +50,7 @@ def preWarm(serverSock, barrierSock, inputs):
 
     barrier(barrierSock)
 
+
 # =============================================================================
 # nShot
 # =============================================================================
@@ -167,19 +168,19 @@ class throughputLoop():
         self.loader = modelSpec.loader(modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        # This info is only used to get performance estimates
         gpuType = util.getGpuType()
-        mlperfCfg = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
+        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
 
         # This can be a very rough estimate. It needs to be high enough that
         # the pipe stays full, but low enough that we aren't waiting for a
         # million queries to finish after the deadline.
-        self.targetOutstanding = max(5, math.ceil(mlperfCfg.server_target_qps*benchConfig['scale']))
+        self.targetOutstanding = max(5, math.ceil(maxQps*benchConfig['scale']))
 
         self.targetTime = targetTime
         self.nOutstanding = 0
         self.nextIdx = 0
         self.nCompleted = 0
+        self.done = False
 
         self.serverSocket, self.barrierSocket = setupZmq(self.clientID, context=zmqContext)
 
@@ -206,15 +207,21 @@ class throughputLoop():
 
     def handleServer(self, msg):
         """Handle responses from the server"""
-        reqID = int.from_bytes(msg[0], sys.byteorder)
-
-        if reqID % self.targetOutstanding == 0:
-            if time.time() - self.startTime >= self.targetTime:
-                print("Test complete, shutting down")
-                self.runTime = time.time() - self.startTime
-
+        # If we're done, we need to wait for any outstanding requests to
+        # complete before shutting down (avoids various race conditions and
+        # dirty state)
+        if self.done:
+            self.nOutstanding -= 1
+            if self.nOutstanding == 0:
                 self.serverStream.stop_on_recv()
                 IOLoop.instance().stop()
+            else:
+                return
+
+        if time.time() - self.startTime >= self.targetTime:
+            print("Test complete, shutting down")
+            self.runTime = time.time() - self.startTime
+            self.done = True
 
         self.nOutstanding -= 1
         self.nCompleted += 1
@@ -254,7 +261,7 @@ class throughputLoop():
 def throughput(modelSpec, benchConfig):
     context = zmq.Context()
 
-    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=60)
+    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=300)
     IOLoop.instance().start()
 
     metrics = testLoop.reportMetrics()

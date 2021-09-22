@@ -59,7 +59,7 @@ class superResBase():
         return (pngBuf,)
 
     @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
             maxQps = 4.3
             medianLatency = 0.325
@@ -68,10 +68,12 @@ class superResBase():
             medianLatency = 0.320
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
+        return (maxQps, medianLatency)
 
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
-        return settings
+    @classmethod
+    def getMlPerfCfg(cls, gpuType, benchConfig):
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
+        return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
 
 class superResTvm(superResBase, model.tvmModel):

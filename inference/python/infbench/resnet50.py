@@ -66,13 +66,12 @@ class resnet50Base(model.Model):
     def post(label):
         raise AttributeError("resnet50 has no post-processing")
 
-
-class resnet50(model.tvmModel, resnet50Base):
     @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
+            # This is the max of TVM vs KaaS. TVM is actually 18.1/0.065, kaas
+            # is 16.2/0.075
             maxQps = 18.1
-            # medianLatency = 0.064  # actual median for tvm
             medianLatency = 0.075
         elif gpuType == "Tesla V100-SXM2-16GB":
             # Really wish I understood why this was so bad...
@@ -81,29 +80,21 @@ class resnet50(model.tvmModel, resnet50Base):
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+        return (maxQps, medianLatency)
 
-        return settings
+    @classmethod
+    def getMlPerfCfg(cls, gpuType, benchConfig):
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
+        return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+
+
+class resnet50(model.tvmModel, resnet50Base):
+    pass
 
 
 class resnet50Kaas(model.kaasModel, resnet50Base):
     nConst = 108
     runMap = model.inputMap(const=range(108), pre=(0,))
-
-    @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
-        if gpuType == "Tesla K20c":
-            maxQps = 16.2
-            medianLatency = 0.075
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 24
-            medianLatency = 0.054
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
-        return settings
 
 
 class imageNetLoader(dataset.loader):

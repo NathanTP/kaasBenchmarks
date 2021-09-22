@@ -199,12 +199,6 @@ class mlperfRunner():
         self.constants = constants
         self.benchConfig = benchConfig
 
-        #XXX
-        self.firstTime = None
-        self.lastTime = None
-
-
-
     def start(self):
         for model in self.models:
             threading.Thread(target=self.runOneAsync, args=[model, self.queue]).start()
