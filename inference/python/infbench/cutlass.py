@@ -26,16 +26,8 @@ class sgemmBase(model.Model):
     def getConstants(modelDir):
         return []
 
-
-class sgemm(sgemmBase):
-    def run(self, dat):
-        """Run the model against input 'dat'. Dat is expected to be a bytes
-       object that can be converted to numpy/tvm and passed to the model as
-       input."""
-        pass
-
     @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
             maxQps = 0
             medianLatency = 0.07
@@ -45,9 +37,20 @@ class sgemm(sgemmBase):
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+        return maxQps, medianLatency
 
-        return settings
+    @classmethod
+    def getMlPerfCfg(cls, gpuType, benchConfig):
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
+        return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+
+
+class sgemm(sgemmBase):
+    def run(self, dat):
+        """Run the model against input 'dat'. Dat is expected to be a bytes
+       object that can be converted to numpy/tvm and passed to the model as
+       input."""
+        pass
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
@@ -72,21 +75,6 @@ class sgemmKaas(sgemmBase, model.kaasModel):
 
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
-
-    @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
-        if gpuType == "Tesla K20c":
-            maxQps = 0
-            medianLatency = 0.07
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 0
-            medianLatency = 0.05
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
-        return settings
 
 
 class cutlassSgemmLoader(dataset.loader):

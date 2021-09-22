@@ -635,22 +635,30 @@ class bertModelBase(model.Model):
         pred = interpret(startLogits, endLogits, example, feature)
         return (pred.encode('utf-8'),)
 
-
-class bertModel(bertModelBase, model.tvmModel):
     @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
-            maxQps = 0.91
-            medianLatency = 0.98
-        elif gpuType == "Tesla V101-SXM2-16GB":
-            maxQps = 0.45
-            medianLatency = 1.6
+            # KaaS is really 0.9/0.96, tvm is 0.9/0.98
+            maxQps = 0.9
+            medianLatency = 0.98  # used to keep exp consistent
+        elif gpuType == "Tesla V100-SXM2-16GB":
+            maxQps = 4
+            medianLatency = 0.31
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
+        return (maxQps, medianLatency)
+
+    @classmethod
+    def getMlPerfCfg(cls, gpuType, benchConfig):
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
+
+
+class bertModel(bertModelBase, model.tvmModel):
+    pass
 
 
 class bertModelKaas(bertModelBase, model.kaasModel):
@@ -667,23 +675,6 @@ class bertModelKaas(bertModelBase, model.kaasModel):
         with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
             constants = pickle.load(f)
         return [vocab] + constants
-
-    @staticmethod
-    def getMlPerfCfg(gpuType, benchConfig):
-        if gpuType == "Tesla K20c":
-            # This looks like a typo, it really is the same qps and latency
-            maxQps = 0.9
-            # medianLatency = 0.96  # the real number
-            medianLatency = 0.98  # used to keep exp consistent
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 4
-            medianLatency = 0.31
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
-        return settings
 
 
 class bertLoader(dataset.loader):

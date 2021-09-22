@@ -161,7 +161,6 @@ class Pool():
             # multi-node deployments since the caller may still block while the
             # data is fetched to the local data store
             start = time.time()
-            # with infbench.timer("t_policy_wait_result", self.stats[clientID]):
             if nReturn == 1:
                 await self.waitForRefs([respFutures])
             else:
