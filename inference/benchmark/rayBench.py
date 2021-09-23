@@ -228,7 +228,7 @@ class runActor():
         # {clientID -> infbench.profCollection}
         self.stats = {}
 
-    def runNative(self, modelSpec, modelArg, *inputs, completionQ=None, queryId=None,
+    def runNative(self, modelInfo, *inputs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
         if clientID not in self.stats:
             self.stats[clientID] = infbench.profCollection()
@@ -239,6 +239,8 @@ class runActor():
         if clientID in self.modelCache:
             model = self.modelCache[clientID]
         else:
+            modelSpec = ray.get(modelInfo[0])
+            modelArg = ray.get(modelInfo[1])
             model = modelSpec.modelClass(modelArg)
             self.modelCache[clientID] = model
 
@@ -333,7 +335,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
                     remote('runNative', mClass.nOutRun, clientID, runInp,
-                           [specRef, modelArg] + runInp, {"cacheModel": cacheModel})
+                           [(specRef, modelArg)] + runInp, {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -382,7 +384,6 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
             idx = i % loader.ndata
 
             # Dereference answer from post or the router's reference from run
-            # (if nopost)
             res = ray.get(ref)
             if modelSpec.modelClass.noPost:
                 # Dereference the answer from run itself

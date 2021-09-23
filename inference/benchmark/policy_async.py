@@ -151,9 +151,10 @@ class Pool():
                     if retries == 10:
                         print("WARNING: Policy being starved: Are you sure getRunner should be failing this often?")
 
-            respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
+            with infbench.timer("t_policy_runner_invoke", self.stats[clientID]):
+                respFutures = getattr(runActor, funcName).options(num_returns=nReturn).remote(*args, **kwargs)
 
-            self.policy.update(clientID, handle, respFutures)
+                self.policy.update(clientID, handle, respFutures)
 
             # Wait until the runner is done before returning, this ensures that
             # anyone waiting on our response (e.g. post()) can immediately
@@ -165,8 +166,7 @@ class Pool():
                 await self.waitForRefs([respFutures])
             else:
                 await self.waitForRefs(respFutures)
-            tReqRun = time.time() - start
-
+            tReqRun = (time.time() - start)*1000
             self.stats[clientID]['t_policy_wait_result'].increment(tReqRun)
 
             if isinstance(self.policy, PolicyHedge):
