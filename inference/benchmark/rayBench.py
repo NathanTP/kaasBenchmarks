@@ -315,7 +315,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if modelSpec.modelType == "kaas":
             model = modelArg
             with infbench.timer('t_kaas_generate_req', stats):
-                req = model.run(runInp, stats=stats)
+                req = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
