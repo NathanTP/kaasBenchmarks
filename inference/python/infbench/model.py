@@ -395,13 +395,14 @@ class kaasModel(Model):
             baseName = modelDir.stem
             self.cubin = modelDir / (baseName + ".cubin")
             with open(modelDir / (baseName + "_model" + ".yaml"), 'r') as f:
-                self.reqTemplate = yaml.safe_load(f)
+                reqDict = yaml.safe_load(f)
 
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
-        for kern in self.reqTemplate['kernels']:
+        for kern in reqDict['kernels']:
             kern['library'] = self.cubin
+        self.reqTemplate = kaas.kaasReq.fromDict(reqDict)
 
     @staticmethod
     def getConstants(modelDir):
@@ -419,9 +420,6 @@ class kaasModel(Model):
         constants = dat[:self.nConst]
         inputs = dat[self.nConst:]
 
-        with util.timer('t_kaas_req_copy', stats):
-            req = kaas.kaasReq.fromDict(self.reqTemplate)
-
         renameMap = {}
         for idx, const in enumerate(self.meta['constants']):
             renameMap[const['name']] = constants[idx]
@@ -437,9 +435,12 @@ class kaasModel(Model):
         # support setting the output key anyway and kaasBench isn't set up to
         # pick them. If we end up supporting a libff backend, we'll need to
         # solve this
-        req.reKey(renameMap)
+        self.reqTemplate.reKey(renameMap)
 
-        return req
+        # This is slightly unsafe, we assume that run() won't be called again
+        # until the caller is done with reqTemplate. This is true right now,
+        # and improves performance significantly, but it isn't strictly safe.
+        return self.reqTemplate
 
 
 # =============================================================================
