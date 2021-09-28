@@ -127,7 +127,7 @@ def nShot(modelSpec, n, benchConfig):
 
     # Send all requests
     print("Sending Requests:")
-    results = _nShotASync(n, loader, serverSocket, stats=stats)
+    results = _nShotSync(n, loader, serverSocket, stats=stats)
     print("Test complete")
 
     if loader.checkAvailable:

@@ -246,7 +246,7 @@ def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
     server = launchServer(outDir, 1, modelType, 'balance')
 
     model = baseModel + modelType
-    runner = launchClient(1.0, model, prefix, 'nshot', outDir, nIter=nIter)
+    runner = launchClient(1.0, model, prefix, 'nshot', outDir, nRun=nIter)
 
     runner.wait()
     server.send_signal(signal.SIGINT)

@@ -76,7 +76,7 @@ class resnet50Base(model.Model):
         elif gpuType == "Tesla V100-SXM2-16GB":
             # Really wish I understood why this was so bad...
             maxQps = 6
-            medianLatency = 0.15
+            medianLatency = 0.052
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
