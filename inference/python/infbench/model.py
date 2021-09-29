@@ -402,7 +402,7 @@ class kaasModel(Model):
 
         for kern in reqDict['kernels']:
             kern['library'] = self.cubin
-        self.reqTemplate = kaas.kaasReq.fromDict(reqDict)
+        self.reqTemplate = kaas.kaasReqDense.fromDict(reqDict)
 
     @staticmethod
     def getConstants(modelDir):
