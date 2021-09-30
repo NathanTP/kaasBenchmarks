@@ -162,8 +162,9 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None):
     nCpy = 1
 
     models = [
-        "resnet50",
-        "resnet50"
+        "bert",
+        "bert",
+        "bert"
     ]
 
     prefix = f"{prefix}_{modelType}"
