@@ -329,7 +329,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
                     remote('runNative', mClass.nOutRun, clientID, runInp,
-                           [specRef, modelArg] + runInp,
+                           [(specRef, modelArg)] + runInp,
                            {"completionQ": completionQ, "queryId": queryId,
                             "cacheModel": cacheModel, "clientID": clientID})
             else:
