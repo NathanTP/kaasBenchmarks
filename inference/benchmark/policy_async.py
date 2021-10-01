@@ -93,7 +93,7 @@ class Pool():
         elif policy == 'hedge':
             self.policy = PolicyHedge(nRunner, runActor, waiter=self.waiter)
         else:
-            raise ValueError("Unrecognized policy: " + policy)
+            raise ValueError(f"Unrecognized policy: {policy}")
 
         self.stats = {}
 
