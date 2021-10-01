@@ -176,8 +176,8 @@ def analyzeStats(stats):
 
     # print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
 
-    print("Other Stats:")
-    pprint(otherStats)
+    # print("Other Stats:")
+    # pprint(otherStats)
 
 
 def mergePerClientStats(base, delta):
