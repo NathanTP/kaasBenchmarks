@@ -14,7 +14,6 @@ from pprint import pprint
 import mlperf_loadgen
 
 import libff.kaas as kaas
-from . import util
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
