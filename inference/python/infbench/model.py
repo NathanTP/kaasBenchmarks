@@ -399,6 +399,8 @@ class kaasModel(Model):
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
+        self.constInitialized = False
+
         for kern in reqDict['kernels']:
             kern['library'] = self.cubin
         self.reqTemplate = kaas.kaasReqDense.fromDict(reqDict)
@@ -420,8 +422,10 @@ class kaasModel(Model):
         inputs = dat[self.nConst:]
 
         renameMap = {}
-        for idx, const in enumerate(self.meta['constants']):
-            renameMap[const['name']] = constants[idx]
+        if not self.constInitialized:
+            for idx, const in enumerate(self.meta['constants']):
+                renameMap[const['name']] = constants[idx]
+            self.constInitialized = True
 
         for idx, inp in enumerate(self.meta['inputs']):
             renameMap[inp['name']] = inputs[idx]

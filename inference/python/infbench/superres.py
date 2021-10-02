@@ -64,8 +64,8 @@ class superResBase():
             maxQps = 4.3
             medianLatency = 0.325
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 3
-            medianLatency = 0.320
+            maxQps = 4.8  # tvm ~= 5.6
+            medianLatency = 0.334  # tvm ~= 0.331
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
         return (maxQps, medianLatency)

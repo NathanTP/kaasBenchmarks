@@ -173,9 +173,10 @@ def analyzeStats(stats):
 
     print("Time Stats:")
     pprint(timeStats)
-
-    # print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
-
+    # kaasTimes = ['kaas:t_cudaMM', 'kaas:t_devDEvict', 'kaas:t_dtoh', 'kaas:t_hostDLoad', 'kaas:t_hostDWriteBack', 'kaas:t_hostMM', 'kaas:t_htod', 'kaas:t_invokeExternal', 'kaas:t_makeRoom', 'kaas:t_zero']
+    # otherTimes = sum([timeStats[stat] for stat in kaasTimes])
+    # print("Missing: ", timeStats['kaas:t_e2e'] - otherTimes)
+    #
     # print("Other Stats:")
     # pprint(otherStats)
 
