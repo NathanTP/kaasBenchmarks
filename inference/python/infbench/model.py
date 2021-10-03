@@ -10,6 +10,7 @@ import pickle
 import collections
 import re
 from pprint import pprint
+import ray
 
 import mlperf_loadgen
 
@@ -424,11 +425,11 @@ class kaasModel(Model):
         renameMap = {}
         if not self.constInitialized:
             for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = constants[idx]
+                renameMap[const['name']] = ray.cloudpickle.dumps(constants[idx])
             self.constInitialized = True
 
         for idx, inp in enumerate(self.meta['inputs']):
-            renameMap[inp['name']] = inputs[idx]
+            renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])
 
         if outKeys is not None:
             for name, key in outKeys:
@@ -491,11 +492,11 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.server_target_qps = maxQps * benchConfig['scale']
 
         # settings.min_duration_ms = int(300*1E3)
-        settings.min_duration_ms = int(60*1E3)
-        settings.max_duration_ms = int(60*1E3)
-        # settings.min_duration_ms = int(120*1E3)
+        # settings.min_duration_ms = int(60*1E3)
+        # settings.max_duration_ms = int(60*1E3)
+        settings.min_duration_ms = int(120*1E3)
+        settings.max_duration_ms = int(120*1E3)
         # settings.max_duration_ms = int(600*1E3)
-        # settings.max_duration_ms = int(120*1E3)
 
     # settings.scenario = mlperf_loadgen.TestScenario.Offline
     # settings.offline_expected_qps = maxQps * 4
@@ -577,7 +578,7 @@ def saveReport(metrics, benchConfig, outPath):
         print("\n*********************************************************")
         print("WARNING: Results invalid, reduce target QPS and try again")
         print("*********************************************************\n")
-        pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
+        # pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
 
     if outPath.exists():
         with open(outPath, 'r') as f:
@@ -597,5 +598,4 @@ def saveReport(metrics, benchConfig, outPath):
 
     print("Results:")
     # pprint(record)
-    print()
     pprint({m: record['metrics'][m] for m in metrics.keys() if m != "latencies"})
