@@ -435,11 +435,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     specRef = ray.put(modelSpec)
 
     with infbench.timer("t_register_model", warmStats):
-        if modelSpec.modelType == "kaas":
-            modelArg = modelSpec.getModelArg()
-        else:
-            modelArg = ray.put(modelSpec.getModelArg())
-
         constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
 
         if constants is None:
@@ -448,6 +443,16 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
             constRefs = []
             for const in constants:
                 constRefs.append(ray.put(const))
+
+        if modelSpec.modelType == "kaas":
+            runConstRefs = []
+            for idx in modelSpec.modelClass.runMap.const:
+                runConstRefs.append(constRefs[idx])
+
+            # runConstRefs = util.packInputs(modelSpec.modelClass.runMap, const=constRefs)
+            modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
+        else:
+            modelArg = ray.put(modelSpec.getModelArg())
 
     with infbench.timer("t_init_loader", warmStats):
         loader = modelSpec.loader(modelSpec.dataDir)

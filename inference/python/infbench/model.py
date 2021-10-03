@@ -378,7 +378,7 @@ class tvmModel(Model):
 
 class kaasModel(Model):
     """A generic KaaS model."""
-    def __init__(self, modelArg):
+    def __init__(self, modelArg, constRefs):
         """Can be initialized either by an existing kaasModel or by a path to a
         KaaS model. If a path is passed, it should be a directory containing:
         name.cubin, name_meta.yaml, and name_model.yaml (where name is the
@@ -400,11 +400,17 @@ class kaasModel(Model):
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
-        self.constInitialized = False
-
         for kern in reqDict['kernels']:
             kern['library'] = self.cubin
-        self.reqRef = ray.put(kaas.kaasReqDense.fromDict(reqDict))
+
+        req = kaas.kaasReqDense.fromDict(reqDict)
+
+        renameMap = {}
+        for idx, const in enumerate(self.meta['constants']):
+            renameMap[const['name']] = ray.cloudpickle.dumps(constRefs[idx])
+        req.reKey(renameMap)
+
+        self.reqRef = ray.put(req)
 
     @staticmethod
     def getConstants(modelDir):
@@ -419,14 +425,9 @@ class kaasModel(Model):
         """Unlike other Models, kaas accepts keys or references to inputs in
         dat rather than actual values. Run here will submit the model to KaaS
         and returns a list of references/keys to the outputs."""
-        constants = dat[:self.nConst]
         inputs = dat[self.nConst:]
 
         renameMap = {}
-        if not self.constInitialized:
-            for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = ray.cloudpickle.dumps(constants[idx])
-            self.constInitialized = True
 
         for idx, inp in enumerate(self.meta['inputs']):
             renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])

@@ -22,12 +22,12 @@ class ModelSpec():
         self.modelClass = modelClass
         self.modelType = modelType
 
-    def getModelArg(self):
+    def getModelArg(self, constRefs = None):
         if self.modelType == 'tvm':
             return infbench.model.readModelBuf(self.modelPath)
         elif self.modelType == 'kaas':
             # KaaS models live on the client so we only need one
-            return self.modelClass(self.modelPath)
+            return self.modelClass(self.modelPath, constRefs)
         elif self.modelType == "direct":
             return self.modelPath
         else:
