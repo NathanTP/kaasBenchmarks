@@ -552,12 +552,16 @@ class PolicyAffinity(Policy):
                 if len(pool.runners) == maxLength:
                     candidates.append(cID)
 
-            if clientLength < maxLength:
+            # If the client doesn't have workers, we have to give it at least
+            # one. Otherwise, if we can make the system more balanced by
+            # stealing from another pool, do that. scaling at clientLength <
+            # maxLength can make them trade places (c0 has 1, c2 has 2, they
+            # will just constantly alternate, benefiting no one).
+            if clientLength == 0 or (clientLength + 1) < maxLength:
                 # Gotta be somewhat fair. Real fairness is a problem for
                 # another day
                 lot = random.randrange(0, len(candidates))
                 candidate = candidates[lot]
-                # print(f"EVICTING {candidate} for {clientID} ({lot} from choices {candidates})")
                 victimPool = self.clientPools[candidate]
                 evictedActor = victimPool.scaleDown(kill=self.exclusive)
 
