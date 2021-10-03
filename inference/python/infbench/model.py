@@ -404,7 +404,7 @@ class kaasModel(Model):
 
         for kern in reqDict['kernels']:
             kern['library'] = self.cubin
-        self.reqTemplate = kaas.kaasReqDense.fromDict(reqDict)
+        self.reqRef = ray.put(kaas.kaasReqDense.fromDict(reqDict))
 
     @staticmethod
     def getConstants(modelDir):
@@ -435,16 +435,7 @@ class kaasModel(Model):
             for name, key in outKeys:
                 renameMap[name] = key
 
-        # In theory, we should also remap the output keys but ray doesn't
-        # support setting the output key anyway and kaasBench isn't set up to
-        # pick them. If we end up supporting a libff backend, we'll need to
-        # solve this
-        self.reqTemplate.reKey(renameMap)
-
-        # This is slightly unsafe, we assume that run() won't be called again
-        # until the caller is done with reqTemplate. This is true right now,
-        # and improves performance significantly, but it isn't strictly safe.
-        return self.reqTemplate
+        return (self.reqRef, renameMap)
 
 
 # =============================================================================
