@@ -449,7 +449,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
             for idx in modelSpec.modelClass.runMap.const:
                 runConstRefs.append(constRefs[idx])
 
-            # runConstRefs = util.packInputs(modelSpec.modelClass.runMap, const=constRefs)
             modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
             modelArg = ray.put(modelSpec.getModelArg())
@@ -545,7 +544,11 @@ class throughputLoop():
         self.specRef = ray.put(self.modelSpec)
 
         if modelSpec.modelType == "kaas":
-            self.modelArg = modelSpec.getModelArg()
+            runConstRefs = []
+            for idx in modelSpec.modelClass.runMap.const:
+                runConstRefs.append(self.constRefs[idx])
+
+            self.modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
             self.modelArg = ray.put(modelSpec.getModelArg())
 
@@ -736,7 +739,11 @@ class mlperfRunner():
         self.warmStats = infbench.profCollection()
 
         if modelSpec.modelType == "kaas":
-            self.modelArg = modelSpec.getModelArg()
+            runConstRefs = []
+            for idx in modelSpec.modelClass.runMap.const:
+                runConstRefs.append(self.constants[idx])
+
+            self.modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
             self.modelArg = ray.put(modelSpec.getModelArg())
 
@@ -855,11 +862,6 @@ class clientState():
         self.modelSpec = util.getModelSpec(modelName)
         self.specRef = ray.put(self.modelSpec)
 
-        if self.modelSpec.modelType == "kaas":
-            self.modelArg = self.modelSpec.getModelArg()
-        else:
-            self.modelArg = ray.put(self.modelSpec.getModelArg())
-
         constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
         if constants is None:
             constRefs = None
@@ -868,6 +870,15 @@ class clientState():
             for const in constants:
                 constRefs.append(ray.put(const))
         self.constRefs = constRefs
+
+        if self.modelSpec.modelType == "kaas":
+            runConstRefs = []
+            for idx in self.modelSpec.modelClass.runMap.const:
+                runConstRefs.append(self.constRefs[idx])
+
+            self.modelArg = self.modelSpec.getModelArg(constRefs=runConstRefs)
+        else:
+            self.modelArg = ray.put(self.modelSpec.getModelArg())
 
 
 # { clientID -> clientState }
