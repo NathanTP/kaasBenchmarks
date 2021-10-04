@@ -245,6 +245,7 @@ class runActor():
             self.modelCache[clientID] = model
 
         result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
+
         return result
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
@@ -311,6 +312,10 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
+        # These are the only inputs that change from run to run, so we pass
+        # them to the scheduler to determine readiness. We assume the consts
+        # are always ready.
+        dynInp = util.packInputs(mClass.runMap, inp=inputRefs, pre=preOut)
 
         if modelSpec.modelType == "kaas":
             model = modelArg
@@ -319,11 +324,11 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
                            {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
                            {"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
@@ -665,6 +670,9 @@ class throughputLoop():
         else:
             metrics['valid'] = True
 
+        warmPoolStats = ray.get(self.pool.getStats.remote())
+        self.warmStats.merge(warmPoolStats[None])
+
         return metrics
 
 
@@ -677,7 +685,15 @@ def throughput(modelSpec, benchConfig):
     testLoop = throughputLoop(modelSpec, benchConfig, targetTime=20)
     IOLoop.instance().start()
 
+    # XXX This isn't really a solution. We can check stats until the system
+    # quiesces. I guess we should just wait till everything clears up before
+    # reporting...
+    time.sleep(2)
     metrics = testLoop.reportMetrics()
+
+    report = testLoop.warmStats.report(includeEvents=False)
+    util.analyzeStats(report)
+
     infbench.model.saveReport(metrics, benchConfig, benchConfig['name'] + '_results.json')
 
 
