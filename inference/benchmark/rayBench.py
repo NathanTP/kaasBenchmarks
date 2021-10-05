@@ -24,6 +24,7 @@ import util
 # a bit slower for unknown reasons, but it's easier to implement policies so
 # we're sticking with it for now
 # USE_THREADED_POLICY = True
+maxOutstanding = 32
 USE_THREADED_POLICY = False
 if USE_THREADED_POLICY:
     import policy
@@ -333,13 +334,13 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runNative', mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, dynInp,
                            [(specRef, modelArg)] + runInp,
                            {"completionQ": completionQ, "queryId": queryId,
                             "cacheModel": cacheModel, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runNative', mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, dynInp,
                            [(specRef, modelArg)] + runInp, {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
@@ -945,6 +946,9 @@ class serverLoop():
 
         self.rayQ = ray.util.queue.Queue()
 
+        self.nOutstanding = 0
+        self.overwhelmed = False
+
     def handleBarrier(self, msg):
         clientID = msg[0]
 
@@ -978,6 +982,12 @@ class serverLoop():
         self.clientStream.send_multipart(outBufs)
         IOLoop.current().add_callback(self.handleWorker)
 
+        self.nOutstanding -= 1
+        # Start accepting work again once we get below our max (plus some
+        # hysteresis)
+        if self.overwhelmed and self.nOutstanding < (maxOutstanding * 0.8):
+            self.clientStream.on_recv(self.handleClients)
+
     async def fakeModel(self, clientID, reqID, startTime=None):
         startTime = time.time()
         await self.sem.acquire()
@@ -1007,6 +1017,13 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
+            self.nOutstanding += 1
+            # Too many outstanding queries can overwhelm Ray and hurt
+            # throughput.
+            if self.nOutstanding > maxOutstanding:
+                self.clientStream.stop_on_recv()
+                self.overwhelmed = True
+
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
@@ -1025,7 +1042,7 @@ class serverLoop():
 
 
 def serveRequests(benchConfig):
-    ray.init()
+    ray.init(include_dashboard=False)
     context = zmq.Context()
 
     clientSock = context.socket(zmq.ROUTER)
