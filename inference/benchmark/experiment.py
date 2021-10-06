@@ -8,6 +8,9 @@ import os
 import argparse
 import json
 from pprint import pprint
+import time
+import tempfile
+import shutil
 
 import util
 
@@ -155,9 +158,7 @@ def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
 
 def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, nCpy=1, model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    expResultsDir = outDir / f"multi_{modelType}_{suffix}"
-    expResultsDir.mkdir(0o700)
-    linkLatest(expResultsDir)
+    expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
 
     # We currently only use homogenous workloads, but we can also make model a
     # list or just manually override if we want to mix models
@@ -168,7 +169,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
     # Attempt to find a valid scale, starting with "perfect" scaling
     nModel = nCpy * len(models)
     if scale is None:
-        scale = ((1 / nModel) * util.getNGpu()) * 1.5
+        scale = ((1 / nModel) * util.getNGpu())
         startScale = scale
         succeedScale = 0
         failureScale = scale
@@ -185,23 +186,35 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
     found = False
     while not found:
         print("\n\nAttempting scale: ", scale)
-        failure = not runTest('mlperf', models, modelType, prefix, expResultsDir, nCpy=nCpy, scale=scale)
-
-        if failure:
-            failureScale = scale
-        else:
-            succeedScale = scale
-
-        if (failureScale - succeedScale) <= step:
-            # Sometimes we guess wrong and start too low, this bumps us up a
-            # bit to make sure we get a valid answer.
-            if scale == startScale:
-                scale *= 1.5
-                startScale = scale
+        time.sleep(10)  # ray is bad at cleaning up, gotta wait to be sure
+        with tempfile.TemporaryDirectory() as tmpRes:
+            tmpRes = pathlib.Path(tmpRes)
+            failure = not runTest('mlperf', models, modelType, prefix, tmpRes, nCpy=nCpy, scale=scale)
+            if failure:
+                failureScale = scale
             else:
-                found = True
-        else:
-            scale = succeedScale + ((failureScale - succeedScale) / 2)
+                if expResultsDir.exists():
+                    shutil.rmtree(expResultsDir)
+                shutil.copytree(tmpRes, expResultsDir, ignore=shutil.ignore_patterns("*.ipc"))
+                succeedScale = scale
+
+            if (failureScale - succeedScale) <= step:
+                # Sometimes we guess wrong and start too low, this bumps us up a
+                # bit to make sure we get a valid answer.
+                if scale == startScale:
+                    scale *= 1.5
+                    startScale = scale
+                else:
+                    found = True
+                    # If we never found a passing result, we just report the last
+                    # one that ran
+                    if not expResultsDir.exists():
+                        shutil.copytree(tmpRes, expResultsDir, ignore=shutil.ignore_patterns("*.ipc"))
+
+            else:
+                scale = succeedScale + ((failureScale - succeedScale) / 2)
+
+    linkLatest(expResultsDir)
 
     print("Max achievable scale: ", scale)
     return succeedScale
@@ -260,18 +273,13 @@ def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
         raise RuntimeError("Run Failed")
 
 
-def throughput(modelType, scale=1.0, prefix="throughput", outDir="results"):
+def throughput(modelType, scale=1.0, prefix="throughput", outDir="results", nCpy=1, model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    models = [
-        "bert",
-        "bert",
-        "bert",
-        "bert"
-    ]
+    models = [model]*nCpy
 
     if scale is None:
         scale = ((1 / len(models)) * util.getNGpu())
@@ -339,7 +347,7 @@ if __name__ == "__main__":
         mlperfMulti(args.modelType, outDir=resultsDir, scale=args.scale, model=args.model, nCpy=args.nCopy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
-        throughput(args.modelType, outDir=resultsDir, scale=args.scale)
+        throughput(args.modelType, outDir=resultsDir, scale=args.scale, model=args.model, nCpy=args.nCopy)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 

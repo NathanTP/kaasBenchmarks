@@ -189,3 +189,8 @@ def mergePerClientStats(base, delta):
             base[cID].merge(deltaClient)
         else:
             base[cID] = deltaClient
+
+
+def currentGitHash():
+    p = sp.run(['git', 'rev-parse', 'HEAD'], stdout=sp.PIPE, check=True, text=True, cwd=pathlib.Path(__file__).parent)
+    return p.stdout.strip()

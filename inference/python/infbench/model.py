@@ -466,9 +466,10 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
 
     # Default is 99, 90 is a bit more manageable in terms of avoiding tricky
     # tuning and requiring very long tests
-    settings.server_target_latency_percentile = 0.9
-
-    settings.server_target_latency_ns = int((medianLat*4)*1E9)
+    # settings.server_target_latency_percentile = 0.9
+    # settings.server_target_latency_ns = int((medianLat*4)*1E9)
+    settings.server_target_latency_percentile = 0.99
+    settings.server_target_latency_ns = int((medianLat*10)*1E9)
 
     settings.schedule_rng_seed = int.from_bytes(os.urandom(8), byteorder=sys.byteorder)
 

@@ -169,12 +169,12 @@ class throughputLoop():
         self.loader.preLoad(range(self.loader.ndata))
 
         gpuType = util.getGpuType()
-        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
+        maxQps, medianLat = modelSpec.modelClass.getPerfEstimates(gpuType)
 
-        # This can be a very rough estimate. It needs to be high enough that
-        # the pipe stays full, but low enough that we aren't waiting for a
-        # million queries to finish after the deadline.
-        self.targetOutstanding = max(5, math.ceil(maxQps*benchConfig['scale']))
+        # This number is more sensitive than it should be. I'm not sure why but
+        # setting it too high really hurts performance, even though the server
+        # is throttled. 64 seems to work in practice.
+        self.targetOutstanding = 64
 
         self.targetTime = targetTime
         self.nOutstanding = 0
@@ -261,7 +261,7 @@ class throughputLoop():
 def throughput(modelSpec, benchConfig):
     context = zmq.Context()
 
-    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=300)
+    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=120)
     IOLoop.instance().start()
 
     metrics = testLoop.reportMetrics()

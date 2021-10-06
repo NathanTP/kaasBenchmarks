@@ -48,6 +48,7 @@ def main():
 
     benchConfig = {
         "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
+        "gitHash": util.currentGitHash(),
         "name": args.name,
         "model": args.model,
         "experiment": args.experiment,
