@@ -401,7 +401,8 @@ class kaasModel(Model):
                 self.meta = yaml.safe_load(f)
 
         for kern in reqDict['kernels']:
-            kern['library'] = self.cubin
+            if kern['library'] is None:
+                kern['library'] = self.cubin
 
         req = kaas.kaasReqDense.fromDict(reqDict)
 
