@@ -642,8 +642,8 @@ class bertModelBase(model.Model):
             maxQps = 0.9
             medianLatency = 0.98  # used to keep exp consistent
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 4
-            medianLatency = 0.31
+            maxQps = 8.76  # tvm is ~= 9.8, high variablity for some reason...
+            medianLatency = 0.150  # tvm is .146
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 

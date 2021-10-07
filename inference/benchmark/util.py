@@ -22,12 +22,12 @@ class ModelSpec():
         self.modelClass = modelClass
         self.modelType = modelType
 
-    def getModelArg(self):
+    def getModelArg(self, constRefs = None):
         if self.modelType == 'tvm':
             return infbench.model.readModelBuf(self.modelPath)
         elif self.modelType == 'kaas':
             # KaaS models live on the client so we only need one
-            return self.modelClass(self.modelPath)
+            return self.modelClass(self.modelPath, constRefs)
         elif self.modelType == "direct":
             return self.modelPath
         else:
@@ -132,7 +132,9 @@ def packInputs(maps, const=None, inp=None, pre=None, run=None):
     inputs = []
     for (argMap, data) in zip(maps, [const, inp, pre, run]):
         if argMap is not None:
-            assert data is not None
+            if data is None:
+                continue
+
             inputs.extend([data[i] for i in argMap])
     return inputs
 
@@ -173,9 +175,10 @@ def analyzeStats(stats):
 
     print("Time Stats:")
     pprint(timeStats)
-
-    # print("Missing: ", timeStats['t_e2e'] - (sum(timeStats.values()) - (timeStats['t_e2e'] + timeStats['t_invoke'])))
-
+    # kaasTimes = ['kaas:t_cudaMM', 'kaas:t_devDEvict', 'kaas:t_dtoh', 'kaas:t_hostDLoad', 'kaas:t_hostDWriteBack', 'kaas:t_hostMM', 'kaas:t_htod', 'kaas:t_invokeExternal', 'kaas:t_makeRoom', 'kaas:t_zero']
+    # otherTimes = sum([timeStats[stat] for stat in kaasTimes])
+    # print("Missing: ", timeStats['kaas:t_e2e'] - otherTimes)
+    #
     # print("Other Stats:")
     # pprint(otherStats)
 
@@ -186,3 +189,8 @@ def mergePerClientStats(base, delta):
             base[cID].merge(deltaClient)
         else:
             base[cID] = deltaClient
+
+
+def currentGitHash():
+    p = sp.run(['git', 'rev-parse', 'HEAD'], stdout=sp.PIPE, check=True, text=True, cwd=pathlib.Path(__file__).parent)
+    return p.stdout.strip()

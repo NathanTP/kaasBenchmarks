@@ -24,6 +24,7 @@ import util
 # a bit slower for unknown reasons, but it's easier to implement policies so
 # we're sticking with it for now
 # USE_THREADED_POLICY = True
+maxOutstanding = 32
 USE_THREADED_POLICY = False
 if USE_THREADED_POLICY:
     import policy
@@ -245,6 +246,7 @@ class runActor():
             self.modelCache[clientID] = model
 
         result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
+
         return result
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
@@ -311,6 +313,10 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
+        # These are the only inputs that change from run to run, so we pass
+        # them to the scheduler to determine readiness. We assume the consts
+        # are always ready.
+        dynInp = util.packInputs(mClass.runMap, inp=inputRefs, pre=preOut)
 
         if modelSpec.modelType == "kaas":
             model = modelArg
@@ -319,22 +325,22 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
                            {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, runInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
                            {"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runNative', mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, dynInp,
                            [(specRef, modelArg)] + runInp,
                            {"completionQ": completionQ, "queryId": queryId,
                             "cacheModel": cacheModel, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runNative', mClass.nOutRun, clientID, runInp,
+                    remote('runNative', mClass.nOutRun, clientID, dynInp,
                            [(specRef, modelArg)] + runInp, {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
@@ -435,11 +441,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     specRef = ray.put(modelSpec)
 
     with infbench.timer("t_register_model", warmStats):
-        if modelSpec.modelType == "kaas":
-            modelArg = modelSpec.getModelArg()
-        else:
-            modelArg = ray.put(modelSpec.getModelArg())
-
         constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
 
         if constants is None:
@@ -448,6 +449,15 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
             constRefs = []
             for const in constants:
                 constRefs.append(ray.put(const))
+
+        if modelSpec.modelType == "kaas":
+            runConstRefs = []
+            for idx in modelSpec.modelClass.runMap.const:
+                runConstRefs.append(constRefs[idx])
+
+            modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
+        else:
+            modelArg = ray.put(modelSpec.getModelArg())
 
     with infbench.timer("t_init_loader", warmStats):
         loader = modelSpec.loader(modelSpec.dataDir)
@@ -540,7 +550,11 @@ class throughputLoop():
         self.specRef = ray.put(self.modelSpec)
 
         if modelSpec.modelType == "kaas":
-            self.modelArg = modelSpec.getModelArg()
+            runConstRefs = []
+            for idx in modelSpec.modelClass.runMap.const:
+                runConstRefs.append(self.constRefs[idx])
+
+            self.modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
             self.modelArg = ray.put(modelSpec.getModelArg())
 
@@ -657,6 +671,9 @@ class throughputLoop():
         else:
             metrics['valid'] = True
 
+        warmPoolStats = ray.get(self.pool.getStats.remote())
+        self.warmStats.merge(warmPoolStats[None])
+
         return metrics
 
 
@@ -669,7 +686,15 @@ def throughput(modelSpec, benchConfig):
     testLoop = throughputLoop(modelSpec, benchConfig, targetTime=20)
     IOLoop.instance().start()
 
+    # XXX This isn't really a solution. We can check stats until the system
+    # quiesces. I guess we should just wait till everything clears up before
+    # reporting...
+    time.sleep(2)
     metrics = testLoop.reportMetrics()
+
+    report = testLoop.warmStats.report(includeEvents=False)
+    util.analyzeStats(report)
+
     infbench.model.saveReport(metrics, benchConfig, benchConfig['name'] + '_results.json')
 
 
@@ -731,7 +756,11 @@ class mlperfRunner():
         self.warmStats = infbench.profCollection()
 
         if modelSpec.modelType == "kaas":
-            self.modelArg = modelSpec.getModelArg()
+            runConstRefs = []
+            for idx in modelSpec.modelClass.runMap.const:
+                runConstRefs.append(self.constants[idx])
+
+            self.modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
             self.modelArg = ray.put(modelSpec.getModelArg())
 
@@ -850,11 +879,6 @@ class clientState():
         self.modelSpec = util.getModelSpec(modelName)
         self.specRef = ray.put(self.modelSpec)
 
-        if self.modelSpec.modelType == "kaas":
-            self.modelArg = self.modelSpec.getModelArg()
-        else:
-            self.modelArg = ray.put(self.modelSpec.getModelArg())
-
         constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
         if constants is None:
             constRefs = None
@@ -863,6 +887,15 @@ class clientState():
             for const in constants:
                 constRefs.append(ray.put(const))
         self.constRefs = constRefs
+
+        if self.modelSpec.modelType == "kaas":
+            runConstRefs = []
+            for idx in self.modelSpec.modelClass.runMap.const:
+                runConstRefs.append(self.constRefs[idx])
+
+            self.modelArg = self.modelSpec.getModelArg(constRefs=runConstRefs)
+        else:
+            self.modelArg = ray.put(self.modelSpec.getModelArg())
 
 
 # { clientID -> clientState }
@@ -913,6 +946,9 @@ class serverLoop():
 
         self.rayQ = ray.util.queue.Queue()
 
+        self.nOutstanding = 0
+        self.overwhelmed = False
+
     def handleBarrier(self, msg):
         clientID = msg[0]
 
@@ -946,6 +982,12 @@ class serverLoop():
         self.clientStream.send_multipart(outBufs)
         IOLoop.current().add_callback(self.handleWorker)
 
+        self.nOutstanding -= 1
+        # Start accepting work again once we get below our max (plus some
+        # hysteresis)
+        if self.overwhelmed and self.nOutstanding < (maxOutstanding * 0.8):
+            self.clientStream.on_recv(self.handleClients)
+
     async def fakeModel(self, clientID, reqID, startTime=None):
         startTime = time.time()
         await self.sem.acquire()
@@ -975,6 +1017,13 @@ class serverLoop():
             cState = clientState(modelName)
             clients[clientID] = cState
         else:
+            self.nOutstanding += 1
+            # Too many outstanding queries can overwhelm Ray and hurt
+            # throughput.
+            if self.nOutstanding > maxOutstanding:
+                self.clientStream.stop_on_recv()
+                self.overwhelmed = True
+
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, data, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
@@ -993,7 +1042,7 @@ class serverLoop():
 
 
 def serveRequests(benchConfig):
-    ray.init()
+    ray.init(include_dashboard=False)
     context = zmq.Context()
 
     clientSock = context.socket(zmq.ROUTER)

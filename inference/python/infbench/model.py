@@ -10,6 +10,7 @@ import pickle
 import collections
 import re
 from pprint import pprint
+import ray
 
 import mlperf_loadgen
 
@@ -377,7 +378,7 @@ class tvmModel(Model):
 
 class kaasModel(Model):
     """A generic KaaS model."""
-    def __init__(self, modelArg):
+    def __init__(self, modelArg, constRefs):
         """Can be initialized either by an existing kaasModel or by a path to a
         KaaS model. If a path is passed, it should be a directory containing:
         name.cubin, name_meta.yaml, and name_model.yaml (where name is the
@@ -401,7 +402,15 @@ class kaasModel(Model):
 
         for kern in reqDict['kernels']:
             kern['library'] = self.cubin
-        self.reqTemplate = kaas.kaasReqDense.fromDict(reqDict)
+
+        req = kaas.kaasReqDense.fromDict(reqDict)
+
+        renameMap = {}
+        for idx, const in enumerate(self.meta['constants']):
+            renameMap[const['name']] = ray.cloudpickle.dumps(constRefs[idx])
+        req.reKey(renameMap)
+
+        self.reqRef = ray.put(req)
 
     @staticmethod
     def getConstants(modelDir):
@@ -416,30 +425,18 @@ class kaasModel(Model):
         """Unlike other Models, kaas accepts keys or references to inputs in
         dat rather than actual values. Run here will submit the model to KaaS
         and returns a list of references/keys to the outputs."""
-        constants = dat[:self.nConst]
         inputs = dat[self.nConst:]
 
         renameMap = {}
-        for idx, const in enumerate(self.meta['constants']):
-            renameMap[const['name']] = constants[idx]
 
         for idx, inp in enumerate(self.meta['inputs']):
-            renameMap[inp['name']] = inputs[idx]
+            renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])
 
         if outKeys is not None:
             for name, key in outKeys:
                 renameMap[name] = key
 
-        # In theory, we should also remap the output keys but ray doesn't
-        # support setting the output key anyway and kaasBench isn't set up to
-        # pick them. If we end up supporting a libff backend, we'll need to
-        # solve this
-        self.reqTemplate.reKey(renameMap)
-
-        # This is slightly unsafe, we assume that run() won't be called again
-        # until the caller is done with reqTemplate. This is true right now,
-        # and improves performance significantly, but it isn't strictly safe.
-        return self.reqTemplate
+        return (self.reqRef, renameMap)
 
 
 # =============================================================================
@@ -469,9 +466,10 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
 
     # Default is 99, 90 is a bit more manageable in terms of avoiding tricky
     # tuning and requiring very long tests
-    settings.server_target_latency_percentile = 0.9
-
-    settings.server_target_latency_ns = int((medianLat*4)*1E9)
+    # settings.server_target_latency_percentile = 0.9
+    # settings.server_target_latency_ns = int((medianLat*4)*1E9)
+    settings.server_target_latency_percentile = 0.99
+    settings.server_target_latency_ns = int((medianLat*10)*1E9)
 
     settings.schedule_rng_seed = int.from_bytes(os.urandom(8), byteorder=sys.byteorder)
 
@@ -487,11 +485,11 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.server_target_qps = maxQps * benchConfig['scale']
 
         # settings.min_duration_ms = int(300*1E3)
-        settings.min_duration_ms = int(60*1E3)
-        settings.max_duration_ms = int(60*1E3)
-        # settings.min_duration_ms = int(120*1E3)
+        # settings.min_duration_ms = int(60*1E3)
+        # settings.max_duration_ms = int(60*1E3)
+        settings.min_duration_ms = int(120*1E3)
+        settings.max_duration_ms = int(120*1E3)
         # settings.max_duration_ms = int(600*1E3)
-        # settings.max_duration_ms = int(120*1E3)
 
     # settings.scenario = mlperf_loadgen.TestScenario.Offline
     # settings.offline_expected_qps = maxQps * 4
@@ -573,7 +571,7 @@ def saveReport(metrics, benchConfig, outPath):
         print("\n*********************************************************")
         print("WARNING: Results invalid, reduce target QPS and try again")
         print("*********************************************************\n")
-        pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
+        # pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
 
     if outPath.exists():
         with open(outPath, 'r') as f:
@@ -593,5 +591,4 @@ def saveReport(metrics, benchConfig, outPath):
 
     print("Results:")
     # pprint(record)
-    print()
     pprint({m: record['metrics'][m] for m in metrics.keys() if m != "latencies"})
