@@ -54,27 +54,7 @@ class sgemm(sgemmBase):
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
-    def __init__(self, modelArg):
-        """Can be initialized either by an existing kaasModel or by a path to a
-        KaaS model. If a path is passed, it should be a directory containing:
-        name.cubin, name_meta.yaml, and name_model.yaml (where name is the
-        name of the directory)."""
-        # In some cases, it's easier to pass a pre-initialized model as an
-        # argument, typically to keep abstractions clean on the client side.
-        if isinstance(modelArg, model.kaasModel):
-            self.cubin = modelArg.cubin
-            self.reqTemplate = modelArg.reqTemplate
-            self.meta = modelArg.meta
-        else:
-            modelDir = modelArg.parent
-
-            baseName = modelDir.stem
-            self.cubin = modelDir / (baseName + ".cubin")
-            with open(modelDir / (baseName + "_model" + ".yaml"), 'r') as f:
-                self.reqTemplate = yaml.safe_load(f)
-
-            with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
-                self.meta = yaml.safe_load(f)
+    pass
 
 
 class cutlassSgemmLoader(dataset.loader):

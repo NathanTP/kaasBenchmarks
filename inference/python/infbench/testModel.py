@@ -198,8 +198,8 @@ class testModelNative(testModel, model.Model):
 
 
 class testModelKaas(testModel, model.kaasModel):
-    def __init__(self, modelArg):
-        super().__init__(modelArg)
+    def __init__(self, modelArg, *args, **kwargs):
+        super().__init__(modelArg, *args, **kwargs)
 
 
 class testLoader(dataset.loader):
