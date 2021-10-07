@@ -452,8 +452,9 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
         if modelSpec.modelType == "kaas":
             runConstRefs = []
-            for idx in modelSpec.modelClass.runMap.const:
-                runConstRefs.append(constRefs[idx])
+            if modelSpec.modelClass.runMap.const is not None:
+                for idx in modelSpec.modelClass.runMap.const:
+                    runConstRefs.append(constRefs[idx])
 
             modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
