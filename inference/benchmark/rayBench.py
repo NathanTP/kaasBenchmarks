@@ -23,8 +23,8 @@ import util
 # There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
 # a bit slower for unknown reasons, but it's easier to implement policies so
 # we're sticking with it for now
-# USE_THREADED_POLICY = True
 maxOutstanding = 32
+# USE_THREADED_POLICY = True
 USE_THREADED_POLICY = False
 if USE_THREADED_POLICY:
     import policy
@@ -433,7 +433,7 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
 
 
 def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
-    ray.init()
+    ray.init(include_dashboard=False)
 
     coldStats = infbench.profCollection()
     warmStats = infbench.profCollection()
@@ -678,7 +678,7 @@ class throughputLoop():
 
 
 def throughput(modelSpec, benchConfig):
-    ray.init()
+    ray.init(include_dashboard=False)
 
     if benchConfig['scale'] is None:
         benchConfig['scale'] = 1.0
@@ -830,7 +830,7 @@ class mlperfRunner():
 
 def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
-    ray.init()
+    ray.init(include_dashboard=False)
 
     gpuType = util.getGpuType()
     settings = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
@@ -1064,4 +1064,4 @@ def serveRequests(benchConfig):
     # print("Stats:")
     # for cID, stats in looper.warmStats.items():
     #     print("Client: ", cID)
-    #     util.analyzeStats(stats.report())
+    #     util.analyzeStats(stats.report(includeEvents=False))
