@@ -79,15 +79,30 @@ class cutlassSgemmLoader(dataset.loader):
         rng = np.random.default_rng(0)
         a = rng.random((self.M, self.K), dtype=np.float32)
         b = rng.random((self.K, self.N), dtype=np.float32)
+        #b = np.arange(self.K * self.N, dtype=np.float32)
+        #self.checkA = np.reshape(a, (self.M, self.K))
+        self.checkA = a
+        self.checkB = np.reshape(b, (self.K, self.N))
+        #b = np.reshape(b, (self.K, self.N))
+        #a = np.reshape(a, (self.M, self.K), order='F')
+        b = np.reshape(b, (self.K, self.N), order='F')
         self.a = a
         self.b = b
-        return (a, b)
+        self.a = np.asfortranarray(a)
+        self.b = np.asfortranarray(b)
+        return (self.a, self.b)
 
     def check(self, result, idx):
-        temp = np.array(result)
-        print(temp.dtype)
-        temp = temp.tobytes()
-        print(np.frombuffer(temp, dtype=np.float32))
-        print(np.matmul(self.a, self.b))
-        print(np.matmul(self.a, self.b).shape)
+        checker = np.asfortranarray(np.array(result).view('<f4'))
+        checker = checker.reshape(self.M, self.N, order='F')
+        #temp = np.array(result)
+        #print(temp.dtype)
+        #temp = temp.tobytes()
+        print(checker)
+        #print(np.frombuffer(temp, dtype=np.float32))
+        thing = np.matmul(self.checkA, self.checkB)
+        print(thing)
+        print(thing.shape)
+        #print(checker - thing)
         return True
+
