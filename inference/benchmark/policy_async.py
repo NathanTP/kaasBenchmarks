@@ -163,9 +163,9 @@ class Pool():
             # data is fetched to the local data store
             start = time.time()
             if nReturn == 1:
-                await self.waitForRefs([respFutures])
+                await self.waiter([respFutures])
             else:
-                await self.waitForRefs(respFutures)
+                await self.waiter(respFutures)
             tReqRun = (time.time() - start)*1000
             self.stats[clientID]['t_policy_wait_result'].increment(tReqRun)
 
@@ -237,8 +237,9 @@ class PolicyRR(Policy):
 
 class actorStatus():
     IDLE = 1      # Unused
-    BUSY = 2      # Currently running (ref is non-none and can be awaited)
-    DEAD = 3      # Removed from active queue, do not use
+    PENDING = 2      # No longer running anything, pending assignment to a request
+    BUSY = 3      # Currently running (ref is non-none and can be awaited)
+    DEAD = 4      # Removed from active queue, do not use
 
     def __init__(self):
         self.state = actorStatus.IDLE
@@ -408,29 +409,56 @@ class PolicyBalance(Policy):
         # List of Ray references representing stats from dead actors
         self.pendingActorStats = []
 
+        self.readyQueue = asyncio.Queue(maxsize=nRunner)
         self.runners = collections.deque()
         for i in range(nRunner):
             newActor = self.runnerClass.remote()
+            newStatus = actorStatus()
+            newStatus.state = actorStatus.PENDING
             permanentScope.append(newActor)
-            self.runners.append((newActor, actorStatus()))
+            self.runners.append((newActor, newStatus))
+            self.readyQueue.put_nowait((newActor, newStatus))
 
-    def scaleUp(self, newActor=None):
-        """Add a worker to this policy"""
-        if newActor is None:
-            newActor = self.runnerClass.remote()
-            permanentScope.append(newActor)
-        self.runners.append((newActor, actorStatus()))
+        self.emptyPoolEvent = asyncio.Event()
+        self.readyQueueTask = asyncio.create_task(self.waitForRunners())
 
-    def scaleDown(self, kill=True):
-        """Remove a worker from this policy"""
-        actor, status = self.runners.popleft()
+    async def waitForRunners(self):
+        """A persistent task that fills the readyQueue as runners complete"""
+        while True:
+            if len(self.runners) == 0:
+                await self.emptyPoolEvent.wait()
 
-        status.state = actorStatus.DEAD
-        if kill:
-            self.pendingActorStats.append(actor.getStats.remote())
-            actor.terminate.remote()
+            outstanding = []
+            while len(outstanding) == 0:
+                for actor, status in self.runners:
+                    if status.state == actorStatus.BUSY:
+                        outstanding.append((actor, status))
 
-        return actor
+                if len(outstanding) == 0:
+                    # All runners are PENDING
+                    try:
+                        await self.readyQueue.join()
+                    except asyncio.CancelledError:
+                        return
+                    assert self.readyQueue.qsize() == 0
+            assert len(outstanding) != 0
+
+            # Block until at least one actor is idle
+            outstandingRefs = [runner[1].ref for runner in outstanding]
+            try:
+                doneIdxs = await self.waiter(outstandingRefs, timeout=None,
+                                             return_when=asyncio.FIRST_COMPLETED, returnIdxs=True)
+            except asyncio.CancelledError:
+                break
+
+            for idx in doneIdxs:
+                doneActor, doneStatus = outstanding[idx]
+                if doneStatus.state == actorStatus.DEAD:
+                    continue
+
+                doneStatus.ref = None
+                doneStatus.state = actorStatus.PENDING
+                self.readyQueue.put_nowait(outstanding[idx])
 
     async def getRunner(self, clientID, **kwargs):
         """Returns an actor suitable for running a request and an opaque handle
@@ -441,48 +469,56 @@ class PolicyBalance(Policy):
         if len(self.runners) == 0:
             return None, None
 
-        outstanding = []
-        for actor, status in self.runners:
-            if status.state == actorStatus.IDLE:
-                status.state = actorStatus.BUSY
-                return actor, status
-            else:
-                outstanding.append((actor, status))
-        assert len(outstanding) != 0
+        try:
+            # runner, status = await asyncio.wait_for(self.readyQueue.get(), timeout=timeout)
+            runner, status = await self.readyQueue.get()
+        except asyncio.TimeoutError:
+            return None, None
+        self.readyQueue.task_done()
 
-        # Block until at least one actor is idle
-        outstandingRefs = [runner[1].ref for runner in outstanding]
-        doneIdxs = await self.waiter(outstandingRefs, timeout=timeout,
-                                     return_when=asyncio.FIRST_COMPLETED, returnIdxs=True)
-
-        if len(doneIdxs) == 0:
-            # There aren't any free workers within the timeout.
+        # It's possible that a runner is killed while waiting in the
+        # readyQueue. Hopefully this doesn't happen too often.
+        if status.state == actorStatus.DEAD:
+            # self.readyQueue.task_done()
             return None, None
         else:
-            idleActor = None
-            idleStatus = None
-            for doneIdx in doneIdxs:
-                doneActor, doneStatus = outstanding[doneIdx]
-                if doneStatus.state != actorStatus.DEAD:
-                    actorStatus.state = actorStatus.IDLE
-                    actorStatus.ref = None
-                    idleActor = doneActor
-                    idleStatus = doneStatus
-
-            if idleActor is None:
-                # Every actor that was busy when we started waiting for
-                # outstanding has since been evicted.
-                return None, None
-
-            idleStatus.state = actorStatus.BUSY
-            return idleActor, idleStatus
+            return runner, status
 
     def update(self, clientID, handle, respFutures):
         status = handle
+        status.state = actorStatus.BUSY
+        # self.readyQueue.task_done()
         if isinstance(respFutures, list):
             status.ref = respFutures[0]
         else:
             status.ref = respFutures
+
+    def scaleUp(self, newActor=None):
+        """Add a worker to this policy"""
+        if len(self.runners) == 0:
+            self.emptyPoolEvent.set()
+
+        if newActor is None:
+            newActor = self.runnerClass.remote()
+            permanentScope.append(newActor)
+        newStatus = actorStatus()
+        newStatus.state = actorStatus.PENDING
+        self.runners.append((newActor, newStatus))
+        self.readyQueue.put_nowait((newActor, newStatus))
+
+
+    def scaleDown(self, kill=True):
+        """Remove a worker from this policy"""
+        actor, status = self.runners.popleft()
+        if len(self.runners) == 0:
+            self.emptyPoolEvent.clear()
+
+        status.state = actorStatus.DEAD
+        if kill:
+            self.pendingActorStats.append(actor.getStats.remote())
+            actor.terminate.remote()
+
+        return actor
 
     async def getStats(self):
         """Return a map of clientIDs to profCollection. Resets stats."""
