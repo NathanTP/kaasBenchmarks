@@ -79,7 +79,8 @@ class sgemmBase(model.Model):
     def getConstants(modelDir):
         constsDir = modelDir / "cutlassSgemm_params.pkl"
         consts = pickle.load(open(constsDir, "rb"))
-        return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
+        return consts
+        #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -130,7 +131,7 @@ class sgemm(sgemmBase):
 
 
 
-        a = dat[0]
+        a = dat[2]
         b = dat[0]
         d = dat[1]
 
@@ -205,9 +206,9 @@ class cutlassSgemmLoader(dataset.loader):
         b = np.reshape(b, (self.K, self.N), order='F')
         self.a = a
         self.b = b
-        self.a = np.asfortranarray(a)
-        self.b = np.asfortranarray(b)
-        print(self.a.shape)
+        #self.a = np.asfortranarray(a)
+        #self.b = np.asfortranarray(b)
+        print("shape of a: " + str(self.a.shape))
         return self.a
 
     def check(self, result, idx):

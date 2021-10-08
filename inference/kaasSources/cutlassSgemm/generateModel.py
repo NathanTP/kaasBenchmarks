@@ -43,8 +43,8 @@ if __name__ == "__main__":
     c = np.zeros(shape=(M, N), dtype=np.float32)
     d = rng.random((N, 1), dtype=np.float32)
 
-    b = np.asfortranarray(b)
-    d = np.asfortranarray(d)
+    #b = np.asfortranarray(b)
+    #d = np.asfortranarray(d)
 
 
     req = createReq(M, N, K, alpha, beta, a, b, c, d)
