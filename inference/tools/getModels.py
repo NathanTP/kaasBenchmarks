@@ -234,7 +234,7 @@ def getTestModel():
 
 
 def getCutlassSgemm():
-    getKaasModel("cutlass")
+    getKaasModel("cutlassSgemm")
 
 
 def main():
