@@ -2,7 +2,9 @@ from . import model
 from . import dataset
 import numpy as np
 import yaml
-
+import ctypes as ct
+import pycuda.driver as cuda
+import pickle
 
 def loadAdapter(modelDir):
     libc = ct.cdll.LoadLibrary(str(modelDir / "cutlassAdapters.so"))
@@ -43,6 +45,17 @@ def loadKerns(modelDir):
     return refKern, cutlassKern
 
 
+class kernelConfig(ct.Structure):
+    """This mirrors the CudaConfig struct defined in cutlassAdapters.h"""
+    _fields_ = [
+        ("gridX", ct.c_int),
+        ("gridY", ct.c_int),
+        ("gridZ", ct.c_int),
+        ("blockX", ct.c_int),
+        ("blockY", ct.c_int),
+        ("blockZ", ct.c_int),
+        ("smem_size", ct.c_int)
+    ]
 
 class sgemmBase(model.Model):
     noPost = True
@@ -87,9 +100,9 @@ class sgemmBase(model.Model):
 
 class sgemm(sgemmBase):
     def __init__(self, modelArgs):
-        self.M = 1000
-        self.N = 10000
-        self.K = 800
+        self.M = 10000
+        self.N = 8000
+        self.K = 10000
         self.alpha = 1
         self.beta = 0
         self.modelDir = modelArgs
@@ -113,8 +126,8 @@ class sgemm(sgemmBase):
         #print(dat[1].shape)
         #print(dat[2].shape)
 
-        a = dat[2]
-        b = dat[0]
+        a = dat[0]
+        b = dat[1]
         c = np.zeros(shape=(self.M, self.N), order='F', dtype=np.float32)
 
         a_d = cuda.mem_alloc(a.nbytes)
@@ -141,14 +154,10 @@ class sgemm(sgemmBase):
 
         cuda.Context.synchronize()
 
+        cuda.memcpy_dtoh(c, c_d)
+
         return c
 
-
-    def run(self, dat):
-        """Run the model against input 'dat'. Dat is expected to be a bytes
-       object that can be converted to numpy/tvm and passed to the model as
-       input."""
-        pass
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
