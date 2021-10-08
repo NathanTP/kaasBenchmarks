@@ -60,12 +60,12 @@ class kernelConfig(ct.Structure):
 class sgemmBase(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0, 1))
-    runMap = model.inputMap(pre=(0, 1))
+    runMap = model.inputMap(pre=(0), const=(0, 1))
     postMap = model.inputMap(run=(0,))
     nOutRun = 1
     nOutPre = 2
     nOutPost = 1
-    nConst = 0
+    nConst = 2
 
     @staticmethod
     def pre(imgBuf):
@@ -77,7 +77,9 @@ class sgemmBase(model.Model):
 
     @staticmethod
     def getConstants(modelDir):
-        return []
+        constsDir = modelDir / "cutlassSgemm_params.pkl"
+        consts = pickle.load(open(constsDir, "rb"))
+        return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -126,8 +128,16 @@ class sgemm(sgemmBase):
         #print(dat[1].shape)
         #print(dat[2].shape)
 
+
+
         a = dat[0]
-        b = dat[1]
+        b = dat[0]
+        d = dat[1]
+
+        print(a.shape)
+        print(b.shape)
+        print(d.shape)
+
         c = np.zeros(shape=(self.M, self.N), order='F', dtype=np.float32)
 
         a_d = cuda.mem_alloc(a.nbytes)
@@ -174,7 +184,7 @@ class cutlassSgemmLoader(dataset.loader):
 
     @property
     def ndata(self):
-        return 1000
+        return 1
 
     def preLoad(self, idxs):
         pass
@@ -197,7 +207,8 @@ class cutlassSgemmLoader(dataset.loader):
         self.b = b
         self.a = np.asfortranarray(a)
         self.b = np.asfortranarray(b)
-        return (self.a, self.b)
+        print(self.a.shape)
+        return self.a
 
     def check(self, result, idx):
         checker = np.asfortranarray(np.array(result).view('<f4'))

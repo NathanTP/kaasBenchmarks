@@ -25,17 +25,17 @@ def loadDims():
 
     return getDims
 
-def createReq(M, N, K, alpha, beta):
+def createReq(M, N, K, alpha, beta, a, b, c, d):
     lda = M
     ldb = K
     ldc = M
 
     #libffCtx = getCtx(remote=False)
     getDims = loadDims()
-    rng = np.random.default_rng(0)
-    a = rng.random((M, K), dtype=np.float32)
-    b = rng.random((K, N), dtype=np.float32)
-    c = np.zeros(shape=(M, N), dtype=np.float32)
+    #rng = np.random.default_rng(0)
+    #a = rng.random((M, K), dtype=np.float32)
+    #b = rng.random((K, N), dtype=np.float32)
+    #c = np.zeros(shape=(M, N), dtype=np.float32)
 
     #getArg, getDims = loadAdapter()
 
@@ -56,6 +56,8 @@ def createReq(M, N, K, alpha, beta):
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
                 kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
     firstKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')], literals=literals)
+
+    dBuf = kaas.bufferSpec('d', d.nbytes)
 
     req = kaas.kaasReq([firstKern])
     #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
