@@ -1,4 +1,8 @@
 from libff import kaas
+import libff.kaas.kaasFF
+import libff as ff
+import libff.kv
+import libff.invoke
 import numpy as np
 import ctypes as ct
 
@@ -25,12 +29,11 @@ def loadDims():
 
     return getDims
 
-def createReq(M, N, K, alpha, beta, a, b, c, d):
+def createReq(M, N, K, alpha, beta):
     lda = M
     ldb = K
     ldc = M
 
-    #libffCtx = getCtx(remote=False)
     getDims = loadDims()
     #rng = np.random.default_rng(0)
     #a = rng.random((M, K), dtype=np.float32)
@@ -46,18 +49,22 @@ def createReq(M, N, K, alpha, beta, a, b, c, d):
     smem = cfg.smem_size
 
     #libffCtx.kv.put('a', a)
-    aBuf = kaas.bufferSpec('a', a.nbytes, const=False, ephemeral=False)
+    aBuf = kaas.bufferSpec('a', M*K*4, const=False, ephemeral=False)
 
     #libffCtx.kv.put('b', b)
-    bBuf = kaas.bufferSpec('b', b.nbytes, const=False, ephemeral=False)
+    bBuf = kaas.bufferSpec('b', K*N*4, const=False, ephemeral=False)
 
     #libffCtx.kv.put('c', c, const=False, ephemeral=False)
-    cBuf = kaas.bufferSpec('c', c.nbytes)
+    cBuf = kaas.bufferSpec('c', M*N*4)
+
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
-                kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
+                kaas.literalSpec('f', M), kaas.literalSpec('f', N),
+                kaas.literalSpec('f', K), kaas.literalSpec('f', lda),
+                kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
+
     firstKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')], literals=literals)
 
-    dBuf = kaas.bufferSpec('d', d.nbytes)
+    dBuf = kaas.bufferSpec('d', N*4)
 
     req = kaas.kaasReq([firstKern])
     #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
@@ -67,3 +74,44 @@ def createReq(M, N, K, alpha, beta, a, b, c, d):
     #print(c)
 
 
+def runManual():
+    M = 10000
+    N = 8000
+    K = 10000
+    alpha = 1
+    beta = 1
+
+    req = kaas.kaasReqDense.fromDict(createReq(M, N, K, alpha, beta).toDict())
+
+    rng = np.random.default_rng(0)
+    a = np.arange(M*K, dtype=np.float32).reshape(M, K)
+    a = np.asfortranarray(a)
+
+    b = np.arange(K*N, dtype=np.float32).reshape(K, N)
+    b = np.asfortranarray(b)
+
+    c = np.zeros(shape=(M, N), dtype=np.float32, order='F')
+
+    objStore = ff.kv.Local(serialize=False, copyObjs=False)
+    libffCtx = ff.invoke.RemoteCtx(None, objStore)
+
+    libffCtx.kv.put('a', a)
+    libffCtx.kv.put('b', b)
+    libffCtx.kv.put('c', c)
+
+    kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
+    kaasHandle.Invoke(req)
+
+    cRes = np.frombuffer(libffCtx.kv.get('c'), dtype=np.float32).reshape(c.shape, order="F")
+
+    expect = np.matmul(a, b)
+
+    print("Expect:")
+    print(expect)
+
+    print("\nGot:")
+    print(cRes)
+
+
+if __name__ == '__main__':
+    runManual()

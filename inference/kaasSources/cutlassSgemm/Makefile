@@ -24,3 +24,5 @@ getDims.so: getDims.cu
 	-gencode=arch=compute_$(COMPUTE_CAP),code=sm_$(COMPUTE_CAP) -std=c++11 \
 	-x cu -o $@ --shared $^ 
 
+clean:
+	rm -f getDims.so
