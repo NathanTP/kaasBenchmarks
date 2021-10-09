@@ -68,7 +68,7 @@ class kernelConfig(ct.Structure):
 
 
 M = 100
-N = 8000
+N = 25000
 K = 10000
 alpha = 1
 beta = 0
