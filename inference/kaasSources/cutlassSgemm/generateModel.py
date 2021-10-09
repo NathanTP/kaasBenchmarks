@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     sp.run(['make'], cwd=cwd, check=True)
 
-    M = 10000
+    M = 100
     N = 8000
     K = 10000
     alpha = 1

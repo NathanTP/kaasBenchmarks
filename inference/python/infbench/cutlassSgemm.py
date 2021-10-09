@@ -56,7 +56,7 @@ class kernelConfig(ct.Structure):
         ("blockZ", ct.c_int),
         ("smem_size", ct.c_int)
     ]
-M = 10000
+M = 100
 N = 8000
 K = 10000
 alpha = 1
