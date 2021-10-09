@@ -1,47 +1,57 @@
 from . import model
 from . import dataset
 import numpy as np
+import yaml
 import ctypes as ct
 import pycuda.driver as cuda
+import pickle
 
 
+# define complex ctype as a python class
+class complex(ct.Structure):
+    _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
+
+c_complex_p = ct.POINTER(complex)
+
+#TODO CHANGE ALL OF THIS
 def loadAdapter(modelDir):
-    libc = ct.cdll.LoadLibrary(str(modelDir / "cutlassAdapters.so"))
+    libc = ct.cdll.LoadLibrary(str(modelDir / "./cutlassAdapters.so"))
     getArg = libc.adaptSGEMMArgs
-    c_float_p = ct.POINTER(ct.c_float)
-    getArg.argtypes = [ct.c_int, ct.c_int, ct.c_int, ct.c_float, c_float_p, ct.c_int,
-                       c_float_p, ct.c_int, ct.c_float, c_float_p, ct.c_int]
-
+    getArg.argtypes = [ct.c_int, ct.c_int, ct.c_int, ct.c_float, c_complex_p, ct.c_int,
+                       c_complex_p, ct.c_int, ct.c_float, c_complex_p, ct.c_int]
+    # Instead of trying to define the Params struct in python, we just pretend
     # that it's a byte array of the same size (320 bytes in this case)
-    getArg.restype = ct.POINTER(ct.c_byte*320)
+    getArg.restype = ct.POINTER(ct.c_byte*328)
 
     getDims = libc.getCudaConfig
     # M, N, K
     getDims.argtypes = [ct.c_int, ct.c_int, ct.c_int]
     getDims.restype = ct.POINTER(kernelConfig)
+
     return (getArg, getDims)
 
-
 def loadKerns(modelDir):
-    mod = cuda.module_from_file(str(modelDir / "cutlass.cubin"))
+    mod = cuda.module_from_file(str(modelDir / "./cutlass.cubin"))
 
     # Since the cutlass kernel came from a template, the name is crazy long.
     # Unfortunately, extern "C" doesn't fix the issue. This string is obtained
     # by running "nm" on the cubin
-    cutlassKern = mod.get_function("_ZN7cutlass6KernelINS_4gemm6kernel4GemmINS1_11threadblock12MmaPipelinedINS1_9GemmShapeILi128ELi128ELi8EEENS_9transform11threadblock22PredicatedTileIteratorINS_11MatrixShapeILi128ELi8EEEfNS_6layout8RowMajorELi1ENS8_30PitchLinearStripminedThreadMapINSD_16PitchLinearShapeILi8ELi128EEELi256ELi1EEELi1EEENS9_19RegularTileIteratorISC_fNSD_11ColumnMajorELi1ENS8_33TransposePitchLinearThreadMapSimtISI_EELi4EEENSA_INSB_ILi8ELi128EEEfSE_Li0ENSF_INSG_ILi128ELi8EEELi256ELi1EEELi1EEENSK_ISP_fSE_Li0ESR_Li4EEEfSE_NS4_9MmaPolicyINS1_4warp7MmaSimtINS6_ILi32ELi64ELi8EEEfSL_fSE_fSE_NSV_13MmaSimtPolicyINSB_ILi4ELi8EEENSD_19RowMajorInterleavedILi2EEENS6_ILi4ELi4ELi1EEEEELi1ELNS_16ComplexTransformE0ELS14_0EbEENSB_ILi4ELi0EEENSB_ILi0ELi0EEELi1EEENS_21NumericArrayConverterIffLi4ELNS_15FloatRoundStyleE2EEES1B_bEENS_8epilogue11threadblock8EpilogueIS7_S15_Li1ENS1E_22PredicatedTileIteratorINS1E_26OutputTileOptimalThreadMapINS1E_15OutputTileShapeILi128ELi1ELi4ELi4ELi1EEENS1I_ILi1ELi4ELi2ELi1ELi8EEELi256ELi1ELi32EEEfEENS1D_4warp20FragmentIteratorSimtISX_NS1_6thread3MmaINS6_ILi8ELi8ELi1EEEfSL_fSE_fSE_NS_4arch13OpMultiplyAddEbEESE_S13_EENS1N_16TileIteratorSimtISX_S1U_fSE_S13_EENS1E_18SharedLoadIteratorINS1L_18CompactedThreadMapEfLi4EEENS1D_6thread17LinearCombinationIfLi1EffLNS21_9ScaleType4KindE0ELS1A_2EEENSB_ILi0ELi17EEELi1EEENS4_30GemmIdentityThreadblockSwizzleILi1EEELb0EEEEEvNT_6ParamsE")
+    cutlassKern = mod.get_function("_ZN7cutlass6KernelINS_4gemm6kernel4GemmINS1_11threadblock12MmaPipelinedINS1_9GemmShapeILi128ELi128ELi8EEENS_9transform11threadblock22PredicatedTileIteratorINS_11MatrixShapeILi128ELi8EEENS_7complexIfEENS_6layout8RowMajorELi1ENS8_30PitchLinearStripminedThreadMapINSF_16PitchLinearShapeILi8ELi128EEELi256ELi1EEELi1EEENS9_19RegularTileIteratorISC_SE_NSF_11ColumnMajorELi1ENS8_33TransposePitchLinearThreadMapSimtISK_EELi8EEENSA_INSB_ILi8ELi128EEESE_SG_Li0ENSH_INSI_ILi128ELi8EEELi256ELi1EEELi1EEENSM_ISR_SE_SG_Li0EST_Li8EEESE_SG_NS4_9MmaPolicyINS1_4warp7MmaSimtINS6_ILi32ELi64ELi8EEESE_SN_SE_SG_SE_SG_NSX_13MmaSimtPolicyINSB_ILi4ELi8EEENSF_19RowMajorInterleavedILi2EEENS6_ILi2ELi2ELi1EEEEELi1ELNS_16ComplexTransformE0ELS16_0EbEENSB_ILi2ELi0EEENSB_ILi0ELi0EEELi1EEENS_21NumericArrayConverterISE_SE_Li4ELNS_15FloatRoundStyleE2EEES1D_bEENS_8epilogue11threadblock8EpilogueIS7_S17_Li1ENS1G_22PredicatedTileIteratorINS1G_26OutputTileOptimalThreadMapINS1G_15OutputTileShapeILi128ELi1ELi4ELi4ELi1EEENS1K_ILi1ELi2ELi4ELi1ELi8EEELi256ELi1ELi64EEESE_EENS1F_4warp20FragmentIteratorSimtISZ_NS1_6thread3MmaINS6_ILi8ELi8ELi1EEESE_SN_SE_SG_SE_SG_NS_4arch13OpMultiplyAddEbEESG_S15_EENS1P_16TileIteratorSimtISZ_S1W_SE_SG_S15_EENS1G_18SharedLoadIteratorINS1N_18CompactedThreadMapESE_Li8EEENS1F_6thread17LinearCombinationISE_Li1ESE_SE_LNS23_9ScaleType4KindE0ELS1C_2EEENSB_ILi0ELi9EEELi1EEENS4_30GemmIdentityThreadblockSwizzleILi1EEELb0EEEEEvNT_6ParamsE")
 
     # The kernel takes a Params struct as an argument (by value). Rather than
     # try to define that struct in python, we instead find its size manually
     # (in cuda using sizeof()) and then specify a byte array of the same size
     # here. Pycuda doesn't care about the type in practice, it only needs the
     # size. This type string is defined by python's "struct" module.
-    cutlassKern.prepare("320s")
+    cutlassKern.prepare("328s")
 
     refKern = mod.get_function("ReferenceGemm_kernel")
     # See python's struct module for a description of this type string
     refKern.prepare("iiifPiPifPi")
 
     return refKern, cutlassKern
+
+
 
 
 class kernelConfig(ct.Structure):
@@ -55,6 +65,8 @@ class kernelConfig(ct.Structure):
         ("blockZ", ct.c_int),
         ("smem_size", ct.c_int)
     ]
+
+
 M = 100
 N = 8000
 K = 10000
@@ -86,8 +98,10 @@ class sgemmBase(model.Model):
         #constsDir = modelDir / "cutlassSgemm_params.pkl"
         #consts = pickle.load(open(constsDir, "rb"))
         rng = np.random.default_rng(0)
-        b = rng.random((K, N), dtype=np.float32)
-        d = rng.random((N, 1), dtype=np.float32)
+        b = rng.random((K, N), dtype=np.float32) + rng.random((K, N), dtype=np.float32) * (1j)
+        #b = rng.random((K, N), dtype=np.float32)
+        #d = rng.random((N, 1), dtype=np.float32)
+        d = rng.random((N, 1), dtype=np.float32) + rng.random((N, 1), dtype=np.float32) * (1j)
 
         return [b, d]
         #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
@@ -134,7 +148,7 @@ class sgemm(sgemmBase):
         b = dat[0]
         d = dat[1]
 
-        c = np.zeros(shape=(M, N), order='F', dtype=np.float32)
+        c = np.zeros(shape=(M, N), dtype=np.float32) + np.zeros(shape=(M, N), dtype=np.float32) * (1j)
 
         a_d = cuda.mem_alloc(a.nbytes)
         cuda.memcpy_htod(a_d, a)
@@ -150,10 +164,11 @@ class sgemm(sgemmBase):
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         params = getArg(M, N, K, alpha,
-                        ct.cast(int(a_d), ct.POINTER(ct.c_float)), lda,
-                        ct.cast(int(b_d), ct.POINTER(ct.c_float)), ldb,
-                        beta,
-                        ct.cast(int(c_d), ct.POINTER(ct.c_float)), ldc)
+                    ct.cast(int(a_d), c_complex_p), lda,
+                    ct.cast(int(b_d), c_complex_p), ldb,
+                    beta,
+                    ct.cast(int(c_d), c_complex_p), ldc)
+
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
@@ -165,7 +180,7 @@ class sgemm(sgemmBase):
 
 
         d = dat[1]
-        e = np.zeros(shape=(M, 1), order='F', dtype=np.float32)
+        e = np.zeros(shape=(M, 1), dtype=np.float32) + np.zeros(shape=(M, 1), dtype=np.float32) * (1j)
 
         d_d = cuda.mem_alloc(d.nbytes)
         cuda.memcpy_htod(d_d, d)
@@ -178,18 +193,17 @@ class sgemm(sgemmBase):
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         smem = cfg.smem_size
-        params = getArg(M, 1, N, alpha,
-                        ct.cast(int(c_d), ct.POINTER(ct.c_float)), lda,
-                        ct.cast(int(d_d), ct.POINTER(ct.c_float)), ldb,
-                        beta,
-                        ct.cast(int(e_d), ct.POINTER(ct.c_float)), ldc)
-
+        params = getArg(M, 1, K, alpha,
+                    ct.cast(int(c_d), c_complex_p), lda,
+                    ct.cast(int(d_d), c_complex_p), ldb,
+                    beta,
+                    ct.cast(int(e_d), c_complex_p), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(e, e_d)
-
+        #print(e)
 
         return e
 
@@ -211,7 +225,8 @@ class cutlassSgemmLoader(dataset.loader):
 
     def preLoad(self, idxs):
         rng = np.random.default_rng(0)
-        a = rng.random((M, K), dtype=np.float32)
+        #a = rng.random((M, K), dtype=np.float32)
+        a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
         self.a = a
 
     def unLoad(self, idxs):
@@ -221,11 +236,10 @@ class cutlassSgemmLoader(dataset.loader):
         return [self.a]
 
     def check(self, result, idx):
-        actual = np.asfortranarray(np.array(result).view('<f4'))
+        actual = np.asfortranarray(np.array(result).view('<c8'))
         actual = actual.reshape(M, 1, order='F')
         consts = sgemmBase.getConstants(None)
         b = consts[0]
         d = consts[1]
         expected = np.matmul(np.matmul(self.a, b), d)
         return np.allclose(actual, expected, rtol=0.5)
-
