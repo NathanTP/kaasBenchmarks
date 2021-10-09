@@ -47,6 +47,23 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
 
+    elif modelName == "jacobi":
+        import infbench.jacobi
+        return ModelSpec(name="jacobi",
+                         loader=infbench.jacobi.jacobiLoader,
+                         modelPath = modelDir / "jacobi",
+                         modelClass = infbench.jacobi.jacobi,
+                         modelType="direct")
+
+    elif modelName == "jacobiKaas":
+        import infbench.jacobi
+        return ModelSpec(name="jacobiKaas",
+                         loader=infbench.jacobi.jacobiLoader,
+                         modelPath = modelDir / "jacobi" / "jacobi_model.yaml",
+                         modelClass = infbench.jacobi.jacobiKaas,
+                         modelType="kaas")
+
+
     elif modelName == "complexCutlassGemmKaas":
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
