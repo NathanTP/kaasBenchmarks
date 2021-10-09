@@ -179,10 +179,30 @@ class sgemm(sgemmBase):
         lda = M
         ldb = N
         ldc = 1
+        ldp = N
 
 
-        #C' = C * K
+        #C' = C * P
+        P_d = cuda.mem_alloc(P.nbytes)
+        cuda.memcpy_htod(P_d, P)
 
+        Cprime = np.zeros(shape=(M, N), dtype=np.csingle)
+        Cprime_d = cuda.mem_alloc(Cprime.nbytes)
+        cuda.memset_d8(Cprime_d, 8, Cprime.nbytes)
+
+        cfg = getDims(M, N, N).contents
+        grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
+        block = (cfg.blockX, cfg.blockY, cfg.blockZ)
+        smem = cfg.smem_size
+        params = getArg(M, N, N, alpha,
+                    ct.cast(int(c_d), c_complex_p), lda,
+                    ct.cast(int(P_d), c_complex_p), ldp,
+                    beta,
+                    ct.cast(int(Cprime_d), c_complex_p), lda)
+
+        cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
+
+        #e = C * d
         d = dat[1]
         e = np.zeros(shape=(M, 1), dtype=np.float32) + np.zeros(shape=(M, 1), dtype=np.float32) * (1j)
 
@@ -198,12 +218,11 @@ class sgemm(sgemmBase):
 
         smem = cfg.smem_size
         params = getArg(M, 1, K, alpha,
-                    ct.cast(int(c_d), c_complex_p), lda,
+                    ct.cast(int(Cprime_d), c_complex_p), lda,
                     ct.cast(int(d_d), c_complex_p), ldb,
                     beta,
-                    ct.cast(int(e_d), c_complex_p), ldc)
+                    ct.cast(int(e_d), c_complex_p), lda)
 
-        #e = C * d
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
