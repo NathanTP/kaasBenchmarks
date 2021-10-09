@@ -91,11 +91,14 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
                 summary = f.read()
             if "INVALID" in summary:
                 if "Min queries satisfied : NO" in summary:
-                    raise RuntimeError("Test didn't meet minimum queries, try again with a longer runtime")
+                    # raise RuntimeError("Test didn't meet minimum queries, try again with a longer runtime")
+                    print("WARNING: Test didn't meet minimum queries, try again with a longer runtime")
                 if "Min duration satisfied : NO" in summary:
-                    raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
+                    # raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
+                    print("WARNING: Test didn't meet minimum duration, try again with a longer runtime")
 
                 return False
+
     if test == 'nshot':
         modelThroughputs = {name: 0 for name in modelNames}
         for i in range(nCpy):
@@ -173,11 +176,13 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
         startScale = scale
         succeedScale = 0
         failureScale = scale
+        runOnce = False
     else:
         # This tricks the system into only running one iteration
         startScale = float('inf')
         succeedScale = scale
         failureScale = scale
+        runOnce = True
 
     # Minimum step size when searching
     step = 0.05
@@ -201,7 +206,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
             if (failureScale - succeedScale) <= step:
                 # Sometimes we guess wrong and start too low, this bumps us up a
                 # bit to make sure we get a valid answer.
-                if scale == startScale:
+                if scale == startScale and not runOnce:
                     scale *= 1.5
                     startScale = scale
                 else:
