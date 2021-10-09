@@ -14,7 +14,7 @@ cutlassDir = modelDir / "cutlassSgemm"
 
 def getMeta(M, N, K):
     constants = [{"name": "b", "type": "float32", "shape": [K, N]}, {"name": "d", "type": "float32", "shape": [N, 1]}]
-    outputs = [{"name": "c", "type": "float32", "shape": [M, N]}, {"name": "e", "type": "float32", "shape": [M, 1]}]
+    outputs = [{"name": "e", "type": "float32", "shape": [M, 1]}]
     inputs = [{"name": "a", "type": "float32", "shape": [M, K]}]
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
 

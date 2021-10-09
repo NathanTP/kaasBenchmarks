@@ -52,7 +52,7 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     bBuf = kaas.bufferSpec('b', b.nbytes, const=False, ephemeral=False)
 
     #libffCtx.kv.put('c', c, const=False, ephemeral=False)
-    cBuf = kaas.bufferSpec('c', c.nbytes)
+    cBuf = kaas.bufferSpec('c', c.nbytes, ephemeral=True)
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
                 kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
     firstKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')], literals=literals)
@@ -62,7 +62,7 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     dBuf = kaas.bufferSpec('d', d.nbytes, const=True, ephemeral=False)
     #kv.put('d', d)
     #kv.put('e', e)
-    eBuf = kaas.bufferSpec('e', e.nbytes, const=False, ephemeral=True)
+    eBuf = kaas.bufferSpec('e', e.nbytes, const=False, ephemeral=False)
 
     cfg = getDims(M, 1, N).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)

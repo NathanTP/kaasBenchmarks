@@ -56,6 +56,11 @@ class kernelConfig(ct.Structure):
         ("blockZ", ct.c_int),
         ("smem_size", ct.c_int)
     ]
+M = 10000
+N = 8000
+K = 10000
+alpha = 1
+beta = 0
 
 class sgemmBase(model.Model):
     noPost = True
@@ -67,6 +72,8 @@ class sgemmBase(model.Model):
     nOutPost = 1
     nConst = 2
 
+
+
     @staticmethod
     def pre(imgBuf):
         return imgBuf
@@ -77,9 +84,13 @@ class sgemmBase(model.Model):
 
     @staticmethod
     def getConstants(modelDir):
-        constsDir = modelDir / "cutlassSgemm_params.pkl"
-        consts = pickle.load(open(constsDir, "rb"))
-        return consts
+        #constsDir = modelDir / "cutlassSgemm_params.pkl"
+        #consts = pickle.load(open(constsDir, "rb"))
+        rng = np.random.default_rng(0)
+        b = rng.random((K, N), dtype=np.float32)
+        d = rng.random((N, 1), dtype=np.float32)
+
+        return [b, d]
         #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
 
     @staticmethod
@@ -103,11 +114,6 @@ class sgemmBase(model.Model):
 
 class sgemm(sgemmBase):
     def __init__(self, modelArgs):
-        self.M = 10000
-        self.N = 8000
-        self.K = 10000
-        self.alpha = 1
-        self.beta = 0
         self.modelDir = modelArgs
 
 
@@ -117,18 +123,12 @@ class sgemm(sgemmBase):
        input."""
         import pycuda.autoinit  # NOQA
 
-        lda = self.M
-        ldb = self.K
-        ldc = self.M
+        lda = M
+        ldb = K
+        ldc = M
 
         getArg, getDims = loadAdapter(self.modelDir.parent)
         refKern, cutlassKern = loadKerns(self.modelDir.parent)
-
-        #print(len(dat))
-        #print(dat[0].shape)
-        #print(dat[1].shape)
-        #print(dat[2].shape)
-
 
 
         a = dat[2]
@@ -139,7 +139,7 @@ class sgemm(sgemmBase):
         print(b.shape)
         print(d.shape)
 
-        c = np.zeros(shape=(self.M, self.N), order='F', dtype=np.float32)
+        c = np.zeros(shape=(M, N), order='F', dtype=np.float32)
 
         a_d = cuda.mem_alloc(a.nbytes)
         cuda.memcpy_htod(a_d, a)
@@ -150,24 +150,59 @@ class sgemm(sgemmBase):
         c_d = cuda.mem_alloc(c.nbytes)
         cuda.memset_d8(c_d, 0, c.nbytes)
 
-        cfg = getDims(self.M, self.N, self.K).contents
+        cfg = getDims(M, N, K).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
-        params = getArg(self.M, self.N, self.K, self.alpha,
+        params = getArg(M, N, K, alpha,
                         ct.cast(int(a_d), ct.POINTER(ct.c_float)), lda,
                         ct.cast(int(b_d), ct.POINTER(ct.c_float)), ldb,
-                        self.beta,
+                        beta,
                         ct.cast(int(c_d), ct.POINTER(ct.c_float)), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
 
+        #cuda.Context.synchronize()
+
+        #cuda.memcpy_dtoh(c, c_d)
+
+        lda = M
+        ldb = N
+        ldc = 1
+
+        print("hello")
+
+        d = dat[1]
+        e = np.zeros(shape=(M, 1), order='F', dtype=np.float32)
+
+        d_d = cuda.mem_alloc(d.nbytes)
+        cuda.memcpy_htod(d_d, d)
+
+        e_d = cuda.mem_alloc(e.nbytes)
+        cuda.memset_d8(e_d, 0, e.nbytes)
+
+        cfg = getDims(M, 1, N).contents
+        grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
+        block = (cfg.blockX, cfg.blockY, cfg.blockZ)
+
+        smem = cfg.smem_size
+        params = getArg(M, 1, N, alpha,
+                        ct.cast(int(c_d), ct.POINTER(ct.c_float)), lda,
+                        ct.cast(int(d_d), ct.POINTER(ct.c_float)), ldb,
+                        beta,
+                        ct.cast(int(e_d), ct.POINTER(ct.c_float)), ldc)
+
+
+        #literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta), kaas.literalSpec('f', M), kaas.literalSpec('f', 1), kaas.literalSpec('f', N), kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', M)]
+        #secondKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')], literals=literals)
+        cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
+
         cuda.Context.synchronize()
+        cuda.memcpy_dtoh(e, e_d)
 
-        cuda.memcpy_dtoh(c, c_d)
 
-        return c
+        return e
 
 
 
@@ -197,8 +232,6 @@ class cutlassSgemmLoader(dataset.loader):
         rng = np.random.default_rng(0)
         a = rng.random((self.M, self.K), dtype=np.float32)
         b = rng.random((self.K, self.N), dtype=np.float32)
-        #b = np.arange(self.K * self.N, dtype=np.float32)
-        #self.checkA = np.reshape(a, (self.M, self.K))
         self.checkA = a
         self.checkB = np.reshape(b, (self.K, self.N))
         #b = np.reshape(b, (self.K, self.N))
@@ -208,20 +241,23 @@ class cutlassSgemmLoader(dataset.loader):
         self.b = b
         #self.a = np.asfortranarray(a)
         #self.b = np.asfortranarray(b)
-        print("shape of a: " + str(self.a.shape))
         return [self.a]
 
     def check(self, result, idx):
         checker = np.asfortranarray(np.array(result).view('<f4'))
-        checker = checker.reshape(self.M, self.N, order='F')
+        checker = checker.reshape(self.M, 1, order='F')
         #temp = np.array(result)
         #print(temp.dtype)
         #temp = temp.tobytes()
         print(checker)
         #print(np.frombuffer(temp, dtype=np.float32))
-        thing = np.matmul(self.checkA, self.checkB)
-        print(thing)
-        print(thing.shape)
+        consts = sgemmBase.getConstants(None)
+        b = consts[0]
+        d = consts[1]
+        expected = np.matmul(np.matmul(self.a, b), d)
+        #thing = np.matmul(self.checkA, self.checkB)
+        print(expected)
+        #print(thing.shape)
         #print(checker - thing)
         return True
 
