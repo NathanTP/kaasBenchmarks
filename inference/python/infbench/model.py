@@ -489,7 +489,8 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         # settings.max_duration_ms = int(60*1E3)
         settings.min_duration_ms = int(120*1E3)
         settings.max_duration_ms = int(120*1E3)
-        # settings.max_duration_ms = int(600*1E3)
+        # settings.min_duration_ms = int(300*1E3)
+        # settings.max_duration_ms = int(300*1E3)
 
     # settings.scenario = mlperf_loadgen.TestScenario.Offline
     # settings.offline_expected_qps = maxQps * 4

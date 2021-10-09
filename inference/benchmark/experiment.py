@@ -180,7 +180,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
         failureScale = scale
 
     # Minimum step size when searching
-    step = 0.025
+    step = 0.05
 
     # Binary Search
     found = False
@@ -222,7 +222,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
 
 def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=None):
     if modelType == 'Kaas':
-        policy = 'affinity'
+        policy = 'balance'
     elif modelType == 'Tvm':
         policy = 'exclusive'
     else:
