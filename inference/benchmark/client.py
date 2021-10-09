@@ -261,7 +261,7 @@ class throughputLoop():
 def throughput(modelSpec, benchConfig):
     context = zmq.Context()
 
-    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=120)
+    testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=300)
     IOLoop.instance().start()
 
     metrics = testLoop.reportMetrics()

@@ -163,9 +163,9 @@ class Pool():
             # data is fetched to the local data store
             start = time.time()
             if nReturn == 1:
-                await self.waitForRefs([respFutures])
+                await self.waiter([respFutures])
             else:
-                await self.waitForRefs(respFutures)
+                await self.waiter(respFutures)
             tReqRun = (time.time() - start)*1000
             self.stats[clientID]['t_policy_wait_result'].increment(tReqRun)
 
@@ -237,8 +237,9 @@ class PolicyRR(Policy):
 
 class actorStatus():
     IDLE = 1      # Unused
-    BUSY = 2      # Currently running (ref is non-none and can be awaited)
-    DEAD = 3      # Removed from active queue, do not use
+    PENDING = 2      # No longer running anything, pending assignment to a request
+    BUSY = 3      # Currently running (ref is non-none and can be awaited)
+    DEAD = 4      # Removed from active queue, do not use
 
     def __init__(self):
         self.state = actorStatus.IDLE
@@ -395,10 +396,8 @@ class PolicyHedge(Policy):
         self.clientInfos[clientID].updateWait(updates['t_run'])
 
 
-class PolicyBalance(Policy):
-    """Routes requests to actors with potentially multiple clients per
-    actor. It will attempt to balance load across the actors based on
-    estimated outstanding work."""
+class ScalableBalance(Policy):
+    """Like PolicyBalance but supports scaling up and down."""
     def __init__(self, nRunner, runnerClass, waiter=None):
         self.runnerClass = runnerClass
 
@@ -499,6 +498,118 @@ class PolicyBalance(Policy):
         return stats
 
 
+class PolicyBalance(Policy):
+    """Routes requests to actors with potentially multiple clients per
+    actor. It will attempt to balance load across the actors based on
+    estimated outstanding work."""
+    def __init__(self, nRunner, runnerClass, waiter=None):
+        self.runnerClass = runnerClass
+
+        self.waiter = waiter
+        assert waiter is not None
+
+        # List of Ray references representing stats from dead actors
+        self.pendingActorStats = []
+
+        self.readyQueue = asyncio.Queue(maxsize=nRunner)
+        self.runners = collections.deque()
+        for i in range(nRunner):
+            newActor = self.runnerClass.remote()
+            newStatus = actorStatus()
+            newStatus.state = actorStatus.PENDING
+            permanentScope.append(newActor)
+            self.runners.append((newActor, newStatus))
+            self.readyQueue.put_nowait((newActor, newStatus))
+
+        self.emptyPoolEvent = asyncio.Event()
+        self.readyQueueTask = asyncio.create_task(self.waitForRunners())
+
+    async def waitForRunners(self):
+        """A persistent task that fills the readyQueue as runners complete"""
+        while True:
+            if len(self.runners) == 0:
+                await self.emptyPoolEvent.wait()
+
+            outstanding = []
+            while len(outstanding) == 0:
+                for actor, status in self.runners:
+                    if status.state == actorStatus.BUSY:
+                        outstanding.append((actor, status))
+
+                if len(outstanding) == 0:
+                    # All runners are PENDING
+                    try:
+                        await self.readyQueue.join()
+                    except asyncio.CancelledError:
+                        return
+                    assert self.readyQueue.qsize() == 0
+            assert len(outstanding) != 0
+
+            # Block until at least one actor is idle
+            outstandingRefs = [runner[1].ref for runner in outstanding]
+            try:
+                doneIdxs = await self.waiter(outstandingRefs, timeout=None,
+                                             return_when=asyncio.FIRST_COMPLETED, returnIdxs=True)
+            except asyncio.CancelledError:
+                break
+
+            for idx in doneIdxs:
+                doneActor, doneStatus = outstanding[idx]
+                if doneStatus.state == actorStatus.DEAD:
+                    continue
+
+                doneStatus.ref = None
+                doneStatus.state = actorStatus.PENDING
+                self.readyQueue.put_nowait(outstanding[idx])
+
+    async def getRunner(self, clientID, **kwargs):
+        """Returns an actor suitable for running a request and an opaque handle
+        that must be passed to update() along with the clientID and
+        respFutures"""
+        timeout = kwargs.get('timeout', None)
+
+        if len(self.runners) == 0:
+            return None, None
+
+        try:
+            # runner, status = await asyncio.wait_for(self.readyQueue.get(), timeout=timeout)
+            runner, status = await self.readyQueue.get()
+        except asyncio.TimeoutError:
+            return None, None
+        self.readyQueue.task_done()
+
+        # It's possible that a runner is killed while waiting in the
+        # readyQueue. Hopefully this doesn't happen too often.
+        if status.state == actorStatus.DEAD:
+            # self.readyQueue.task_done()
+            return None, None
+        else:
+            return runner, status
+
+    def update(self, clientID, handle, respFutures):
+        status = handle
+        status.state = actorStatus.BUSY
+        # self.readyQueue.task_done()
+        if isinstance(respFutures, list):
+            status.ref = respFutures[0]
+        else:
+            status.ref = respFutures
+
+    async def getStats(self):
+        """Return a map of clientIDs to profCollection. Resets stats."""
+        stats = {}
+
+        for actor, _ in self.runners:
+            self.pendingActorStats.append(actor.getStats.remote())
+
+        actorStats = await asyncio.gather(*self.pendingActorStats)
+        for actorStat in actorStats:
+            util.mergePerClientStats(stats, actorStat)
+
+        self.pendingActorStats = []
+        return stats
+
+
 class PolicyAffinity(Policy):
     def __init__(self, nRunner, runnerClass, exclusive=True, waiter=None):
         """This policy provides exclusive access to a pool of actors for each
@@ -520,7 +631,7 @@ class PolicyAffinity(Policy):
                 permanentScope.append(newActor)
                 self.actors.append(newActor)
 
-        # {clientID -> PolicyBalance()}
+        # {clientID -> ScalableBalance()}
         self.clientPools = {}
 
     async def _makeRoom(self, clientID):
@@ -582,7 +693,7 @@ class PolicyAffinity(Policy):
         if clientID in self.clientPools:
             clientPool = self.clientPools[clientID]
         else:
-            clientPool = PolicyBalance(0, self.runnerClass, waiter=self.waiter)
+            clientPool = ScalableBalance(0, self.runnerClass, waiter=self.waiter)
             self.clientPools[clientID] = clientPool
 
         runner, handle = await clientPool.getRunner(clientID, timeout=0.01)
