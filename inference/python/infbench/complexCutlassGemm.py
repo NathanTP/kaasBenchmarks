@@ -75,8 +75,8 @@ beta = 0
 
 class sgemmBase(model.Model):
     noPost = True
-    preMap = model.inputMap(inp=(0))
-    runMap = model.inputMap(pre=(0), const=(0, 1))
+    preMap = model.inputMap(inp=(0,))
+    runMap = model.inputMap(pre=(0,), const=(0, 1))
     postMap = model.inputMap(run=(0,))
     nOutRun = 1
     nOutPre = 1
