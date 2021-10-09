@@ -142,8 +142,6 @@ def packInputs(maps, const=None, inp=None, pre=None, run=None):
         if argMap is not None:
             if data is None:
                 continue
-            if not isinstance(argMap, tuple):
-                argMap = (argMap,)
 
             inputs.extend([data[i] for i in argMap])
     return inputs
