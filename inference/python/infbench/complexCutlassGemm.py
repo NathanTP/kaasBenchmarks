@@ -76,12 +76,12 @@ beta = 0
 class sgemmBase(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0,))
-    runMap = model.inputMap(pre=(0,), const=(0, 1))
+    runMap = model.inputMap(pre=(0,), const=(0, 1, 2))
     postMap = model.inputMap(run=(0,))
     nOutRun = 1
     nOutPre = 1
     nOutPost = 1
-    nConst = 2
+    nConst = 3
 
 
 
@@ -102,8 +102,9 @@ class sgemmBase(model.Model):
         #b = rng.random((K, N), dtype=np.float32)
         #d = rng.random((N, 1), dtype=np.float32)
         d = rng.random((N, 1), dtype=np.float32) + rng.random((N, 1), dtype=np.float32) * (1j)
+        P = rng.random((N, N), dtype=np.float32) + rng.random((N, N), dtype=np.float32) * (1j)
 
-        return [b, d]
+        return [b, d, P]
         #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
 
     @staticmethod
@@ -144,9 +145,10 @@ class sgemm(sgemmBase):
         refKern, cutlassKern = loadKerns(self.modelDir.parent)
 
 
-        a = dat[2]
+        a = dat[3]
         b = dat[0]
         d = dat[1]
+        P = dat[2]
 
         c = np.zeros(shape=(M, N), dtype=np.float32) + np.zeros(shape=(M, N), dtype=np.float32) * (1j)
 
@@ -169,7 +171,7 @@ class sgemm(sgemmBase):
                     beta,
                     ct.cast(int(c_d), c_complex_p), ldc)
 
-
+        #C = A * B
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
 
@@ -178,6 +180,8 @@ class sgemm(sgemmBase):
         ldb = N
         ldc = 1
 
+
+        #C' = C * K
 
         d = dat[1]
         e = np.zeros(shape=(M, 1), dtype=np.float32) + np.zeros(shape=(M, 1), dtype=np.float32) * (1j)
@@ -199,6 +203,7 @@ class sgemm(sgemmBase):
                     beta,
                     ct.cast(int(e_d), c_complex_p), ldc)
 
+        #e = C * d
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
