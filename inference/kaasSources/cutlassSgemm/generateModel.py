@@ -14,7 +14,7 @@ cutlassDir = modelDir / "cutlassSgemm"
 
 def getMeta(M, N, K):
     constants = [{"name": "b", "type": "float32", "shape": [K, N]}, {"name": "d", "type": "float32", "shape": [N, 1]}]
-    outputs = [{"name": "c", "type": "float32", "shape": [M, N]}]
+    outputs = [{"name": "c", "type": "float32", "shape": [M, N]}, {"name": "e", "type": "float32", "shape": [M, 1]}]
     inputs = [{"name": "a", "type": "float32", "shape": [M, K]}]
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
 
@@ -42,12 +42,13 @@ if __name__ == "__main__":
     b = rng.random((K, N), dtype=np.float32)
     c = np.zeros(shape=(M, N), dtype=np.float32)
     d = rng.random((N, 1), dtype=np.float32)
+    e = np.zeros(shape=(M, 1), dtype=np.float32)
 
     #b = np.asfortranarray(b)
     #d = np.asfortranarray(d)
 
 
-    req = createReq(M, N, K, alpha, beta, a, b, c, d)
+    req = createReq(M, N, K, alpha, beta, a, b, c, d, e)
     meta_data = getMeta(M, N, K)
     with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)

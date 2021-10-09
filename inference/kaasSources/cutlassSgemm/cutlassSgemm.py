@@ -25,7 +25,7 @@ def loadDims():
 
     return getDims
 
-def createReq(M, N, K, alpha, beta, a, b, c, d):
+def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     lda = M
     ldb = K
     ldc = M
@@ -57,9 +57,24 @@ def createReq(M, N, K, alpha, beta, a, b, c, d):
                 kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
     firstKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')], literals=literals)
 
-    dBuf = kaas.bufferSpec('d', d.nbytes)
+    #dBuf = kaas.bufferSpec('d', d.nbytes)
 
-    req = kaas.kaasReq([firstKern])
+    dBuf = kaas.bufferSpec('d', d.nbytes, const=True, ephemeral=False)
+    #kv.put('d', d)
+    #kv.put('e', e)
+    eBuf = kaas.bufferSpec('e', e.nbytes, const=False, ephemeral=True)
+
+    cfg = getDims(M, 1, N).contents
+    grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
+    block = (cfg.blockX, cfg.blockY, cfg.blockZ)
+
+    smem = cfg.smem_size
+
+    literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta), kaas.literalSpec('f', M), kaas.literalSpec('f', 1), kaas.literalSpec('f', N), kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', M)]
+    secondKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')], literals=literals)
+
+
+    req = kaas.kaasReq([firstKern, secondKern])
     #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
     #kaasHandle.Invoke(req.toDict())
     return req

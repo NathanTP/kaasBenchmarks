@@ -59,11 +59,11 @@ class kernelConfig(ct.Structure):
 
 class sgemmBase(model.Model):
     noPost = True
-    preMap = model.inputMap(inp=(0, 1))
+    preMap = model.inputMap(inp=(0))
     runMap = model.inputMap(pre=(0), const=(0, 1))
     postMap = model.inputMap(run=(0,))
     nOutRun = 1
-    nOutPre = 2
+    nOutPre = 1
     nOutPost = 1
     nConst = 2
 
@@ -209,7 +209,7 @@ class cutlassSgemmLoader(dataset.loader):
         #self.a = np.asfortranarray(a)
         #self.b = np.asfortranarray(b)
         print("shape of a: " + str(self.a.shape))
-        return self.a
+        return [self.a]
 
     def check(self, result, idx):
         checker = np.asfortranarray(np.array(result).view('<f4'))
