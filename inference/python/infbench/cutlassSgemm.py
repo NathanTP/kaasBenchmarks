@@ -135,10 +135,6 @@ class sgemm(sgemmBase):
         b = dat[0]
         d = dat[1]
 
-        print(a.shape)
-        print(b.shape)
-        print(d.shape)
-
         c = np.zeros(shape=(M, N), order='F', dtype=np.float32)
 
         a_d = cuda.mem_alloc(a.nbytes)
@@ -163,15 +159,11 @@ class sgemm(sgemmBase):
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
 
-        #cuda.Context.synchronize()
-
-        #cuda.memcpy_dtoh(c, c_d)
 
         lda = M
         ldb = N
         ldc = 1
 
-        print("hello")
 
         d = dat[1]
         e = np.zeros(shape=(M, 1), order='F', dtype=np.float32)
@@ -194,8 +186,6 @@ class sgemm(sgemmBase):
                         ct.cast(int(e_d), ct.POINTER(ct.c_float)), ldc)
 
 
-        #literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta), kaas.literalSpec('f', M), kaas.literalSpec('f', 1), kaas.literalSpec('f', N), kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', M)]
-        #secondKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')], literals=literals)
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
@@ -214,50 +204,29 @@ class cutlassSgemmLoader(dataset.loader):
     checkAvailable = True
 
     def __init__(self, dataDir):
-        self.M = 10000
-        self.N = 8000
-        self.K = 10000
+        pass
 
     @property
     def ndata(self):
         return 1
 
     def preLoad(self, idxs):
-        pass
+        rng = np.random.default_rng(0)
+        a = rng.random((M, K), dtype=np.float32)
+        self.a = a
 
     def unLoad(self, idxs):
-        pass
+        self.a = None
 
     def get(self, idx):
-        rng = np.random.default_rng(0)
-        a = rng.random((self.M, self.K), dtype=np.float32)
-        b = rng.random((self.K, self.N), dtype=np.float32)
-        self.checkA = a
-        self.checkB = np.reshape(b, (self.K, self.N))
-        #b = np.reshape(b, (self.K, self.N))
-        #a = np.reshape(a, (self.M, self.K), order='F')
-        b = np.reshape(b, (self.K, self.N), order='F')
-        self.a = a
-        self.b = b
-        #self.a = np.asfortranarray(a)
-        #self.b = np.asfortranarray(b)
         return [self.a]
 
     def check(self, result, idx):
-        checker = np.asfortranarray(np.array(result).view('<f4'))
-        checker = checker.reshape(self.M, 1, order='F')
-        #temp = np.array(result)
-        #print(temp.dtype)
-        #temp = temp.tobytes()
-        print(checker)
-        #print(np.frombuffer(temp, dtype=np.float32))
+        actual = np.asfortranarray(np.array(result).view('<f4'))
+        actual = actual.reshape(M, 1, order='F')
         consts = sgemmBase.getConstants(None)
         b = consts[0]
         d = consts[1]
         expected = np.matmul(np.matmul(self.a, b), d)
-        #thing = np.matmul(self.checkA, self.checkB)
-        print(expected)
-        #print(thing.shape)
-        #print(checker - thing)
-        return True
+        return np.allclose(actual, expected, rtol=0.5)
 
