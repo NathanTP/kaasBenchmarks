@@ -21,10 +21,10 @@ class jacobiBase(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0, 1))
     runMap = model.inputMap(pre=(0, 1))
-    postMap = model.inputMap(run=(0,))
+    postMap = model.inputMap(run=(0, 1))
     nOutRun = 2
     nOutPre = 2
-    nOutPost = 1
+    nOutPost = 2
     nConst = 0
 
     @staticmethod
@@ -105,26 +105,26 @@ class jacobi(jacobiBase):
 
         if iters % 2 == 0:
             cuda.memcpy_dtoh(x_new, x_new_d)
-            print("CUDA result is:")
-            print(x_new)
+            #print("CUDA result is:")
+            #print(x_new)
 
         else:
             cuda.memcpy_dtoh(x, x_d)
-            print("CUDA result is:")
-            print(x)
+            #print("CUDA result is:")
+            #print(x)
 
         # Relative difference between numpy and cuda result
         np_res = np.linalg.solve(A, b)
-        print("Diff between numpy and cuda is:")
-        if iters % 2 == 0:
-            print(np.abs((np_res - x_new) / np_res))
-        else:
-            print(np.abs((np_res - x) / np_res))
+        #print("Diff between numpy and cuda is:")
+        #if iters % 2 == 0:
+            #print(np.abs((np_res - x_new) / np_res))
+        #else:
+            #print(np.abs((np_res - x) / np_res))
 
         # This should print out the error
         cuda.memcpy_dtoh(d, d_d)
-        print("CUDA error is:")
-        print(d)
+        #print("CUDA error is:")
+        #print(d)
         return [x_new, d]
 
 
@@ -159,6 +159,6 @@ class jacobiLoader(dataset.loader):
 
 
     def check(self, result, idx):
-        print(result[0])
-        print(result[1])
+        print(result[0].view('f8'))
+        print(result[1].view('f8'))
         return True
