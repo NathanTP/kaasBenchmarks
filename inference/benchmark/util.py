@@ -47,6 +47,14 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
 
+    elif modelName == "complexCutlassGemmKaas":
+        import infbench.complexCutlassGemm
+        return ModelSpec(name="complexCutlassGemm",
+                         loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
+                         modelPath = modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
+                         modelClass= infbench.complexCutlassGemm.sgemmKaas,
+                        modelType="kaas")
+
     elif modelName == "cutlassSgemmKaas":
         import infbench.cutlassSgemm
         return ModelSpec(name="cutlassSgemmKaas",
