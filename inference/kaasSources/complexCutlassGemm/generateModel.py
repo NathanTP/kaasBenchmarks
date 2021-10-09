@@ -13,9 +13,9 @@ cutlassDir = modelDir / "complexCutlassGemm"
 
 
 def getMeta(M, N, K):
-    constants = [{"name": "b", "type": "float32", "shape": [K, N]}, {"name": "d", "type": "float32", "shape": [N, 1]}]
-    outputs = [{"name": "e", "type": "float32", "shape": [M, 1]}]
-    inputs = [{"name": "a", "type": "float32", "shape": [M, K]}]
+    constants = [{"name": "b", "type": "csingle", "shape": [K, N]}, {"name": "d", "type": "csingle", "shape": [N, 1]}]
+    outputs = [{"name": "e", "type": "csingle", "shape": [M, 1]}]
+    inputs = [{"name": "a", "type": "csingle", "shape": [M, K]}]
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
 
 
@@ -63,5 +63,5 @@ if __name__ == "__main__":
     with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta_data, f)
 
-    with open(targetDir / (args.name + "_params.pkl"), 'wb') as f:
-        pickle.dump([b, d], f)
+    #with open(targetDir / (args.name + "_params.pkl"), 'wb') as f:
+    #    pickle.dump([b, d], f)

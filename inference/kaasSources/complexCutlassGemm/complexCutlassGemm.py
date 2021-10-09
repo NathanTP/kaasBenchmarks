@@ -1,12 +1,20 @@
 from libff import kaas
 import numpy as np
 import ctypes as ct
+import libff as ff
+import libff.kv
+import libff.invoke
+import libff.kaas.kaasFF
+import libff.kaas as kaas
+
 
 # define complex ctype as a python class
 class complex(ct.Structure):
     _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
 
 c_complex_p = ct.POINTER(complex)
+
+
 
 class kernelConfig(ct.Structure):
     """This mirrors the CudaConfig struct defined in cutlassAdapters.h"""
@@ -57,23 +65,23 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     smem = cfg.smem_size
 
     #libffCtx.kv.put('a', a)
-    aBuf = kaas.bufferSpec('a', a.nbytes, const=False, ephemeral=False)
+    aBuf = kaas.bufferSpec('a', a.nbytes, ephemeral=False)
 
     #libffCtx.kv.put('b', b)
-    bBuf = kaas.bufferSpec('b', b.nbytes, const=False, ephemeral=False)
+    bBuf = kaas.bufferSpec('b', b.nbytes, ephemeral=False)
 
-    #libffCtx.kv.put('c', c, const=False, ephemeral=False)
+    #libffCtx.kv.put('c', c)
     cBuf = kaas.bufferSpec('c', c.nbytes, ephemeral=True)
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
                 kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
     firstKern = kaas.kernelSpec(kaas.builtins["complexCutlass"], "complexGemm0", grid, block, sharedSize=smem, arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')], literals=literals)
 
-    #dBuf = kaas.bufferSpec('d', d.nbytes)
+    dBuf = kaas.bufferSpec('d', d.nbytes)
 
-    dBuf = kaas.bufferSpec('d', d.nbytes, const=True, ephemeral=False)
-    #kv.put('d', d)
-    #kv.put('e', e)
-    eBuf = kaas.bufferSpec('e', e.nbytes, const=False, ephemeral=False)
+    dBuf = kaas.bufferSpec('d', d.nbytes, ephemeral=False)
+    #libffCtx.kv.put('d', d)
+    #libffCtx.kv.put('e', e)
+    eBuf = kaas.bufferSpec('e', e.nbytes, ephemeral=False)
 
     cfg = getDims(M, 1, N).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
@@ -84,12 +92,14 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta), kaas.literalSpec('f', M), kaas.literalSpec('f', 1), kaas.literalSpec('f', N), kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', M)]
     secondKern = kaas.kernelSpec(kaas.builtins["complexCutlass"], "complexGemm0", grid, block, sharedSize=smem, arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')], literals=literals)
 
-
     req = kaas.kaasReq([firstKern, secondKern])
-    #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
-    #kaasHandle.Invoke(req.toDict())
     return req
-    #c = np.frombuffer(libffCtx.kv.get('c'), dtype=np.float32)
+    #req = kaas.kaasReqDense([firstKern, secondKern])
+    #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
+    #kaasHandle.Invoke(req)
+    #return req
+    #e = np.frombuffer(libffCtx.kv.get('e'), dtype=np.csingle)
+    #e = np.reshape(e, (M, 1), order='F')
+    #print(e)
     #print(c)
-
 

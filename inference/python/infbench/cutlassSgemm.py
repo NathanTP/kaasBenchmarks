@@ -1,10 +1,9 @@
 from . import model
 from . import dataset
 import numpy as np
-import yaml
 import ctypes as ct
 import pycuda.driver as cuda
-import pickle
+
 
 def loadAdapter(modelDir):
     libc = ct.cdll.LoadLibrary(str(modelDir / "cutlassAdapters.so"))
