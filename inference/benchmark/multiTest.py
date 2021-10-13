@@ -5,10 +5,11 @@ import sys
 import datetime
 import shutil
 import time
-import infbench
+import infbench.bert
+import infbench.resnet50
 
 
-def mlperfMulti(nReplica, models, modes):
+def mlperfMulti(nReplicas, models, modes):
     if len(sys.argv) == 1:
         suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
         suiteOutDir = pathlib.Path('results') / f"mlperfSuite_{suffix}"
@@ -18,7 +19,6 @@ def mlperfMulti(nReplica, models, modes):
     suiteOutDir.mkdir(0o700)
 
     resultsDir = pathlib.Path("./results")
-
 
     for model in models:
         for nReplica in nReplicas:
@@ -33,8 +33,10 @@ def mlperfMulti(nReplica, models, modes):
                 runOutDir = suiteOutDir / name
                 shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
 
+    print("Final Results in: ", suiteOutDir)
 
-def throughput(nReplica, models, modes):
+
+def throughput(nReplicas, models, modes):
     if len(sys.argv) == 1:
         suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
         suiteOutDir = pathlib.Path('results') / f"throughputSuite_{suffix}"
@@ -64,6 +66,8 @@ def throughput(nReplica, models, modes):
                 runOutDir = suiteOutDir / name
                 shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
 
+    print("Final Results in: ", suiteOutDir)
+
 
 # These are hard coded from manually run experiments. They are the peak
 # throughput achieved in the throughput suite. The slowest throughput between
@@ -71,10 +75,16 @@ def throughput(nReplica, models, modes):
 throughputBaselines = {
     'resnet50': [142.41299388906768, 141.65304793745327, 140.58463321571497,
                  141.5060638374777, 4.2258765441538975, 2.7161514543522625,
-                 float("nan"), float('nan')],
+                 1.8372934445128746, 1.7213538775608817, 1.4261652856296516,
+                 1.2509273341611908, 1.5632660052414507, 1.442281768453932,
+                 1.3164983734181182, 1.2301623103284065, 1.1511744668537298,
+                 1.083128781341447],
     'bert': [41.29657053554684, 41.44402115116313, 31.641338978614982,
              40.58364497477458, 1.5039667823946186, 0.9752365843478145,
-             float('nan'), float('nan')]
+             0.43632979442155534, 0.3499707909696742, 0.42640207944480446,
+             0.3794464966505168, 0.3285686127978113, 0.3183556802632884,
+             0.29756675734229465, 0.28034732132535134, 0.2516927885232863,
+             0.2353052429673834]
 }
 
 
@@ -86,35 +96,51 @@ def getThroughputScales():
     }
 
     # Scales should be 20% below peak throughput scale
-    scaleBaselines = {name: (val / baseThroughputs[name])*0.8 for name, val in throughputBaselines.items()}
-    print(scaleBaselines)
+    scaleBaselines = {}
+    for name in throughputBaselines.keys():
+        scaleBaselines[name] = []
+        for i, thpt in enumerate(throughputBaselines[name]):
+            safeThroughput = thpt * 0.8
+            totalScale = safeThroughput / baseThroughputs[name]
+            scaleBaselines[name].append(totalScale / (i+1))
 
-def latDistribution(nReplica, models, modes, suiteOutDir):
-    if len(sys.argv) == 1:
-        suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-        suiteOutDir = pathlib.Path('results') / f"latencyDistributionSuite_{suffix}"
-    else:
-        suiteOutDir = pathlib.Path(sys.argv[1])
+    return scaleBaselines
+
+
+def latDistribution(nReplicas, models, modes):
+    suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+    suiteOutDir = pathlib.Path('results') / f"latencyDistributionSuite_{suffix}"
 
     suiteOutDir.mkdir(0o700)
 
     resultsDir = pathlib.Path("./results")
 
-
+    scales = getThroughputScales()
     for model in models:
         for nReplica in nReplicas:
             for mode in modes:
                 name = f"{model}_{mode}_{nReplica}"
                 print("\nStarting test: ", name)
-                sp.run(['./experiment.py', '-e', 'mlperfMulti', '-n', str(nReplica), '-t', mode, '-m', model])
+                sp.run(['./experiment.py', '-e', 'mlperfMulti',
+                        '-n', str(nReplica), '-s', str(scales[model][nReplica - 1]),
+                        '-t', mode, '-m', model])
 
                 runOutDir = suiteOutDir / name
                 shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
 
-# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8]
-nReplicas = [7, 8]
-models = ['resnet50', 'bert']
-modes = ['tvm']
+    print("Final Results in: ", suiteOutDir)
 
-throughput(nReplicas, models, modes)
+
+# nReplicas = [9, 10, 11, 12, 13, 14, 15, 16]
+# models = ['bert', 'resnet50']
+# modes = ['kaas', 'tvm']
+# throughput(nReplicas, models, modes)
+
+# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8]
+nReplicas = [9, 10, 11, 12, 13, 14, 15, 16]
+models = ['resnet50', 'bert']
+modes = ['kaas', 'tvm']
+latDistribution(nReplicas, models, modes)
+
+# print(getThroughputScales())
 # mlperfMulti(nReplicas, models, modes)
