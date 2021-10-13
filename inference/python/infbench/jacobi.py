@@ -2,6 +2,7 @@ from . import model
 from . import dataset
 import numpy as np
 import pycuda.driver as cuda
+import struct
 
 
 
@@ -10,7 +11,6 @@ N = 512
 iters = 3000
 
 def loadKerns(modelDir):
-    print(str(modelDir / "jacobi.ptx"))
     mod = cuda.module_from_file(str( modelDir / "jacobi.ptx"))
     jacobiKern = mod.get_function("JacobiMethod")
     jacobiKern.prepare("iPPPPP")
@@ -134,7 +134,7 @@ class jacobiKaas(jacobiBase, model.kaasModel):
 
 
 class jacobiLoader(dataset.loader):
-    checkAvailable = True
+    checkAvailable = False
 
     def __init__(self, dataDir):
         pass
@@ -159,6 +159,8 @@ class jacobiLoader(dataset.loader):
 
 
     def check(self, result, idx):
-        print(result[0].view('f8'))
-        print(result[1].view('f8'))
+        # print(np.frombuffer(result[0], dtype=np.float64))
+        # print(struct.unpack('d', result[0]))
+        # print(result[0].view('f8'))
+        # print(result[1].view('f8'))
         return True

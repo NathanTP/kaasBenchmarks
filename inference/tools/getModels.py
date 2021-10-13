@@ -244,6 +244,10 @@ def getCutlassComplexGemm():
     getKaasModel("complexCutlassGemm")
 
 
+def getJacobi():
+    getKaasModel("jacobi")
+
+
 def main():
     if not modelDir.exists():
         modelDir.mkdir(mode=0o700)
@@ -265,6 +269,9 @@ def main():
 
     print("\nGetting complex cutlassSgemm")
     getCutlassComplexGemm()
+
+    print("\nGetting Jacobi")
+    getJacobi()
 
     # print("\nGetting SSD-Mobilenet")
     # getSsdMobilenet()
