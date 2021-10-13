@@ -552,8 +552,9 @@ class throughputLoop():
 
         if modelSpec.modelType == "kaas":
             runConstRefs = []
-            for idx in modelSpec.modelClass.runMap.const:
-                runConstRefs.append(self.constRefs[idx])
+            if modelSpec.modelClass.runMap.const is not None:
+                for idx in modelSpec.modelClass.runMap.const:
+                    runConstRefs.append(self.constRefs[idx])
 
             self.modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
@@ -758,8 +759,9 @@ class mlperfRunner():
 
         if modelSpec.modelType == "kaas":
             runConstRefs = []
-            for idx in modelSpec.modelClass.runMap.const:
-                runConstRefs.append(self.constants[idx])
+            if modelSpec.modelClass.runMap.const is not None:
+                for idx in modelSpec.modelClass.runMap.const:
+                    runConstRefs.append(self.constants[idx])
 
             self.modelArg = modelSpec.getModelArg(constRefs=runConstRefs)
         else:
@@ -891,8 +893,9 @@ class clientState():
 
         if self.modelSpec.modelType == "kaas":
             runConstRefs = []
-            for idx in self.modelSpec.modelClass.runMap.const:
-                runConstRefs.append(self.constRefs[idx])
+            if self.modelSpec.modelClass.runMap.const is not None:
+                for idx in self.modelSpec.modelClass.runMap.const:
+                    runConstRefs.append(self.constRefs[idx])
 
             self.modelArg = self.modelSpec.getModelArg(constRefs=runConstRefs)
         else:
