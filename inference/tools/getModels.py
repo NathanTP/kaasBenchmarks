@@ -7,6 +7,7 @@ import tvm
 import tvm.relay as relay
 import pickle
 import subprocess as sp
+import shutil
 
 # Gluoncv throws out some stupid warning about having both mxnet and torch,
 # have to go through this nonsense to suppress it.
@@ -246,6 +247,7 @@ def getCutlassComplexGemm():
 
 def getJacobi():
     getKaasModel("jacobi")
+    shutil.copy2(kaasSrcDir / 'jacobi' / 'jacobi.ptx', modelDir / 'jacobi' / 'jacobi.ptx')
 
 
 def main():

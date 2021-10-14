@@ -66,7 +66,7 @@ def createReq(mode='direct'):
                            literals=[kaas.literalSpec('i', N)],
                            arguments=arguments2)
 
-    req = kaas.kaasReq([kern1, kern2], nIter=3000)
+    req = kaas.kaasReq([kern1, kern2], nIter=1500)
 
     # This is just for the test, a real system would use libff to invoke the
     # kaas server
