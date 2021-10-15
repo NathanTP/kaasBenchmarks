@@ -45,7 +45,7 @@ class jacobiBase(model.Model):
             medianLatency = 0.07
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 0
-            medianLatency = 0.05
+            medianLatency = 0.09  # 0.07 for native
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 

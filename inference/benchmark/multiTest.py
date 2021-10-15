@@ -131,16 +131,12 @@ def latDistribution(nReplicas, models, modes):
     print("Final Results in: ", suiteOutDir)
 
 
-# nReplicas = [9, 10, 11, 12, 13, 14, 15, 16]
-# models = ['bert', 'resnet50']
-# modes = ['kaas', 'tvm']
-# throughput(nReplicas, models, modes)
-
-# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8]
-nReplicas = [9, 10, 11, 12, 13, 14, 15, 16]
-models = ['resnet50', 'bert']
+# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+nReplicas = [12, 13, 14, 15, 16]
+models = ['jacobi']
 modes = ['kaas', 'tvm']
-latDistribution(nReplicas, models, modes)
+throughput(nReplicas, models, modes)
+# latDistribution(nReplicas, models, modes)
 
 # print(getThroughputScales())
 # mlperfMulti(nReplicas, models, modes)

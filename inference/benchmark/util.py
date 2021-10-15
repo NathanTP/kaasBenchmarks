@@ -47,7 +47,8 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
 
-    elif modelName == "jacobi":
+    #XXX this is an annoying hack because I was lazy and hard coded all baselines to be called fooTvm. I'll fix it properly soon.
+    elif modelName == "jacobiTvm":
         import infbench.jacobi
         return ModelSpec(name="jacobi",
                          loader=infbench.jacobi.jacobiLoader,
@@ -130,7 +131,9 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelNP,
                          modelType="direct")
 
-    elif modelName == "testModelNative":
+    #XXX
+    # elif modelName == "testModelNative":
+    elif modelName == "testModelTvm":
         import infbench.testModel
         return ModelSpec(name="testModelNative",
                          loader=infbench.testModel.testLoader,
