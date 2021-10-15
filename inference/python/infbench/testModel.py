@@ -40,17 +40,16 @@ class testModel():
 
     @staticmethod
     def pre(data):
-        result = data[1] + 1
-        return (result,)
+        result = np.frombuffer(data[1], dtype=np.float32) + 1
+        return (result.data,)
 
     @staticmethod
     def post(data):
-        inputArr = data[1]
-        inputArr.dtype = np.float32
+        inputArr = np.frombuffer(data[1], dtype=np.float32)
         inputArr.shape = (matSize, matSize)
         result = inputArr - 1
 
-        return (result,)
+        return (result.data,)
 
     @staticmethod
     def getPerfEstimates(gpuType, benchConfig):
@@ -170,19 +169,19 @@ class testModelNative(testModel, model.Model):
         if self.dConsts is None:
             self.dConsts = []
             for hConst in constants:
-                dConst = cuda.mem_alloc(hConst.nbytes)
+                dConst = cuda.mem_alloc(len(hConst))
                 cuda.memcpy_htod(dConst, hConst)
                 self.dConsts.append(dConst)
 
         if self.dIOs is None:
             self.dIOs = []
-            self.dIOs.append(cuda.mem_alloc(hInp.nbytes))
+            self.dIOs.append(cuda.mem_alloc(len(hInp)))
 
             for i in range(depth):
-                self.dIOs.append(cuda.mem_alloc(hInp.nbytes))
+                self.dIOs.append(cuda.mem_alloc(len(hInp)))
 
         for i in range(1, depth + 1):
-            cuda.memset_d8(self.dIOs[i], 0, hInp.nbytes)
+            cuda.memset_d8(self.dIOs[i], 0, len(hInp))
 
         cuda.memcpy_htod(self.dIOs[0], hInp)
 
@@ -219,10 +218,11 @@ class testLoader(dataset.loader):
             del self.data[i]
 
     def get(self, idx):
-        return (self.data[idx],)
+        return (self.data[idx].data,)
 
     def check(self, result, idx):
-        result = result[0]
+        result = np.frombuffer(result[0], dtype=np.float32)
+        result.shape = (matSize, matSize)
 
         expect = self.data[idx]
         constants = testModelNP.getConstants(None)
