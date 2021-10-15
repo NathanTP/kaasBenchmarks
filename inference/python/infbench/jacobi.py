@@ -2,8 +2,7 @@ from . import model
 from . import dataset
 import numpy as np
 import pycuda.driver as cuda
-import struct
-
+import pycuda.tools
 
 
 ROWS_PER_CTA = 8
@@ -28,8 +27,8 @@ class jacobiBase(model.Model):
     nConst = 0
 
     @staticmethod
-    def pre(imgBuf):
-        return imgBuf
+    def pre(bufs):
+        return bufs
 
     @staticmethod
     def post(label):
@@ -60,17 +59,20 @@ class jacobiBase(model.Model):
 class jacobi(jacobiBase):
     def __init__(self, modelArgs):
         self.modelDir = modelArgs
-
+        cuda.init()
+        self.cudaCtx = pycuda.tools.make_default_context()
+        self.jacobiKern = loadKerns(self.modelDir)
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
-        import pycuda.autoinit #NOQA
-        jacobiKern = loadKerns(self.modelDir)
+        self.cudaCtx.push()
 
-        A = dat[0]
-        b = dat[1]
+        A = np.frombuffer(dat[0], dtype=np.float32)
+        A.shape = (N, N)
+        b = np.frombuffer(dat[1], dtype=np.float64)
+        b.shape = (N, 1)
 
         x = np.zeros(shape=(N, 1), dtype=np.float64)
         x_new = np.zeros(shape=(N, 1), dtype=np.float64)
@@ -94,27 +96,27 @@ class jacobi(jacobiBase):
         grid = (256, 1, 1)
         block = ((N // ROWS_PER_CTA) + 2, 1, 1)
 
-        #print("Grid is: ", grid)
-        #print("Block is: ", block)
-
         for k in range(iters):
             if k % 2 == 0:
-                jacobiKern.prepared_call(grid, block, N, A_d, b_d, x_d, x_new_d, d_d, shared_size=8*N)
+                self.jacobiKern.prepared_call(grid, block, N, A_d, b_d, x_d, x_new_d, d_d, shared_size=8*N)
             else:
-                jacobiKern.prepared_call(grid, block, N, A_d, b_d, x_new_d, x_d, d_d, shared_size=8*N)
+                self.jacobiKern.prepared_call(grid, block, N, A_d, b_d, x_new_d, x_d, d_d, shared_size=8*N)
 
         if iters % 2 == 0:
             cuda.memcpy_dtoh(x_new, x_new_d)
-            #print("CUDA result is:")
-            #print(x_new)
-
         else:
             cuda.memcpy_dtoh(x, x_d)
-            #print("CUDA result is:")
-            #print(x)
+
+        cuda.memcpy_dtoh(d, d_d)
+
+        A_d.free()
+        b_d.free()
+        x_d.free()
+        x_new_d.free()
+        d_d.free()
 
         # Relative difference between numpy and cuda result
-        np_res = np.linalg.solve(A, b)
+        # np_res = np.linalg.solve(A, b)
         #print("Diff between numpy and cuda is:")
         #if iters % 2 == 0:
             #print(np.abs((np_res - x_new) / np_res))
@@ -122,11 +124,13 @@ class jacobi(jacobiBase):
             #print(np.abs((np_res - x) / np_res))
 
         # This should print out the error
-        cuda.memcpy_dtoh(d, d_d)
         #print("CUDA error is:")
         #print(d)
+
         return [x_new, d]
 
+    def __del__(self):
+        self.cudaCtx.detach()
 
 
 class jacobiKaas(jacobiBase, model.kaasModel):
@@ -155,8 +159,7 @@ class jacobiLoader(dataset.loader):
         self.b = None
 
     def get(self, idx):
-        return [self.A, self.b]
-
+        return [self.A.data, self.b.data]
 
     def check(self, result, idx):
         # print(np.frombuffer(result[0], dtype=np.float64))
