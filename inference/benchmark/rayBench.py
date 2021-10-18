@@ -471,7 +471,13 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     else:
         pool = policy.Pool.remote(nGpu, benchConfig['policy'], runActor)
 
-    # Cold Start, done async to maximize the chances of everything getting warm
+    # Cold start metrics collection
+    results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
+    coldPoolStats = ray.get(pool.getStats.remote())
+    coldStats.merge(coldPoolStats[None])
+
+    # Make sure we're done with cold starts by running a large number of
+    # requests. Done async to maximize the chances of everything getting warm
     # when there are multiple GPUs
     print(f"Running {2*util.getNGpu()} warmup passes")
     results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef,
@@ -494,6 +500,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     warmStats.merge(warmPoolStats[None])
 
     print("\nDetailed Stats: ")
+    print("Cold:")
+    report = coldStats.report(includeEvents=False)
+    util.analyzeStats(report)
+
+    print("Warm:")
     report = warmStats.report(includeEvents=False)
     util.analyzeStats(report)
 
