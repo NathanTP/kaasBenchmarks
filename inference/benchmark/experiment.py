@@ -42,7 +42,7 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
-def launchClient(scale, model, name, test, outDir, nRun=1):
+def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1):
     cmd = [(expRoot / "benchmark.py"),
            "-e", test,
            "--numRun=" + str(nRun),
@@ -53,10 +53,13 @@ def launchClient(scale, model, name, test, outDir, nRun=1):
     if scale is not None:
         cmd.append("--scale=" + str(scale))
 
+    if runTime is not None:
+        cmd.append("--runTime=" + str(runTime))
+
     return sp.Popen(cmd, stdout=sys.stdout, cwd=outDir)
 
 
-def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, nRun=1):
+def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, runTime=None, nRun=1):
     if modelType == 'Kaas':
         policy = 'balance'
     elif modelType == 'Tvm':
@@ -70,7 +73,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
             instanceName = f"{prefix}_{modelName}_{j}_{i}"
             runners[instanceName] = launchClient(
                 scale, modelName + modelType, instanceName,
-                test, resultsDir, nRun=nRun)
+                test, resultsDir, runTime=runTime, nRun=nRun)
 
     server = launchServer(resultsDir, len(runners), modelType, policy)
 
@@ -115,51 +118,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
     return True
 
 
-def mlperfMultiOne(modelNames, modelType, nCpy, scale, prefix, resultsDir):
-    if modelType == 'Kaas':
-        policy = 'balance'
-    elif modelType == 'Tvm':
-        policy = 'exclusive'
-    else:
-        raise ValueError("Unrecognized Model Type: " + modelType)
-
-    runners = {}
-    for i in range(nCpy):
-        for j, modelName in enumerate(modelNames):
-            instanceName = f"{prefix}_{modelName}_{j}_{i}"
-            runners[instanceName] = launchClient(
-                scale,
-                modelName + modelType, instanceName,
-                'mlperf', resultsDir)
-
-    server = launchServer(resultsDir, len(runners), modelType, policy)
-
-    failed = []
-    for name, runner in runners.items():
-        runner.wait()
-        if runner.returncode != 0:
-            failed.append(name)
-    server.send_signal(signal.SIGINT)
-    server.wait()
-
-    if len(failed) != 0:
-        raise RuntimeError("Some runners failed: ", failed)
-
-    for summaryFile in resultsDir.glob("*_summary.txt"):
-        with open(summaryFile, 'r') as f:
-            summary = f.read()
-        if "INVALID" in summary:
-            if "Min queries satisfied : NO" in summary:
-                raise RuntimeError("Test didn't meet minimum queries, try again with a longer runtime")
-            if "Min duration satisfied : NO" in summary:
-                raise RuntimeError("Test didn't meet minimum duration, try again with a longer runtime")
-
-            return False
-
-    return True
-
-
-def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, nCpy=1, model=None):
+def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, runTime=None, nCpy=1, model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
 
@@ -194,7 +153,8 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
         time.sleep(10)  # ray is bad at cleaning up, gotta wait to be sure
         with tempfile.TemporaryDirectory() as tmpRes:
             tmpRes = pathlib.Path(tmpRes)
-            failure = not runTest('mlperf', models, modelType, prefix, tmpRes, nCpy=nCpy, scale=scale)
+            failure = not runTest('mlperf', models, modelType, prefix,
+                                  tmpRes, nCpy=nCpy, scale=scale, runTime=runTime)
             if failure:
                 failureScale = scale
             else:
@@ -225,7 +185,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
     return succeedScale
 
 
-def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=None):
+def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=None, runTime=None):
     if modelType == 'Kaas':
         policy = 'balance'
     elif modelType == 'Tvm':
@@ -235,10 +195,10 @@ def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=
 
     model = baseModel + modelType
     if scale is None:
-        runner = launchClient(None, model, prefix, 'mlperf', outDir)
+        runner = launchClient(None, model, prefix, 'mlperf', outDir, runTime=runTime)
         server = launchServer(outDir, 1, modelType, policy, nGpu=1)
     else:
-        runner = launchClient(scale, model, prefix, 'mlperf', outDir)
+        runner = launchClient(scale, model, prefix, 'mlperf', outDir, runTime=runTime)
         server = launchServer(outDir, 1, modelType, policy)
 
     runner.wait()
@@ -278,7 +238,7 @@ def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
         raise RuntimeError("Run Failed")
 
 
-def throughput(modelType, scale=1.0, prefix="throughput", outDir="results", nCpy=1, model=None):
+def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="results", nCpy=1, model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -291,7 +251,7 @@ def throughput(modelType, scale=1.0, prefix="throughput", outDir="results", nCpy
 
     prefix = f"{prefix}_{modelType}"
 
-    runTest('throughput', models, modelType, prefix, expResultsDir, scale=scale)
+    runTest('throughput', models, modelType, prefix, expResultsDir, scale=scale, runTime=runTime)
 
     # Total throughput is queryMS / S. That is, number of ms of actual query
     # work done per second. Another way of thinking of this is QPS normalized
@@ -327,6 +287,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
     parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance.")
+    parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("-n", "--nCopy", type=int, help="For mlperfMulti, this is the number of model replicas to use. For nshot, this is the number of iterations.")
 
     args = parser.parse_args()
@@ -346,13 +307,18 @@ if __name__ == "__main__":
         nShotMulti(32, args.modelType, outDir=resultsDir)
     elif args.experiment == 'mlperfOne':
         print("Starting mlperfOne")
-        mlperfOne(args.model, args.modelType, outDir=resultsDir, scale=args.scale)
+        mlperfOne(args.model, args.modelType, outDir=resultsDir,
+                  scale=args.scale, runTime=args.runTime)
     elif args.experiment == 'mlperfMulti':
         print("Starting mlperfMulti")
-        mlperfMulti(args.modelType, outDir=resultsDir, scale=args.scale, model=args.model, nCpy=args.nCopy)
+        mlperfMulti(args.modelType, outDir=resultsDir,
+                    scale=args.scale, runTime=args.runTime,
+                    model=args.model, nCpy=args.nCopy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
-        throughput(args.modelType, outDir=resultsDir, scale=args.scale, model=args.model, nCpy=args.nCopy)
+        throughput(args.modelType, outDir=resultsDir,
+                   scale=args.scale, runTime=args.runTime,
+                   model=args.model, nCpy=args.nCopy)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 

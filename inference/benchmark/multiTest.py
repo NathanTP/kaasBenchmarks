@@ -9,6 +9,23 @@ import infbench.bert
 import infbench.resnet50
 
 
+def getTargetRuntime(nReplica, model, mode):
+    # After 4 replicas, TVM is so slow that we need lots of time to get a good
+    # measurement. How much longer we need depends on the model, though longer
+    # is always better.
+    if nReplica > 4:
+        if model == 'bert':
+            runTime = 1200
+        elif model == 'jacobi':
+            runTime = 800
+        elif model == 'resnet':
+            runTime = 600
+    else:
+        runTime = 300
+
+    return runTime
+
+
 def mlperfMulti(nReplicas, models, modes):
     if len(sys.argv) == 1:
         suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
@@ -23,12 +40,14 @@ def mlperfMulti(nReplicas, models, modes):
     for model in models:
         for nReplica in nReplicas:
             for mode in modes:
-                if nReplica > 4 and mode == 'tvm':
-                    continue
+                runTime = getTargetRuntime(nReplica, model, mode)
+
                 time.sleep(20)
                 name = f"{model}_{mode}_{nReplica}"
                 print("\nStarting test: ", name)
-                sp.run(['./experiment.py', '-e', 'mlperfMulti', '-n', str(nReplica), '-t', mode, '-m', model])
+                sp.run(['./experiment.py', '-e', 'mlperfMulti',
+                        '-n', str(nReplica), f'--runTime={runTime}',
+                        '-t', mode, '-m', model])
 
                 runOutDir = suiteOutDir / name
                 shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
@@ -50,9 +69,8 @@ def throughput(nReplicas, models, modes):
     for model in models:
         for nReplica in nReplicas:
             for mode in modes:
-                # if nReplica > 6 and mode == 'tvm':
-                #     continue
                 time.sleep(20)
+                runTime = getTargetRuntime(nReplica, model, mode)
 
                 name = f"{model}_{mode}_{nReplica}"
                 print("\nStarting test: ", name)
@@ -60,6 +78,7 @@ def throughput(nReplicas, models, modes):
                         '-e', 'throughput',
                         '-n', str(nReplica),
                         '-s', str(1 / nReplica),
+                        f'-runTime={runTime}',
                         '-t', mode,
                         '-m', model])
 
@@ -84,7 +103,13 @@ throughputBaselines = {
              0.43632979442155534, 0.3499707909696742, 0.42640207944480446,
              0.3794464966505168, 0.3285686127978113, 0.3183556802632884,
              0.29756675734229465, 0.28034732132535134, 0.2516927885232863,
-             0.2353052429673834]
+             0.2353052429673834],
+    'jacobi': [45.05692180522658, 44.77894955631741, 45.297708547226236,
+               44.591042638752334, 3.6463564419018937, 1.8912824361328877,
+               1.6358352122688213, 1.1126111488326782, 1.2356571121036493,
+               1.1811356458061184, 1.0364348558750922, 0.9355437883246753,
+               0.924301661755399, 0.9033813320002326, 0.7387523549948113,
+               0.7885506437489563]
 }
 
 
@@ -119,10 +144,13 @@ def latDistribution(nReplicas, models, modes):
     for model in models:
         for nReplica in nReplicas:
             for mode in modes:
+                scale = scales[model][nReplica - 1]
+                runTime = getTargetRuntime(nReplica, model, mode)
+
                 name = f"{model}_{mode}_{nReplica}"
                 print("\nStarting test: ", name)
                 sp.run(['./experiment.py', '-e', 'mlperfMulti',
-                        '-n', str(nReplica), '-s', str(scales[model][nReplica - 1]),
+                        '-n', str(nReplica), '-s', str(scale), f'--runTime={runTime}',
                         '-t', mode, '-m', model])
 
                 runOutDir = suiteOutDir / name
@@ -132,11 +160,15 @@ def latDistribution(nReplicas, models, modes):
 
 
 # nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-nReplicas = [12, 13, 14, 15, 16]
+nReplicas = [14, 16]
+models = ['bert']
+modes = ['tvm']
+latDistribution(nReplicas, models, modes)
+
+nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 models = ['jacobi']
 modes = ['kaas', 'tvm']
-throughput(nReplicas, models, modes)
-# latDistribution(nReplicas, models, modes)
+latDistribution(nReplicas, models, modes)
 
 # print(getThroughputScales())
 # mlperfMulti(nReplicas, models, modes)
