@@ -485,20 +485,12 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
         settings.server_target_qps = maxQps * benchConfig['scale']
 
-        # settings.min_duration_ms = int(300*1E3)
-        # settings.min_duration_ms = int(60*1E3)
-        # settings.max_duration_ms = int(60*1E3)
-        settings.min_duration_ms = int(120*1E3)
-        settings.max_duration_ms = int(120*1E3)
-        # settings.min_duration_ms = int(300*1E3)
-        # settings.max_duration_ms = int(300*1E3)
-
-    # settings.scenario = mlperf_loadgen.TestScenario.Offline
-    # settings.offline_expected_qps = maxQps * 4
-    #
-    # settings.min_query_count = 50
-    # settings.min_duration_ms = int(60*1E3)
-    # settings.max_duration_ms = int(60*1E3)
+        if benchConfig['runTime'] is None:
+            settings.min_duration_ms = int(300*1E3)
+            settings.max_duration_ms = int(300*1E3)
+        else:
+            settings.min_duration_ms = int(benchConfig['runTime']*1E3)
+            settings.max_duration_ms = int(benchConfig['runTime']*1E3)
 
     return settings
 
@@ -523,12 +515,12 @@ def parseMlPerf(prefix):
     for idx, line in enumerate(mlLog):
         match = scheduledPattern.match(line)
         if match is not None:
-            metrics['n_scheduled'] = float(match.group(1))
+            metrics['submission_rate'] = float(match.group(1))
             continue
 
         match = completedPattern.match(line)
         if match is not None:
-            metrics['n_completed'] = float(match.group(1))
+            metrics['completion_rate'] = float(match.group(1))
             continue
 
         match = validPattern.match(line)
@@ -539,8 +531,8 @@ def parseMlPerf(prefix):
         if line == "Test Parameters Used\n":
             break
 
-    if 'n_scheduled' not in metrics or 'n_completed' not in metrics or 'valid' not in metrics:
-        raise RuntimeError("Failed to parse mlperf log")
+    if 'submission_rate' not in metrics or 'completion_rate' not in metrics or 'valid' not in metrics:
+        raise RuntimeError("Failed to parse mlperf log: ", prefix + "summary.txt")
 
     return metrics
 

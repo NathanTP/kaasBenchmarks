@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--no_cache", action="store_true", help="Don't cache models on workers")
     parser.add_argument("--inline", action="store_true", help="Inline pre and post processing with them model run (only meaningful for ray mode)")
     parser.add_argument("--scale", type=float, help="Rate at which to submit requests in mlperf mode (as a fraction of peak throughput). If not provided, mlperf is run in FindPeakPerformance mode.")
+    parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("--numRun", default=1, type=int, help="Number of iterations to use in nshot mode")
     parser.add_argument("--numClient", default=1, type=int, help="Expected number of clients in server mode. This is used to implement a barrier.")
     args = parser.parse_args()
@@ -58,6 +59,7 @@ def main():
         "cache": not args.no_cache,
         "inline": args.inline,
         "scale": args.scale,
+        "runTime": args.runTime,
         "numRun": args.numRun,
         "numClient": args.numClient
     }
