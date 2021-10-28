@@ -87,10 +87,14 @@ class sgemmBase(model.Model):
         #consts = pickle.load(open(constsDir, "rb"))
         rng = np.random.default_rng(0)
         b = rng.random((K, N), dtype=np.float32)
-        d = rng.random((N, 1), dtype=np.float32)
+        #b = np.asfortranarray(rng.random((K, N), dtype=np.float32))
+        #d = np.asfortranarray(rng.random((N, 1), dtype=np.float32))
+        d = np.arange(0, N, dtype=np.float32)
+        #d = np.asfortranarray(np.arange(0, N), dtype=np.float32)
 
-        return [b, d]
-        #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
+        return [b.data, d.data]
+        #return [b, d]
+        #return [np.asfortranarray(b), np.asfortranarray(d)]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -130,10 +134,20 @@ class sgemm(sgemmBase):
         refKern, cutlassKern = loadKerns(self.modelDir.parent)
 
 
+
+        #a = np.asfortranarray(dat[2])
+        #b = np.asfortranarray(dat[0])
+        #d = np.asfortranarray(dat[1])
+        #print(a)
         a = dat[2]
         b = dat[0]
         d = dat[1]
 
+        #print(a)
+        #print(b)
+        #print(d)
+
+        #c = np.zeros(shape=(M, N), dtype=np.float32)
         c = np.zeros(shape=(M, N), order='F', dtype=np.float32)
 
         a_d = cuda.mem_alloc(a.nbytes)
@@ -164,7 +178,8 @@ class sgemm(sgemmBase):
         ldc = 1
 
 
-        d = dat[1]
+        #d = dat[1]
+        #e = np.zeros(shape=(M, 1), dtype=np.float32)
         e = np.zeros(shape=(M, 1), order='F', dtype=np.float32)
 
         d_d = cuda.mem_alloc(d.nbytes)
@@ -190,6 +205,7 @@ class sgemm(sgemmBase):
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(e, e_d)
 
+        #print(e)
 
         return e
 
@@ -212,7 +228,9 @@ class cutlassSgemmLoader(dataset.loader):
     def preLoad(self, idxs):
         rng = np.random.default_rng(0)
         a = rng.random((M, K), dtype=np.float32)
-        self.a = a
+        #a = np.asfortranarray(rng.random((M, K), dtype=np.float32))
+        self.a = a.data
+        #self.a = np.asfortranarray(a).data
 
     def unLoad(self, idxs):
         self.a = None
@@ -224,8 +242,12 @@ class cutlassSgemmLoader(dataset.loader):
         actual = np.asfortranarray(np.array(result).view('<f4'))
         actual = actual.reshape(M, 1, order='F')
         consts = sgemmBase.getConstants(None)
-        b = consts[0]
-        d = consts[1]
-        expected = np.matmul(np.matmul(self.a, b), d)
+        a = np.frombuffer(self.a, dtype=np.float32).reshape(M, K)
+        b = np.frombuffer(consts[0], dtype=np.float32).reshape(K, N)
+        d = np.frombuffer(consts[1], dtype=np.float32).reshape(N, 1)
+        expected = np.matmul(np.matmul(a, b), d)
+        print(actual)
+        print(expected)
         return np.allclose(actual, expected, rtol=0.5)
+
 
