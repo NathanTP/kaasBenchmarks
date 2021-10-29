@@ -1,6 +1,12 @@
 from libff import kaas
+import libff.kaas.kaasFF
+import libff as ff
+import libff.kv
+import libff.invoke
 import numpy as np
 import ctypes as ct
+
+redDim = 2
 
 
 class kernelConfig(ct.Structure):
@@ -25,60 +31,98 @@ def loadDims():
 
     return getDims
 
-def createReq(M, N, K, alpha, beta, a, b, c, d, e):
+
+def createReq(M, N, K, alpha, beta):
     lda = M
     ldb = K
     ldc = M
 
-    #libffCtx = getCtx(remote=False)
     getDims = loadDims()
-    #rng = np.random.default_rng(0)
-    #a = rng.random((M, K), dtype=np.float32)
-    #b = rng.random((K, N), dtype=np.float32)
-    #c = np.zeros(shape=(M, N), dtype=np.float32)
 
-    #getArg, getDims = loadAdapter()
+    aBuf = kaas.bufferSpec('a', M*K*4, ephemeral=False)
+    bBuf = kaas.bufferSpec('b', K*N*4, ephemeral=False)
+    cBuf = kaas.bufferSpec('c', M*N*4)
+
+    dBuf = kaas.bufferSpec('d', N*redDim*4)
+    eBuf = kaas.bufferSpec('e', M*redDim*4)
+
+    literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
+                kaas.literalSpec('i', M), kaas.literalSpec('i', N),
+                kaas.literalSpec('i', K), kaas.literalSpec('i', lda),
+                kaas.literalSpec('i', ldb), kaas.literalSpec('i', ldc)]
 
     cfg = getDims(M, N, K).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
     block = (cfg.blockX, cfg.blockY, cfg.blockZ)
-
     smem = cfg.smem_size
+    firstKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0",
+                                grid, block, sharedSize=smem,
+                                arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')],
+                                literals=literals)
 
-    #libffCtx.kv.put('a', a)
-    aBuf = kaas.bufferSpec('a', a.nbytes, const=False, ephemeral=False)
-
-    #libffCtx.kv.put('b', b)
-    bBuf = kaas.bufferSpec('b', b.nbytes, const=False, ephemeral=False)
-
-    #libffCtx.kv.put('c', c, const=False, ephemeral=False)
-    cBuf = kaas.bufferSpec('c', c.nbytes, ephemeral=True)
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
-                kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
-    firstKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')], literals=literals)
+                kaas.literalSpec('i', M), kaas.literalSpec('i', redDim),
+                kaas.literalSpec('i', N), kaas.literalSpec('i', M),
+                kaas.literalSpec('i', N), kaas.literalSpec('i', M)]
 
-    #dBuf = kaas.bufferSpec('d', d.nbytes)
-
-    dBuf = kaas.bufferSpec('d', d.nbytes, const=True, ephemeral=False)
-    #kv.put('d', d)
-    #kv.put('e', e)
-    eBuf = kaas.bufferSpec('e', e.nbytes, const=False, ephemeral=False)
-
-    cfg = getDims(M, 1, N).contents
+    cfg = getDims(M, redDim, N).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
     block = (cfg.blockX, cfg.blockY, cfg.blockZ)
-
     smem = cfg.smem_size
+    redKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0",
+                              grid, block, sharedSize=smem,
+                              arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')],
+                              literals=literals)
 
-    literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta), kaas.literalSpec('f', M), kaas.literalSpec('f', 1), kaas.literalSpec('f', N), kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', M)]
-    secondKern = kaas.kernelSpec(kaas.builtins["cutlass"], "sgemm0", grid, block, sharedSize=smem, arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')], literals=literals)
-
-
-    req = kaas.kaasReq([firstKern, secondKern])
-    #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
-    #kaasHandle.Invoke(req.toDict())
+    req = kaas.kaasReq([firstKern, redKern])
     return req
-    #c = np.frombuffer(libffCtx.kv.get('c'), dtype=np.float32)
-    #print(c)
 
 
+def runManual():
+    M = 10000
+    N = 8000
+    K = 10000
+    alpha = 1
+    beta = 1
+
+    req = kaas.kaasReqDense.fromDict(createReq(M, N, K, alpha, beta).toDict())
+
+    rng = np.random.default_rng()
+    aTile = np.arange(1, 101, dtype=np.float32) / 100
+    a = np.asfortranarray(np.tile(aTile, (M, int(K / 100))))
+    b = np.asfortranarray(rng.random((K, N), dtype=np.float32))
+
+    c = np.zeros(shape=(M, N), dtype=np.float32, order='F')
+
+    d = np.asfortranarray(rng.random((N, redDim), dtype=np.float32))
+    e = np.zeros(shape=(M, redDim), dtype=np.float32, order='F')
+
+    objStore = ff.kv.Local(serialize=False, copyObjs=False)
+    libffCtx = ff.invoke.RemoteCtx(None, objStore)
+
+    libffCtx.kv.put('a', a)
+    libffCtx.kv.put('b', b)
+    libffCtx.kv.put('c', c)
+
+    libffCtx.kv.put('d', d)
+    libffCtx.kv.put('e', e)
+
+    kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
+    kaasHandle.Invoke(req)
+
+    res = np.frombuffer(libffCtx.kv.get('e'), dtype=np.float32).reshape(e.shape, order="F")
+
+    expect = np.matmul(a, b)
+    expect = np.matmul(expect, d)
+
+    print("Expect:")
+    print(expect)
+
+    print("\nGot:")
+    print(res)
+
+    print("\nClose?: ", np.allclose(expect, res, rtol=0.05))
+
+
+if __name__ == '__main__':
+    runManual()

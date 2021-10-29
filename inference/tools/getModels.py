@@ -141,6 +141,7 @@ def getKaasModel(name):
 
 def getResnet50():
     resnetDir = modelDir / 'resnet50'
+    tvmLibPath = resnetDir / 'resnet50.so'
     if not resnetDir.exists():
         resnetDir.mkdir()
 
@@ -148,7 +149,6 @@ def getResnet50():
     if not modelPath.exists():
         wget.download("https://zenodo.org/record/4735647/files/resnet50_v1.onnx", str(modelPath))
 
-    tvmLibPath = resnetDir / 'resnet50.so'
     if not tvmLibPath.exists():
         getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
 
