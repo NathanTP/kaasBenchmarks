@@ -41,10 +41,10 @@ def createReq(M, N, K, alpha, beta):
 
     aBuf = kaas.bufferSpec('a', M*K*4, ephemeral=False)
     bBuf = kaas.bufferSpec('b', K*N*4, ephemeral=False)
-    cBuf = kaas.bufferSpec('c', M*N*4)
+    cBuf = kaas.bufferSpec('c', M*N*4, ephemeral=True)
 
-    dBuf = kaas.bufferSpec('d', N*redDim*4)
-    eBuf = kaas.bufferSpec('e', M*redDim*4)
+    dBuf = kaas.bufferSpec('d', N*redDim*4, ephemeral=False)
+    eBuf = kaas.bufferSpec('e', M*redDim*4, ephemeral=False)
 
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
                 kaas.literalSpec('i', M), kaas.literalSpec('i', N),
