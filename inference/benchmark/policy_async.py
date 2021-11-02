@@ -214,7 +214,7 @@ class PolicyRR(Policy):
             newActor = self.runnerClass.options(max_concurrency=1).remote()
 
             # Ensure actor is fully booted and ready
-            ray.get(newActor.getStats.remote())
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
 
             permanentScope.append(newActor)
             self.actors.append(newActor)
@@ -309,7 +309,7 @@ class PolicyHedge(Policy):
             newActor = self.runnerClass.options(max_concurrency=1).remote()
 
             # Ensure actor is fully booted and ready
-            ray.get(newActor.getStats.remote())
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
 
             permanentScope.append(newActor)
             self.allRunners.append(Runner(newActor))
@@ -420,7 +420,7 @@ class ScalableBalance(Policy):
             newActor = self.runnerClass.remote()
 
             # Ensure actor is fully booted and ready
-            ray.get(newActor.getStats.remote())
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
 
             permanentScope.append(newActor)
             self.runners.append((newActor, actorStatus()))
@@ -529,7 +529,7 @@ class PolicyBalance(Policy):
             newActor = self.runnerClass.remote()
 
             # Ensure actor is fully booted and ready
-            ray.get(newActor.getStats.remote())
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
 
             newStatus = actorStatus()
             newStatus.state = actorStatus.PENDING
@@ -646,7 +646,7 @@ class PolicyAffinity(Policy):
                 newActor = self.runnerClass.remote()
 
                 # Ensure actor is fully booted and ready
-                ray.get(newActor.getStats.remote())
+                ray.wait([newActor.getStats.remote()], fetch_local=False)
 
                 permanentScope.append(newActor)
                 self.actors.append(newActor)
