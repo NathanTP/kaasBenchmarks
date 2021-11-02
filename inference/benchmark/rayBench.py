@@ -39,8 +39,8 @@ else:
 
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
-PROF_LEVEL = 1  # minimal performance impact
-# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+# PROF_LEVEL = 1  # minimal performance impact
+PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -240,10 +240,11 @@ class runActor():
         if clientID in self.modelCache:
             model = self.modelCache[clientID]
         else:
-            modelSpec = ray.get(modelInfo[0])
-            modelArg = ray.get(modelInfo[1])
-            model = modelSpec.modelClass(modelArg)
-            self.modelCache[clientID] = model
+            with infbench.timer("t_model_init", self.stats[clientID]):
+                modelSpec = ray.get(modelInfo[0])
+                modelArg = ray.get(modelInfo[1])
+                model = modelSpec.modelClass(modelArg)
+                self.modelCache[clientID] = model
 
         result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
 
@@ -309,7 +310,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
         if PROF_LEVEL > 1:
             with infbench.timer("t_pre", stats):
-                ray.wait(preOut)
+                ray.wait(preOut, fetch_local=False)
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
@@ -364,7 +365,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if PROF_LEVEL > 1:
                 with infbench.timer("t_post", stats):
-                    ray.wait(postOut)
+                    ray.wait(postOut, fetch_local=False)
 
     return postOut
 
