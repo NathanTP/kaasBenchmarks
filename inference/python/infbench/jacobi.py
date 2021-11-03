@@ -9,12 +9,14 @@ ROWS_PER_CTA = 8
 N = 512
 iters = 3000
 
+
 def loadKerns(modelDir):
-    mod = cuda.module_from_file(str( modelDir / "jacobi.ptx"))
+    mod = cuda.module_from_file(str(modelDir / "jacobi.ptx"))
     jacobiKern = mod.get_function("JacobiMethod")
     jacobiKern.prepare("iPPPPP")
 
     return jacobiKern
+
 
 class jacobiBase(model.Model):
     noPost = True
@@ -55,6 +57,7 @@ class jacobiBase(model.Model):
     def getMlPerfCfg(cls, gpuType, benchConfig):
         maxQps, medianLatency = cls.getPerfEstimates(gpuType)
         return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+
 
 class jacobi(jacobiBase):
     def __init__(self, modelArgs):
@@ -114,18 +117,6 @@ class jacobi(jacobiBase):
         x_d.free()
         x_new_d.free()
         d_d.free()
-
-        # Relative difference between numpy and cuda result
-        # np_res = np.linalg.solve(A, b)
-        #print("Diff between numpy and cuda is:")
-        #if iters % 2 == 0:
-            #print(np.abs((np_res - x_new) / np_res))
-        #else:
-            #print(np.abs((np_res - x) / np_res))
-
-        # This should print out the error
-        #print("CUDA error is:")
-        #print(d)
 
         return [x_new, d]
 

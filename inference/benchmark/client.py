@@ -6,7 +6,6 @@ from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 import time
-import math
 
 import mlperf_loadgen
 

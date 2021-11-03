@@ -140,9 +140,6 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json', cold=False):
         _runOne(model, constants, inputs, stats=coldStats, constKeys=constKeys,
                 kaasCtx=kaasCtx, kaasHandle=kaasHandle)
 
-    #XXX
-    # pprint(coldStats.report())
-
     if modelSpec.modelType == "kaas":
         kaasHandle.getStats()
         kaasHandle.resetStats(newStats=warmStats)

@@ -1,12 +1,4 @@
 import pathlib
-import math
-import sys
-import subprocess as sp
-from pprint import pprint
-# import GPUtil
-
-import time
-import pickle
 
 import libff as ff
 import libff.kv
@@ -30,20 +22,14 @@ def getCtx(remote=False):
     return libff.invoke.RemoteCtx(None, objStore)
 
 
-
 def createReq(mode='direct'):
     N = 512
-    #libffCtx = getCtx(remote=(mode == 'process'))
-    #kaasHandle = kaas.kaasFF.getHandle(mode, libffCtx)
 
     rng = np.random.default_rng(40)
     A = rng.random((N, N), dtype=np.float32)
     fill_arr = np.sum(np.abs(A), axis=1)
     np.fill_diagonal(A, fill_arr)
     b = rng.random((N, 1), dtype=np.float64)
-
-    #libffCtx.kv.put("A", A)
-    #libffCtx.kv.put("b", b)
 
     ABuf = kaas.bufferSpec('A', A.nbytes, key="A")
     bBuf = kaas.bufferSpec('b', b.nbytes, key="b")
@@ -54,37 +40,18 @@ def createReq(mode='direct'):
     arguments1 = [(ABuf, 'i'), (bBuf, 'i'), (xBuf, 'o'), (xnewBuf, 'o'), (dBuf, 'o')]
     arguments2 = [(ABuf, 'i'), (bBuf, 'i'), (xnewBuf, 'o'), (xBuf, 'o'), (dBuf, 'o')]
 
-    kern1 = kaas.kernelSpec(testPath  / 'jacobi.ptx',
-                           'JacobiMethod',
-                           (256, 1, 1), (66, 1, 1), 8*N,
-                           literals=[kaas.literalSpec('i', N)],
-                           arguments=arguments1)
+    kern1 = kaas.kernelSpec(testPath / 'jacobi.ptx',
+                            'JacobiMethod',
+                            (256, 1, 1), (66, 1, 1), 8*N,
+                            literals=[kaas.literalSpec('i', N)],
+                            arguments=arguments1)
 
     kern2 = kaas.kernelSpec(testPath / 'jacobi.ptx',
-                           'JacobiMethod',
-                           (256, 1, 1), (66, 1, 1), 8*N,
-                           literals=[kaas.literalSpec('i', N)],
-                           arguments=arguments2)
+                            'JacobiMethod',
+                            (256, 1, 1), (66, 1, 1), 8*N,
+                            literals=[kaas.literalSpec('i', N)],
+                            arguments=arguments2)
 
     req = kaas.kaasReq([kern1, kern2], nIter=1500)
 
-    # This is just for the test, a real system would use libff to invoke the
-    # kaas server
-    #kaasHandle.Invoke(req)
-
-    #xnew = libffCtx.kv.get('xnew')
-    #xnewArray = np.frombuffer(xnew, dtype=np.float64)
-    #print(xnewArray)
-
-    #d = libffCtx.kv.get('d')
-    #dArray = np.frombuffer(d, dtype=np.float64)
-    #print(dArray)
-
-    #libffCtx.kv.delete("A")
-    #libffCtx.kv.delete("b")
-    #libffCtx.kv.delete("xnew")
-    #libffCtx.kv.delete("d")
-    #kaasHandle.Close()
-
-    #return (xnewArray, d)
     return req

@@ -1,19 +1,18 @@
 from . import model
 from . import dataset
 import numpy as np
-import yaml
 import ctypes as ct
 import pycuda.driver as cuda
-import pickle
 
 
 # define complex ctype as a python class
 class complex(ct.Structure):
     _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
 
+
 c_complex_p = ct.POINTER(complex)
 
-#TODO CHANGE ALL OF THIS
+
 def loadAdapter(modelDir):
     libc = ct.cdll.LoadLibrary(str(modelDir / "./cutlassAdapters.so"))
     getArg = libc.adaptSGEMMArgs
@@ -29,6 +28,7 @@ def loadAdapter(modelDir):
     getDims.restype = ct.POINTER(kernelConfig)
 
     return (getArg, getDims)
+
 
 def loadKerns(modelDir):
     mod = cuda.module_from_file(str(modelDir / "./cutlass.cubin"))
@@ -52,8 +52,6 @@ def loadKerns(modelDir):
     return refKern, cutlassKern
 
 
-
-
 class kernelConfig(ct.Structure):
     """This mirrors the CudaConfig struct defined in cutlassAdapters.h"""
     _fields_ = [
@@ -73,6 +71,7 @@ K = 10000
 alpha = 1
 beta = 0
 
+
 class sgemmBase(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0,))
@@ -82,8 +81,6 @@ class sgemmBase(model.Model):
     nOutPre = 1
     nOutPost = 1
     nConst = 2
-
-
 
     @staticmethod
     def pre(imgBuf):
@@ -95,16 +92,11 @@ class sgemmBase(model.Model):
 
     @staticmethod
     def getConstants(modelDir):
-        #constsDir = modelDir / "cutlassSgemm_params.pkl"
-        #consts = pickle.load(open(constsDir, "rb"))
         rng = np.random.default_rng(0)
         b = rng.random((K, N), dtype=np.float32) + rng.random((K, N), dtype=np.float32) * (1j)
-        #b = rng.random((K, N), dtype=np.float32)
-        #d = rng.random((N, 1), dtype=np.float32)
         d = rng.random((N, 1), dtype=np.float32) + rng.random((N, 1), dtype=np.float32) * (1j)
 
         return [b, d]
-        #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -129,7 +121,6 @@ class sgemm(sgemmBase):
     def __init__(self, modelArgs):
         self.modelDir = modelArgs
 
-
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
@@ -142,7 +133,6 @@ class sgemm(sgemmBase):
 
         getArg, getDims = loadAdapter(self.modelDir.parent)
         refKern, cutlassKern = loadKerns(self.modelDir.parent)
-
 
         a = dat[2]
         b = dat[0]
@@ -164,20 +154,16 @@ class sgemm(sgemmBase):
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         params = getArg(M, N, K, alpha,
-                    ct.cast(int(a_d), c_complex_p), lda,
-                    ct.cast(int(b_d), c_complex_p), ldb,
-                    beta,
-                    ct.cast(int(c_d), c_complex_p), ldc)
-
+                        ct.cast(int(a_d), c_complex_p), lda,
+                        ct.cast(int(b_d), c_complex_p), ldb,
+                        beta,
+                        ct.cast(int(c_d), c_complex_p), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
-
-
 
         lda = M
         ldb = N
         ldc = 1
-
 
         d = dat[1]
         e = np.zeros(shape=(M, 1), dtype=np.float32) + np.zeros(shape=(M, 1), dtype=np.float32) * (1j)
@@ -194,19 +180,17 @@ class sgemm(sgemmBase):
 
         smem = cfg.smem_size
         params = getArg(M, 1, K, alpha,
-                    ct.cast(int(c_d), c_complex_p), lda,
-                    ct.cast(int(d_d), c_complex_p), ldb,
-                    beta,
-                    ct.cast(int(e_d), c_complex_p), ldc)
+                        ct.cast(int(c_d), c_complex_p), lda,
+                        ct.cast(int(d_d), c_complex_p), ldb,
+                        beta,
+                        ct.cast(int(e_d), c_complex_p), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(e, e_d)
-        #print(e)
 
         return e
-
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
@@ -225,7 +209,6 @@ class cutlassSgemmLoader(dataset.loader):
 
     def preLoad(self, idxs):
         rng = np.random.default_rng(0)
-        #a = rng.random((M, K), dtype=np.float32)
         a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
         self.a = a
 

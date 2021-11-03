@@ -55,11 +55,14 @@ class kernelConfig(ct.Structure):
         ("blockZ", ct.c_int),
         ("smem_size", ct.c_int)
     ]
+
+
 M = 100
 N = 8000
 K = 10000
 alpha = 1
 beta = 0
+
 
 class sgemmBase(model.Model):
     noPost = True
@@ -71,8 +74,6 @@ class sgemmBase(model.Model):
     nOutPost = 1
     nConst = 2
 
-
-
     @staticmethod
     def pre(imgBuf):
         return imgBuf
@@ -83,14 +84,11 @@ class sgemmBase(model.Model):
 
     @staticmethod
     def getConstants(modelDir):
-        #constsDir = modelDir / "cutlassSgemm_params.pkl"
-        #consts = pickle.load(open(constsDir, "rb"))
         rng = np.random.default_rng(0)
         b = rng.random((K, N), dtype=np.float32)
         d = rng.random((N, 1), dtype=np.float32)
 
         return [b, d]
-        #return [np.asfortranarray(consts[0]), np.asfortranarray(consts[1])]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -115,7 +113,6 @@ class sgemm(sgemmBase):
     def __init__(self, modelArgs):
         self.modelDir = modelArgs
 
-
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
@@ -128,7 +125,6 @@ class sgemm(sgemmBase):
 
         getArg, getDims = loadAdapter(self.modelDir.parent)
         refKern, cutlassKern = loadKerns(self.modelDir.parent)
-
 
         a = dat[2]
         b = dat[0]
@@ -157,12 +153,9 @@ class sgemm(sgemmBase):
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
-
-
         lda = M
         ldb = N
         ldc = 1
-
 
         d = dat[1]
         e = np.zeros(shape=(M, 1), order='F', dtype=np.float32)
@@ -184,15 +177,12 @@ class sgemm(sgemmBase):
                         beta,
                         ct.cast(int(e_d), ct.POINTER(ct.c_float)), ldc)
 
-
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(e, e_d)
 
-
         return e
-
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
@@ -228,4 +218,3 @@ class cutlassSgemmLoader(dataset.loader):
         d = consts[1]
         expected = np.matmul(np.matmul(self.a, b), d)
         return np.allclose(actual, expected, rtol=0.5)
-

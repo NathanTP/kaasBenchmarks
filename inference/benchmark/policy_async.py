@@ -582,8 +582,6 @@ class PolicyBalance(Policy):
         """Returns an actor suitable for running a request and an opaque handle
         that must be passed to update() along with the clientID and
         respFutures"""
-        timeout = kwargs.get('timeout', None)
-
         if len(self.runners) == 0:
             return None, None
 
