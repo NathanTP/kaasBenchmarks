@@ -229,8 +229,9 @@ class runActor():
         # {clientID -> infbench.profCollection}
         self.stats = {}
 
-    def runNative(self, modelInfo, *inputs, completionQ=None, queryId=None,
+    def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
+
         if clientID not in self.stats:
             self.stats[clientID] = infbench.profCollection()
 
@@ -241,10 +242,14 @@ class runActor():
             model = self.modelCache[clientID]
         else:
             with infbench.timer("t_model_init", self.stats[clientID]):
-                modelSpec = ray.get(modelInfo[0])
-                modelArg = ray.get(modelInfo[1])
+                with infbench.timer('t_loadInput', self.stats[clientID], final=False):
+                    modelSpec = ray.get(modelInfo[0])
+                    modelArg = ray.get(modelInfo[1])
                 model = modelSpec.modelClass(modelArg)
                 self.modelCache[clientID] = model
+
+        with infbench.timer('t_loadInput', self.stats[clientID]):
+            inputs = ray.get(inputRefs)
 
         result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
 
@@ -342,7 +347,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
                     remote('runNative', mClass.nOutRun, clientID, dynInp,
-                           [(specRef, modelArg)] + runInp, {"cacheModel": cacheModel})
+                           [(specRef, modelArg), runInp], {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -514,19 +519,15 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     print("Saving results to: ", reportPath)
     if reportPath.exists():
-        with open(reportPath, 'r') as f:
-            fullReport = json.load(f)
-    else:
-        fullReport = []
+        reportPath.unlink()
 
     record = {
         "config": benchConfig,
         "metrics": report
     }
-    fullReport.append(record)
 
     with open(reportPath, 'w') as f:
-        json.dump(fullReport, f)
+        json.dump(record, f)
 
     # print("Ray Profiling:")
     # ray.timeline(filename="rayProfile.json")
