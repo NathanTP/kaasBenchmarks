@@ -12,8 +12,6 @@ import re
 from pprint import pprint
 import ray
 
-from . import util
-
 import mlperf_loadgen
 
 import libff.kaas as kaas

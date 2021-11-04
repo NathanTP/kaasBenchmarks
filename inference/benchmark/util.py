@@ -47,41 +47,38 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
 
-    #XXX this is an annoying hack because I was lazy and hard coded all baselines to be called fooTvm. I'll fix it properly soon.
     elif modelName == "jacobiTvm":
         import infbench.jacobi
         return ModelSpec(name="jacobi",
                          loader=infbench.jacobi.jacobiLoader,
-                         modelPath = modelDir / "jacobi",
-                         modelClass = infbench.jacobi.jacobi,
+                         modelPath=modelDir / "jacobi",
+                         modelClass=infbench.jacobi.jacobi,
                          modelType="direct")
 
     elif modelName == "jacobiKaas":
         import infbench.jacobi
         return ModelSpec(name="jacobiKaas",
                          loader=infbench.jacobi.jacobiLoader,
-                         modelPath = modelDir / "jacobi" / "jacobi_model.yaml",
-                         modelClass = infbench.jacobi.jacobiKaas,
+                         modelPath=modelDir / "jacobi" / "jacobi_model.yaml",
+                         modelClass=infbench.jacobi.jacobiKaas,
                          modelType="kaas")
-
 
     elif modelName == "complexCutlassGemmKaas":
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
                          loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
-                         modelPath = modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
-                         modelClass= infbench.complexCutlassGemm.sgemmKaas,
-                        modelType="kaas")
+                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
+                         modelClass=infbench.complexCutlassGemm.sgemmKaas,
+                         modelType="kaas")
 
     elif modelName == "complexCutlassGemm":
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
                          loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
                          modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
-                         dataDir = modelDir / "complexCutlassGemm",
+                         dataDir=modelDir / "complexCutlassGemm",
                          modelClass=infbench.complexCutlassGemm.sgemm,
                          modelType="direct")
-
 
     elif modelName == "cutlassSgemmKaas":
         import infbench.cutlassSgemm
@@ -95,7 +92,7 @@ def getModelSpec(modelName):
         return ModelSpec(name="cutlassSgemm",
                          loader=infbench.cutlassSgemm.cutlassSgemmLoader,
                          modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
-                         dataDir = modelDir / "cutlassSgemm",
+                         dataDir=modelDir / "cutlassSgemm",
                          modelClass=infbench.cutlassSgemm.sgemm,
                          modelType="direct")
 
@@ -131,8 +128,6 @@ def getModelSpec(modelName):
                          modelClass=infbench.testModel.testModelNP,
                          modelType="direct")
 
-    #XXX
-    # elif modelName == "testModelNative":
     elif modelName == "testModelTvm":
         import infbench.testModel
         return ModelSpec(name="testModelNative",
