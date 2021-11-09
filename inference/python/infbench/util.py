@@ -44,8 +44,12 @@ class prof():
 
     def report(self, includeEvents=True):
         """Report the average value per event"""
+        if self.nevent == 0:
+            raise RuntimeError("Metric has no events")
+
         rep = {}
         rep['total'] = self.total
+
         rep['mean'] = self.total / self.nevent
         if self.detail:
             events = np.array(self.events)
@@ -122,7 +126,12 @@ class profCollection(collections.abc.MutableMapping):
             self.mods[name].merge(mod)
 
     def report(self, includeEvents=True):
-        flattened = {name: v.report(includeEvents=includeEvents) for name, v in self.profs.items()}
+        flattened = {}
+        for name, v in self.profs.items():
+            try:
+                flattened[name] = v.report(includeEvents=includeEvents)
+            except Exception as e:
+                raise RuntimeError(f"Failed to report metric '{name}'") from e
 
         for name, mod in self.mods.items():
             flattened = {**flattened, **{name+":"+itemName: v for itemName, v in mod.report(includeEvents=includeEvents).items()}}

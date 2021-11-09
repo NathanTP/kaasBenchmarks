@@ -43,6 +43,7 @@ def getModelSpec(modelName):
         import infbench.testModel
         return ModelSpec(name="testModelKaas",
                          loader=infbench.testModel.testLoader,
+                         dataDir=modelDir / "sgemm",
                          modelPath=modelDir / "sgemm" / "sgemm_model.yaml",
                          modelClass=infbench.testModel.testModelKaas,
                          modelType="kaas")
@@ -87,6 +88,7 @@ def getModelSpec(modelName):
                          modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
                          modelClass=infbench.cutlassSgemm.sgemmKaas,
                          modelType="kaas")
+
     elif modelName == "cutlassSgemm":
         import infbench.cutlassSgemm
         return ModelSpec(name="cutlassSgemm",
@@ -120,18 +122,11 @@ def getModelSpec(modelName):
                          modelPath=modelDir / "bert" / "bert_model.yaml",
                          modelType="kaas")
 
-    elif modelName == "testModelNP":
-        import infbench.testModel
-        return ModelSpec(name="testModelNP",
-                         loader=infbench.testModel.testLoader,
-                         modelPath=modelDir,  # testModelNP is completely self-contained, modelDir is unused
-                         modelClass=infbench.testModel.testModelNP,
-                         modelType="direct")
-
     elif modelName == "testModelTvm":
         import infbench.testModel
         return ModelSpec(name="testModelNative",
                          loader=infbench.testModel.testLoader,
+                         dataDir=modelDir / "sgemm",
                          modelPath=modelDir / "sgemm" / "sgemm_meta.yaml",
                          modelClass=infbench.testModel.testModelNative,
                          modelType="direct")

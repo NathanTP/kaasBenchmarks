@@ -10,12 +10,11 @@ import pycuda.tools
 
 # These parameters should match kaasSources/sgemm to be consistent, though if you
 # only want to run testModelNP they can be anything you want.
-matSize = 128  # side length of test matrices (all square)
+matSize = 1024  # side length of test matrices (all square)
 depth = 3  # number of chained multiplies to use
 
-preTime = 0
-runTime = 0.01
-postTime = 0
+preTime = 20
+postTime = 20
 
 
 class testModel():
@@ -41,7 +40,8 @@ class testModel():
     @staticmethod
     def pre(data):
         result = np.frombuffer(data[1], dtype=np.float32) + 1
-        return (result.data,)
+        time.sleep(preTime / 1000)
+        return (result.data.cast('B'),)
 
     @staticmethod
     def post(data):
@@ -49,14 +49,15 @@ class testModel():
         inputArr.shape = (matSize, matSize)
         result = inputArr - 1
 
-        return (result.data,)
+        time.sleep(postTime / 1000)
+
+        return (result.data.cast('B'),)
 
     @staticmethod
     def getPerfEstimates(gpuType, benchConfig):
         if gpuType == "Tesla K20c":
-            # kaas is 126/0.17, native is 150/0.014
-            maxQps = 150
-            medianLatency = 0.017
+            maxQps = 18
+            medianLatency = 0.100
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 125
             medianLatency = 0.016
@@ -67,55 +68,10 @@ class testModel():
 
     @classmethod
     def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType, benchConfig)
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
-
-
-class testModelNP(testModel, model.Model):
-    """A numpy-based model"""
-
-    @staticmethod
-    def getConstants(modelDir):
-        """For easy debugging, constants for the test are just a matrix filled
-        with the 1-indexed index"""
-        consts = []
-        for i in range(depth):
-            const = np.zeros((matSize, matSize), dtype=np.float32)
-            np.fill_diagonal(const, i+1)
-            consts.append(const)
-        return consts
-
-    def run(self, data, stats=None):
-        constants = data[:self.nConst]
-        inputs = data[self.nConst:]
-
-        time.sleep(runTime)
-
-        expect = np.matmul(inputs[0], constants[0])
-        for i in range(1, depth):
-            expect = np.matmul(expect, constants[i])
-
-        return (expect,)
-
-    @staticmethod
-    def getPerfEstimates(gpuType):
-        if gpuType == "Tesla K20c":
-            maxQps = 123
-            medianLatency = 0.025
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 50
-            medianLatency = 0.025
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        return maxQps, medianLatency
-
-    @classmethod
-    def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
-        return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
 
 class testModelNative(testModel, model.Model):
@@ -183,7 +139,8 @@ class testModelNative(testModel, model.Model):
         for i in range(1, depth + 1):
             cuda.memset_d8(self.dIOs[i], 0, len(hInp))
 
-        cuda.memcpy_htod(self.dIOs[0], hInp)
+        bInp = bytes(hInp)
+        cuda.memcpy_htod(self.dIOs[0], bInp)
 
         for i in range(depth):
             self.kern.prepared_call(self.gridDim, self.blockDim,
@@ -207,6 +164,15 @@ class testLoader(dataset.loader):
     checkAvailable = True
 
     def __init__(self, dataDir):
+        with open(dataDir / "sgemm_params.pkl", 'rb') as f:
+            constants = pickle.load(f)
+
+        self.constants = []
+        for c in constants:
+            cNP = np.frombuffer(c, dtype=np.float32)
+            cNP.shape = (matSize, matSize)
+            self.constants.append(cNP)
+
         self.data = {}
 
     def preLoad(self, idxs):
@@ -218,22 +184,22 @@ class testLoader(dataset.loader):
             del self.data[i]
 
     def get(self, idx):
-        return (self.data[idx].data,)
+        return [self.data[idx].data.cast('B')]
 
     def check(self, result, idx):
         result = np.frombuffer(result[0], dtype=np.float32)
         result.shape = (matSize, matSize)
 
-        expect = self.data[idx]
-        constants = testModelNP.getConstants(None)
+        expect = np.frombuffer(self.data[idx], dtype=np.float32)
+        expect.shape = (matSize, matSize)
 
         # pre
         expect += 1
 
         # run
-        expect = np.matmul(expect, constants[0])
+        expect = np.matmul(expect, self.constants[0])
         for i in range(1, depth):
-            expect = np.matmul(expect, constants[i])
+            expect = np.matmul(expect, self.constants[i])
 
         # post
         expect -= 1

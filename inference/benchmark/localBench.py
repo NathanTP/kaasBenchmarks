@@ -107,8 +107,8 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json', cold=False):
     coldStats = infbench.profCollection()
     warmStats = infbench.profCollection()
 
-    if 'CUDA_VISIBLE_DEVICES' not in os.environ or len(os.environ['CUDA_VISIBLE_DEVICES']) != 1:
-        raise ValueError("Deep Profile should be run with CUDA_VISIBLE_DEVICES set to only one GPU")
+    if util.getNGpu() != 1:
+        raise ValueError("Deep Profile should be run with only one GPU (try setting the CUDA_VISIBLE_DEVICES environment variable)")
 
     loader = modelSpec.loader(modelSpec.dataDir)
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
