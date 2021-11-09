@@ -583,20 +583,16 @@ def saveReport(metrics, benchConfig, outPath):
         # pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
 
     if outPath.exists():
-        with open(outPath, 'r') as f:
-            allMetrics = json.load(f)
-    else:
-        allMetrics = []
+        outPath.unlink()
 
     record = {
         "config": benchConfig,
         "metrics": metrics
     }
-    allMetrics.append(record)
 
     print("Saving metrics to: ", outPath)
     with open(outPath, 'w') as f:
-        json.dump(allMetrics, f)
+        json.dump(record, f)
 
     print("Results:")
     # pprint(record)
