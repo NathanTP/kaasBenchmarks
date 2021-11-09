@@ -39,8 +39,8 @@ else:
 
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
-# PROF_LEVEL = 1  # minimal performance impact
-PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+PROF_LEVEL = 1  # minimal performance impact
+# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -78,6 +78,15 @@ def _unMarshalArgs(argMap, args):
         constants = list(args[:nConst])
         inputs = list(args[nConst:])
         return (constants, inputs)
+
+
+def flattenRayRefs(res):
+    if isinstance(res, ray._raylet.ObjectRef):
+        return flattenRayRefs(ray.get(res))
+    elif isinstance(res, list):
+        return [flattenRayRefs(val) for val in res]
+    else:
+        return res
 
 
 def maybeDereference(res):
@@ -255,6 +264,52 @@ class runActor():
 
         return result
 
+    def runInline(self, modelInfo, constRefs, inputRefs, completionQ=None, queryId=None,
+                  cacheModel=False, clientID=None):
+        if clientID not in self.stats:
+            self.stats[clientID] = infbench.profCollection()
+
+        # The runActor must cache the model, if you wan't to reset, you must
+        # kill and restart the actor. cacheModel is kept for consistency with
+        # runTask but is ignored here.
+        if clientID in self.modelCache:
+            model = self.modelCache[clientID]
+        else:
+            with infbench.timer("t_model_init", self.stats[clientID]):
+                with infbench.timer('t_loadInput', self.stats[clientID], final=False):
+                    modelSpec = ray.get(modelInfo[0])
+                    modelArg = ray.get(modelInfo[1])
+                model = modelSpec.modelClass(modelArg)
+                self.modelCache[clientID] = model
+
+        with infbench.timer('t_loadInput', self.stats[clientID]):
+            inputs = ray.get(inputRefs)
+
+        inputs = ray.get(inputRefs)
+        consts = ray.get(constRefs)
+
+        preInp = util.packInputs(model.preMap, const=consts, inp=inputs)
+        preOut = model.pre(preInp)
+
+        runInp = util.packInputs(model.runMap, const=consts, inp=inputs, pre=preOut)
+        runOut = model.run(runInp)
+
+        if model.noPost:
+            result = runOut
+        else:
+            postInp = util.packInputs(model.postMap, const=constRefs,
+                                      inp=inputRefs, pre=preOut, run=runOut)
+
+            result = model.post(postInp)
+
+        if completionQ is not None:
+            completionQ.put((result, queryId))
+
+        if len(result) == 1:
+            return result[0]
+        else:
+            return result
+
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
         if clientID not in self.stats:
             self.stats[clientID] = infbench.profCollection()
@@ -286,25 +341,24 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
     if inline:
         assert not modelSpec.modelType == 'kaas', "KaaS is not compatible with inline"
-        assert runPool is None, "Cannot use run actors in inline mode"
 
-        # We can't pass lists of references to ray functions because ray can't
-        # statically determine the dataflow. All refs have to be first-class
-        # arguments so we pack them all into a list and then expand it with
-        # *varArgs
-        if constRefs is None:
-            varArgs = list(inputRefs)
+        if mClass.noPost:
+            nOut = mClass.nOutRun
         else:
-            varArgs = list(constRefs) + list(inputRefs)
+            nOut = mClass.nOutPost
 
-        if completionQ is not None:
-            runInline.options(num_returns=mClass.nOutPost) \
-                .remote(specRef, modelArg, *varArgs, completionQ=completionQ,
-                        queryId=queryId)
-            postOut = None
-        else:
-            postOut = runInline.options(num_returns=mClass.nOutPost) \
-                .remote(specRef, modelArg, *varArgs)
+        postOut = runPool.run.options(num_returns=nOut).remote(
+                'runInline', mClass.nOutPost, clientID, inputRefs,
+                [(specRef, modelArg), constRefs, inputRefs],
+                {"completionQ": completionQ, "queryId": queryId, "cacheModel": cacheModel, "clientID": clientID}
+             )
+
+        if nOut == 1:
+            postOut = [postOut]
+
+        if PROF_LEVEL > 1:
+            with infbench.timer("t_run", stats):
+                ray.wait(postOut, fetch_local=False)
     else:
         # Pre
         preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
@@ -379,12 +433,13 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
     refs = []
     for i in range(n):
         idx = i % loader.ndata
-        inp = loader.get(idx)
+        inputs = loader.get(idx)
+        inpRefs = [ray.put(val) for val in inputs]
 
         # Ray is lazy and asynchronous so it's difficult to collect more
         # detailed metrics than e2e. Details within the remote functions
         # should match localBench results anyway.
-        refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inp,
+        refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
                     inline=benchConfig['inline'], runPool=pool,
                     cacheModel=benchConfig['cache'], stats=stats))
 
@@ -413,25 +468,18 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
     results = []
     for i in range(n):
         idx = i % loader.ndata
-        inp = loader.get(idx)
+        inputs = loader.get(idx)
+        inpRefs = [ray.put(val) for val in inputs]
 
         with infbench.timer('t_e2e', stats):
             # Ray is lazy and asynchronous so it's difficult to collect more
             # detailed metrics than e2e. Details within the remote functions
             # should match localBench results anyway.
-            res = _runOne(modelSpec, specRef, modelArg, constRefs, inp,
+            res = _runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
                           inline=benchConfig['inline'], runPool=pool,
                           cacheModel=benchConfig['cache'], stats=stats)
 
-            # Dereference answer from post or the router's reference from run
-            # (if nopost)
-            res = ray.get(res)
-            if modelSpec.modelClass.noPost:
-                # Dereference the answer from run itself
-                res = ray.get(res)
-
-                if modelSpec.modelType == 'kaas':
-                    res = maybeDereference(res)
+            res = flattenRayRefs(res)
 
         results.append((idx, res))
 
@@ -487,7 +535,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # when there are multiple GPUs
     print(f"Running {2*util.getNGpu()} warmup passes")
     results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef,
-                          modelArg, constRefs, pool, benchConfig, coldStats)
+                          modelArg, constRefs, pool, benchConfig, None)
     # getting stats resets them for the warm runs
     ray.get(pool.getStats.remote())
 
@@ -588,7 +636,7 @@ class throughputLoop():
 
         # This info is only used to get performance estimates
         gpuType = util.getGpuType()
-        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
+        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType, benchConfig)
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -616,6 +664,8 @@ class throughputLoop():
     def preWarm(self):
         self.loader.preLoad([0])
         inputs = self.loader.get(0)
+        inpRefs = [ray.put(val) for val in inputs]
+
         results = []
 
         # We don't control how ray handles workers, but we assume that
@@ -623,7 +673,7 @@ class throughputLoop():
         # cold starts.
         for i in range(self.nGpu*2):
             results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
-                           self.constRefs, inputs, inline=self.benchConfig['inline'],
+                           self.constRefs, inpRefs, inline=self.benchConfig['inline'],
                            runPool=self.pool, stats=self.coldStats))
         for res in results:
             ray.get(res)
@@ -633,9 +683,11 @@ class throughputLoop():
 
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
-            inp = self.loader.get(self.nextIdx % self.loader.ndata)
+            inputs = self.loader.get(self.nextIdx % self.loader.ndata)
+            inpRefs = [ray.put(val) for val in inputs]
+
             _runOne(self.modelSpec, self.specRef, self.modelArg,
-                    self.constRefs, inp, inline=self.benchConfig['inline'],
+                    self.constRefs, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=self.nextIdx,
                     cacheModel=self.benchConfig['cache'], runPool=self.pool,
                     stats=self.warmStats)
@@ -804,6 +856,7 @@ class mlperfRunner():
         if preWarm:
             self.loader.preLoad([0])
             inputs = self.loader.get(0)
+            inpRefs = [ray.put(val) for val in inputs]
             results = []
 
             # We don't control how ray handles workers, but we assume that
@@ -811,7 +864,7 @@ class mlperfRunner():
             # cold starts.
             for i in range(self.nGpu*2):
                 results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
-                               self.constants, inputs, inline=self.benchConfig['inline'],
+                               self.constants, inpRefs, inline=self.benchConfig['inline'],
                                runPool=self.pool, stats=self.coldStats))
             for res in results:
                 ray.get(res)
@@ -821,10 +874,11 @@ class mlperfRunner():
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
-            inp = self.loader.get(q.index)
+            inputs = self.loader.get(q.index)
+            inpRefs = [ray.put(val) for val in inputs]
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
-                    self.constants, inp, inline=self.benchConfig['inline'],
+                    self.constants, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
                     cacheModel=self.benchConfig['cache'], runPool=self.pool, stats=self.warmStats)
 
@@ -1041,8 +1095,10 @@ class serverLoop():
                 self.clientStream.stop_on_recv()
                 self.overwhelmed = True
 
+            inpRefs = [ray.put(val) for val in data]
+
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
-                    cState.constRefs, data, completionQ=self.rayQ,
+                    cState.constRefs, inpRefs, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
                     cacheModel=self.benchConfig['cache'],
                     inline=self.benchConfig['inline'], runPool=self.pool,
