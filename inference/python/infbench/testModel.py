@@ -7,6 +7,7 @@ import pickle
 
 import pycuda.driver as cuda
 import pycuda.tools
+import pycuda.autoinit  # NOQA
 
 # These parameters should match kaasSources/sgemm to be consistent, though if you
 # only want to run testModelNP they can be anything you want.
@@ -22,13 +23,13 @@ class testModel():
     nConst = depth
 
     nOutPre = 1
-    preMap = model.inputMap(const=(0,), inp=(0,))
+    preMap = model.inputMap(inp=(0,))
 
     nOutRun = 1
     runMap = model.inputMap(const=range(depth), pre=(0,))
 
     nOutPost = 1
-    postMap = model.inputMap(const=(0,), run=(0,))
+    postMap = model.inputMap(run=(0,))
 
     noPost = False
 
@@ -39,13 +40,13 @@ class testModel():
 
     @staticmethod
     def pre(data):
-        result = np.frombuffer(data[1], dtype=np.float32) + 1
+        result = np.frombuffer(data[0], dtype=np.float32) + 1
         time.sleep(preTime / 1000)
         return (result.data.cast('B'),)
 
     @staticmethod
     def post(data):
-        inputArr = np.frombuffer(data[1], dtype=np.float32)
+        inputArr = np.frombuffer(data[0], dtype=np.float32)
         inputArr.shape = (matSize, matSize)
         result = inputArr - 1
 
@@ -87,13 +88,9 @@ class testModelNative(testModel, model.Model):
         tileN = 16
         tileM = (tileN * tile_tb_height)
 
-        # Size of one element in bytes, e.g. float32=4
         self.gridDim = (matSize // tileM, matSize // tileN, 1)
         self.blockDim = (tileN, tile_tb_height, 1)
         self.sharedSize = tile_tb_height * tileN * 4
-
-        cuda.init()
-        self.cudaCtx = pycuda.tools.make_default_context()
 
         mod = cuda.module_from_file(str(self.modelPath.parent / "sgemm.cubin"))
         self.kern = mod.get_function("sgemm")
@@ -108,8 +105,6 @@ class testModelNative(testModel, model.Model):
             for dBuf in self.dIOs:
                 dBuf.free()
 
-        self.cudaCtx.detach()
-
     @staticmethod
     def getConstants(modelDir):
         with open(modelDir / "sgemm_params.pkl", 'rb') as f:
@@ -119,8 +114,6 @@ class testModelNative(testModel, model.Model):
     def run(self, data, stats=None):
         constants = data[:self.nConst]
         hInp = data[self.nConst]
-
-        self.cudaCtx.push()
 
         if self.dConsts is None:
             self.dConsts = []
@@ -139,15 +132,16 @@ class testModelNative(testModel, model.Model):
         for i in range(1, depth + 1):
             cuda.memset_d8(self.dIOs[i], 0, len(hInp))
 
-        bInp = bytes(hInp)
-        cuda.memcpy_htod(self.dIOs[0], bInp)
+        cuda.memcpy_htod(self.dIOs[0], hInp)
 
         for i in range(depth):
+            #XXX
+            print("RUNNING KERNEL")
             self.kern.prepared_call(self.gridDim, self.blockDim,
                                     self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)
 
-        hRes = np.empty_like(hInp)
+        hRes = bytearray(len(hInp))
         cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
         return (hRes,)
@@ -197,7 +191,6 @@ class testLoader(dataset.loader):
         expect += 1
 
         # run
-        expect = np.matmul(expect, self.constants[0])
         for i in range(1, depth):
             expect = np.matmul(expect, self.constants[i])
 
