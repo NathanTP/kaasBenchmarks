@@ -39,8 +39,8 @@ else:
 
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
-PROF_LEVEL = 1  # minimal performance impact
-# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+# PROF_LEVEL = 1  # minimal performance impact
+PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -441,7 +441,7 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
         # should match localBench results anyway.
         refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
                     inline=benchConfig['inline'], runPool=pool,
-                    cacheModel=benchConfig['cache'], stats=stats))
+                    cacheModel=benchConfig['forceCold'], stats=stats))
 
     # This isn't super accurate, but _runOne should return instantly and the
     # real work only happens when ray.get is called
@@ -477,7 +477,7 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
             # should match localBench results anyway.
             res = _runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
                           inline=benchConfig['inline'], runPool=pool,
-                          cacheModel=benchConfig['cache'], stats=stats)
+                          cacheModel=benchConfig['forceCold'], stats=stats)
 
             res = flattenRayRefs(res)
 
@@ -689,7 +689,7 @@ class throughputLoop():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constRefs, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=self.nextIdx,
-                    cacheModel=self.benchConfig['cache'], runPool=self.pool,
+                    cacheModel=self.benchConfig['forceCold'], runPool=self.pool,
                     stats=self.warmStats)
 
             self.nextIdx += 1
@@ -880,7 +880,7 @@ class mlperfRunner():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
-                    cacheModel=self.benchConfig['cache'], runPool=self.pool, stats=self.warmStats)
+                    cacheModel=self.benchConfig['forceCold'], runPool=self.pool, stats=self.warmStats)
 
         self.nIssued += len(queryBatch)
 
@@ -1100,7 +1100,7 @@ class serverLoop():
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, inpRefs, completionQ=self.rayQ,
                     queryId=(clientID, reqID), clientID=clientID,
-                    cacheModel=self.benchConfig['cache'],
+                    cacheModel=self.benchConfig['forceCold'],
                     inline=self.benchConfig['inline'], runPool=self.pool,
                     stats=self.clientStats[clientID])
 

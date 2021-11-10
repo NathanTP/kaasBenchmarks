@@ -9,7 +9,6 @@ from pprint import pprint
 import json
 import pathlib
 import time
-import os
 
 import libff as ff
 import libff.invoke
@@ -100,7 +99,9 @@ def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None,
     return postOut
 
 
-def deepProfile(modelSpec, benchConfig, reportPath='results.json', cold=False):
+def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
+    cold = benchConfig['forceCold']
+
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath)
 
@@ -137,6 +138,7 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json', cold=False):
             model = modelSpec.getModelArg(constRefs=constKeys, backend='local')
         else:
             model = modelSpec.modelClass(modelSpec.getModelArg())
+
         _runOne(model, constants, inputs, stats=coldStats, constKeys=constKeys,
                 kaasCtx=kaasCtx, kaasHandle=kaasHandle)
 
@@ -145,11 +147,10 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json', cold=False):
         kaasHandle.resetStats(newStats=warmStats)
 
     # Warm Start
-    for i in range(1):
-        with infbench.timer("t_e2e", warmStats):
-            with infbench.cudaProfile(enable=not cold):
-                _runOne(model, constants, inputs, constKeys=constKeys,
-                        stats=warmStats, kaasCtx=kaasCtx, kaasHandle=kaasHandle)
+    with infbench.timer("t_e2e", warmStats):
+        with infbench.cudaProfile(enable=not cold):
+            _runOne(model, constants, inputs, constKeys=constKeys,
+                    stats=warmStats, kaasCtx=kaasCtx, kaasHandle=kaasHandle)
 
     if modelSpec.modelType == "kaas":
         kaasHandle.getStats()

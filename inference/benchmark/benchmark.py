@@ -33,7 +33,8 @@ def main():
     parser.add_argument("-p", "--policy",
                         choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default=None,
                         help="Scheduling policy to use for actor and KaaS mode.")
-    parser.add_argument("--no_cache", action="store_true", help="Don't cache models on workers")
+    parser.add_argument("--force-cold", action="store_true", dest='forceCold',
+                        help="Force cold starts if possible (this is only valid in some configurations)")
     parser.add_argument("--inline", action="store_true",
                         help="Inline pre and post processing with them model run (only meaningful for ray mode)")
     parser.add_argument("--scale", type=float,
@@ -67,7 +68,7 @@ def main():
         "backend": args.backend,
         "testing": args.testing,
         "policy": args.policy,
-        "cache": not args.no_cache,
+        "forceCold": args.forceCold,
         "inline": args.inline,
         "scale": args.scale,
         "runTime": args.runTime,
@@ -80,7 +81,7 @@ def main():
     print("\t Backend: ", args.backend)
     print("\t Testing: ", args.testing)
     print("\t Runner Policy: ", args.policy)
-    print("\t Cache Models: ", not args.no_cache)
+    print("\t Force Cold: ", not args.forceCold)
     print("\t Inline: ", args.inline)
 
     if args.experiment == 'nshot':
@@ -104,7 +105,7 @@ def main():
             raise ValueError("Deep Profile only available in local mode")
         spec = util.getModelSpec(args.model)
         benchConfig['model_type'] = spec.modelType
-        backend.deepProfile(spec, benchConfig, cold=False)
+        backend.deepProfile(spec, benchConfig)
     else:
         raise ValueError("Unrecognized test: ", args.test)
 
