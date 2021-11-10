@@ -516,9 +516,9 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     with infbench.timer("t_init_loader", warmStats):
         loader = modelSpec.loader(modelSpec.dataDir)
-        loader.preLoad(range(min(max(n, util.getNGpu()*2), loader.ndata)))
+        loader.preLoad(range(min(max(n, infbench.getNGpu()*2), loader.ndata)))
 
-    nGpu = util.getNGpu()
+    nGpu = infbench.getNGpu()
     if USE_THREADED_POLICY:
         pool = policy.Pool.options(max_concurrency=policyNThread). \
             remote(nGpu, benchConfig['policy'], runActor)
@@ -533,8 +533,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # Make sure we're done with cold starts by running a large number of
     # requests. Done async to maximize the chances of everything getting warm
     # when there are multiple GPUs
-    print(f"Running {2*util.getNGpu()} warmup passes")
-    results = _nShotAsync(util.getNGpu()*2, loader, modelSpec, specRef,
+    print(f"Running {2*infbench.getNGpu()} warmup passes")
+    results = _nShotAsync(infbench.getNGpu()*2, loader, modelSpec, specRef,
                           modelArg, constRefs, pool, benchConfig, None)
     # getting stats resets them for the warm runs
     ray.get(pool.getStats.remote())
@@ -627,7 +627,7 @@ class throughputLoop():
         self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        self.nGpu = util.getNGpu()
+        self.nGpu = infbench.getNGpu()
         if USE_THREADED_POLICY:
             self.pool = policy.Pool.options(max_concurrency=policyNThread). \
                 remote(self.nGpu, benchConfig['policy'], runActor)
@@ -635,7 +635,7 @@ class throughputLoop():
             self.pool = policy.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
 
         # This info is only used to get performance estimates
-        gpuType = util.getGpuType()
+        gpuType = infbench.getGpuType()
         maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType, benchConfig)
 
         self.completionQueue = ray.util.queue.Queue()
@@ -837,7 +837,7 @@ class mlperfRunner():
 
         self.specRef = ray.put(self.modelSpec)
 
-        self.nGpu = util.getNGpu()
+        self.nGpu = infbench.getNGpu()
 
         if USE_THREADED_POLICY:
             self.pool = policy.Pool.options(max_concurrency=policyNThread). \
@@ -902,7 +902,7 @@ def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
     ray.init(include_dashboard=False)
 
-    gpuType = util.getGpuType()
+    gpuType = infbench.getGpuType()
     settings = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
     loader = modelSpec.loader(modelSpec.dataDir)
 
@@ -1005,7 +1005,7 @@ class serverLoop():
 
         IOLoop.current().add_callback(self.handleWorker)
 
-        self.nGpu = util.getNGpu()
+        self.nGpu = infbench.getNGpu()
 
         self.clientStats = {}
 

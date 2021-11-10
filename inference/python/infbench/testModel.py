@@ -1,5 +1,6 @@
 from . import model
 from . import dataset
+from . import util
 
 import time
 import numpy as np
@@ -7,7 +8,7 @@ import pickle
 
 import pycuda.driver as cuda
 import pycuda.tools
-import pycuda.autoinit  # NOQA
+
 
 # These parameters should match kaasSources/sgemm to be consistent, though if you
 # only want to run testModelNP they can be anything you want.
@@ -92,6 +93,10 @@ class testModelNative(testModel, model.Model):
         self.blockDim = (tileN, tile_tb_height, 1)
         self.sharedSize = tile_tb_height * tileN * 4
 
+        cuda.init()
+        self.cudaCtx = pycuda.tools.make_default_context()
+        util.cudaProfilerResetCtx()
+
         mod = cuda.module_from_file(str(self.modelPath.parent / "sgemm.cubin"))
         self.kern = mod.get_function("sgemm")
         self.kern.prepare(["P", "P", "P"])
@@ -104,6 +109,8 @@ class testModelNative(testModel, model.Model):
         if self.dIOs is not None:
             for dBuf in self.dIOs:
                 dBuf.free()
+
+        self.cudaCtx.detach()
 
     @staticmethod
     def getConstants(modelDir):
@@ -135,8 +142,6 @@ class testModelNative(testModel, model.Model):
         cuda.memcpy_htod(self.dIOs[0], hInp)
 
         for i in range(depth):
-            #XXX
-            print("RUNNING KERNEL")
             self.kern.prepared_call(self.gridDim, self.blockDim,
                                     self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)

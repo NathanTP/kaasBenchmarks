@@ -4,6 +4,9 @@ import json
 import contextlib
 import time
 import ctypes
+import re
+import subprocess as sp
+import os
 
 
 class prof():
@@ -168,17 +171,31 @@ def timer(name, timers, final=True):
 
 
 cudaRT = None
+profilerStarted = False
+
+
+def cudaProfilerResetCtx():
+    # nvprof can't handle changes in context once profiling has been enabled.
+    # If you change contexts (i.e. creating one during initialization), you
+    # should call this.
+    if profilerStarted:
+        cudaRT.cudaProfilerStart()
 
 
 def cudaProfilerStart():
     global cudaRT
+    global profilerStarted
+
     if cudaRT is None:
         cudaRT = ctypes.CDLL('libcudart.so')
+    profilerStarted = True
     cudaRT.cudaProfilerStart()
 
 
 def cudaProfilerStop():
+    global profilerStarted
     cudaRT.cudaProfilerStop()
+    profilerStarted = False
 
 
 @contextlib.contextmanager
@@ -188,3 +205,27 @@ def cudaProfile(enable=True):
     yield
     if enable:
         cudaProfilerStop()
+
+
+def getGpuType():
+    """Return a string describing the first available GPU"""
+    proc = sp.run(['nvidia-smi', '-L'], text=True, stdout=sp.PIPE, check=True)
+    match = re.search(r".*: (.*) \(UUID", proc.stdout)
+    return match.group(1)
+
+
+nGpu = None
+
+
+def getNGpu():
+    """Returns the number of available GPUs on this machine"""
+    global nGpu
+    if nGpu is None:
+        if "CUDA_VISIBLE_DEVICES" in os.environ:
+            nGpu = len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
+        else:
+            proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+                          stdout=sp.PIPE, text=True, check=True)
+            nGpu = proc.stdout.count('\n')
+
+    return nGpu

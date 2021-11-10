@@ -2,7 +2,6 @@ import pathlib
 import infbench.model
 import subprocess as sp
 import re
-import os
 from pprint import pprint
 
 
@@ -173,30 +172,6 @@ def packInputs(maps, const=None, inp=None, pre=None, run=None):
 
             inputs.extend([data[i] for i in argMap])
     return inputs
-
-
-def getGpuType():
-    """Return a string describing the first available GPU"""
-    proc = sp.run(['nvidia-smi', '-L'], text=True, stdout=sp.PIPE, check=True)
-    match = re.search(r".*: (.*) \(UUID", proc.stdout)
-    return match.group(1)
-
-
-nGpu = None
-
-
-def getNGpu():
-    """Returns the number of available GPUs on this machine"""
-    global nGpu
-    if nGpu is None:
-        if "CUDA_VISIBLE_DEVICES" in os.environ:
-            nGpu = len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
-        else:
-            proc = sp.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
-                          stdout=sp.PIPE, text=True, check=True)
-            nGpu = proc.stdout.count('\n')
-
-    return nGpu
 
 
 def analyzeStats(stats):

@@ -108,7 +108,7 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
     coldStats = infbench.profCollection()
     warmStats = infbench.profCollection()
 
-    if util.getNGpu() != 1:
+    if infbench.getNGpu() != 1:
         raise ValueError("Deep Profile should be run with only one GPU (try setting the CUDA_VISIBLE_DEVICES environment variable)")
 
     loader = modelSpec.loader(modelSpec.dataDir)
@@ -203,7 +203,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     loader.preLoad(list(range(min(n, loader.ndata))))
 
     # Cold starts
-    for i in range(util.getNGpu()):
+    for i in range(infbench.getNGpu()):
         inputs = loader.get(0)
         _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
 
@@ -318,7 +318,7 @@ class mlperfRunner():
 def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
-    gpuType = util.getGpuType()
+    gpuType = infbench.getGpuType()
 
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
