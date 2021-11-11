@@ -182,12 +182,27 @@ def getMaxThroughputs(thrReport):
     return maxThr
 
 
+def loadKaasNShot(res):
+    clean = {}
+
+
+def loadOneNShot(resPath):
+    with open(resPath, 'r') as f:
+        allRes = json.load(f)
+
+    for res in allRes:
+        res['metrics'] = {k: v['mean'] for k, v in res['metrics'].items()}
+    pprint(allRes[0]['config'])
+
+
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
-    model = 'resnet50'
-    print(model)
-    print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
+    loadOneNShot(resPath)
+    # model = 'resnet50'
+
+    # print(model)
+    # print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
 
     # print(getMaxThroughputs(loadAllThroughput(resPath)))
     # print(loadAllThroughput(resPath)[model])
