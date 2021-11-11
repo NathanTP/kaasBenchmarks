@@ -237,6 +237,10 @@ class runActor():
         self.modelCache = {}
         # {clientID -> infbench.profCollection}
         self.stats = {}
+        kaasRay.init()
+
+    def ensureWarm(self):
+        return True
 
     def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
@@ -525,6 +529,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     else:
         pool = policy.Pool.remote(nGpu, benchConfig['policy'], runActor)
 
+    ray.get(pool.ensureReady.remote())
+
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
     coldPoolStats = ray.get(pool.getStats.remote())
@@ -555,12 +561,12 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     print("\nDetailed Stats: ")
     print("Cold:")
-    report = coldStats.report(includeEvents=False)
-    util.analyzeStats(report)
+    coldReport = coldStats.report(includeEvents=False)
+    util.analyzeStats(coldReport)
 
     print("Warm:")
-    report = warmStats.report(includeEvents=False)
-    util.analyzeStats(report)
+    warmReport = warmStats.report(includeEvents=False)
+    util.analyzeStats(warmReport)
 
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath).resolve()
@@ -571,7 +577,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     record = {
         "config": benchConfig,
-        "metrics": report
+        "metrics_cold": coldReport,
+        "metrics_warm": warmReport
     }
 
     with open(reportPath, 'w') as f:
