@@ -355,8 +355,8 @@ class tvmModel(Model):
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
-       object that can be converted to numpy/tvm and passed to the model as
-       input."""
+        object that can be converted to numpy/tvm and passed to the model as
+        input."""
         for idx, inpMeta in enumerate(self.meta['inputs']):
             inputDat = dat[idx]
             datNp = np.frombuffer(inputDat, dtype=inpMeta['type'])
@@ -378,11 +378,14 @@ class tvmModel(Model):
 
 class kaasModel(Model):
     """A generic KaaS model."""
-    def __init__(self, modelArg, constRefs):
+    def __init__(self, modelArg, constRefs, backend='ray'):
         """Can be initialized either by an existing kaasModel or by a path to a
         KaaS model. If a path is passed, it should be a directory containing:
         name.cubin, name_meta.yaml, and name_model.yaml (where name is the
         name of the directory)."""
+
+        self.backend = backend
+
         # In some cases, it's easier to pass a pre-initialized model as an
         # argument, typically to keep abstractions clean on the client side.
         if isinstance(modelArg, kaasModel):
@@ -407,11 +410,19 @@ class kaasModel(Model):
         req = kaas.kaasReqDense.fromDict(reqDict)
 
         renameMap = {}
-        for idx, const in enumerate(self.meta['constants']):
-            renameMap[const['name']] = ray.cloudpickle.dumps(constRefs[idx])
+        if self.backend == 'ray':
+            for idx, const in enumerate(self.meta['constants']):
+                renameMap[const['name']] = ray.cloudpickle.dumps(constRefs[idx])
+        else:
+            for idx, const in enumerate(self.meta['constants']):
+                renameMap[const['name']] = constRefs[idx]
+
         req.reKey(renameMap)
 
-        self.reqRef = ray.put(req)
+        if self.backend == 'ray':
+            self.reqRef = ray.put(req)
+        else:
+            self.reqRef = req
 
     @staticmethod
     def getConstants(modelDir):
@@ -430,8 +441,12 @@ class kaasModel(Model):
 
         renameMap = {}
 
-        for idx, inp in enumerate(self.meta['inputs']):
-            renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])
+        if self.backend == 'ray':
+            for idx, inp in enumerate(self.meta['inputs']):
+                renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])
+        else:
+            for idx, inp in enumerate(self.meta['inputs']):
+                renameMap[inp['name']] = inputs[idx]
 
         if outKeys is not None:
             for name, key in outKeys:

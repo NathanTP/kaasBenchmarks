@@ -39,8 +39,8 @@ else:
 
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
-PROF_LEVEL = 1  # minimal performance impact
-# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+# PROF_LEVEL = 1  # minimal performance impact
+PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -229,8 +229,9 @@ class runActor():
         # {clientID -> infbench.profCollection}
         self.stats = {}
 
-    def runNative(self, modelInfo, *inputs, completionQ=None, queryId=None,
+    def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
+
         if clientID not in self.stats:
             self.stats[clientID] = infbench.profCollection()
 
@@ -240,10 +241,15 @@ class runActor():
         if clientID in self.modelCache:
             model = self.modelCache[clientID]
         else:
-            modelSpec = ray.get(modelInfo[0])
-            modelArg = ray.get(modelInfo[1])
-            model = modelSpec.modelClass(modelArg)
-            self.modelCache[clientID] = model
+            with infbench.timer("t_model_init", self.stats[clientID]):
+                with infbench.timer('t_loadInput', self.stats[clientID], final=False):
+                    modelSpec = ray.get(modelInfo[0])
+                    modelArg = ray.get(modelInfo[1])
+                model = modelSpec.modelClass(modelArg)
+                self.modelCache[clientID] = model
+
+        with infbench.timer('t_loadInput', self.stats[clientID]):
+            inputs = ray.get(inputRefs)
 
         result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
 
@@ -309,7 +315,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
         if PROF_LEVEL > 1:
             with infbench.timer("t_pre", stats):
-                ray.wait(preOut)
+                ray.wait(preOut, fetch_local=False)
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
@@ -341,7 +347,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
                     remote('runNative', mClass.nOutRun, clientID, dynInp,
-                           [(specRef, modelArg)] + runInp, {"cacheModel": cacheModel})
+                           [(specRef, modelArg), runInp], {"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
@@ -364,7 +370,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if PROF_LEVEL > 1:
                 with infbench.timer("t_post", stats):
-                    ray.wait(postOut)
+                    ray.wait(postOut, fetch_local=False)
 
     return postOut
 
@@ -513,19 +519,15 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     print("Saving results to: ", reportPath)
     if reportPath.exists():
-        with open(reportPath, 'r') as f:
-            fullReport = json.load(f)
-    else:
-        fullReport = []
+        reportPath.unlink()
 
     record = {
         "config": benchConfig,
         "metrics": report
     }
-    fullReport.append(record)
 
     with open(reportPath, 'w') as f:
-        json.dump(fullReport, f)
+        json.dump(record, f)
 
     # print("Ray Profiling:")
     # ray.timeline(filename="rayProfile.json")

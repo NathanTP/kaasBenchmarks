@@ -72,7 +72,7 @@ class resnet50Base(model.Model):
             # This is the max of TVM vs KaaS. TVM is actually 18.1/0.065, kaas
             # is 16.2/0.075
             maxQps = 18.1
-            medianLatency = 0.075 #XXX probably outdated
+            medianLatency = 0.075
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 41.2  # tvm ~= 48
             medianLatency = 0.029  # tvm ~= 0.024

@@ -212,6 +212,10 @@ class PolicyRR(Policy):
             # We set the max concurrency to 1 because functions aren't
             # necessarily thread safe (and to match other policies)
             newActor = self.runnerClass.options(max_concurrency=1).remote()
+
+            # Ensure actor is fully booted and ready
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
+
             permanentScope.append(newActor)
             self.actors.append(newActor)
 
@@ -303,6 +307,10 @@ class PolicyHedge(Policy):
             # We set the max concurrency to 1 because functions aren't
             # necessarily thread safe (and to match other policies)
             newActor = self.runnerClass.options(max_concurrency=1).remote()
+
+            # Ensure actor is fully booted and ready
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
+
             permanentScope.append(newActor)
             self.allRunners.append(Runner(newActor))
         self.unassigned = self.allRunners.copy()
@@ -410,6 +418,10 @@ class ScalableBalance(Policy):
         self.runners = collections.deque()
         for i in range(nRunner):
             newActor = self.runnerClass.remote()
+
+            # Ensure actor is fully booted and ready
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
+
             permanentScope.append(newActor)
             self.runners.append((newActor, actorStatus()))
 
@@ -515,6 +527,10 @@ class PolicyBalance(Policy):
         self.runners = collections.deque()
         for i in range(nRunner):
             newActor = self.runnerClass.remote()
+
+            # Ensure actor is fully booted and ready
+            ray.wait([newActor.getStats.remote()], fetch_local=False)
+
             newStatus = actorStatus()
             newStatus.state = actorStatus.PENDING
             permanentScope.append(newActor)
@@ -566,8 +582,6 @@ class PolicyBalance(Policy):
         """Returns an actor suitable for running a request and an opaque handle
         that must be passed to update() along with the clientID and
         respFutures"""
-        timeout = kwargs.get('timeout', None)
-
         if len(self.runners) == 0:
             return None, None
 
@@ -628,6 +642,10 @@ class PolicyAffinity(Policy):
             self.actors = []
             for i in range(self.maxRunners):
                 newActor = self.runnerClass.remote()
+
+                # Ensure actor is fully booted and ready
+                ray.wait([newActor.getStats.remote()], fetch_local=False)
+
                 permanentScope.append(newActor)
                 self.actors.append(newActor)
 

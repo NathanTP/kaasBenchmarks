@@ -3,6 +3,7 @@ import collections
 import json
 import contextlib
 import time
+import ctypes
 
 
 class prof():
@@ -155,3 +156,26 @@ def timer(name, timers, final=True):
                 timers[name].increment((time.time() - start)*timeScale)
             else:
                 timers[name].update((time.time() - start)*timeScale)
+
+
+cudaRT = None
+
+
+def cudaProfilerStart():
+    global cudaRT
+    if cudaRT is None:
+        cudaRT = ctypes.CDLL('libcudart.so')
+    cudaRT.cudaProfilerStart()
+
+
+def cudaProfilerStop():
+    cudaRT.cudaProfilerStop()
+
+
+@contextlib.contextmanager
+def cudaProfile(enable=True):
+    if enable:
+        cudaProfilerStart()
+    yield
+    if enable:
+        cudaProfilerStop()
