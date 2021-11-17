@@ -12,6 +12,7 @@ import time
 import tempfile
 import shutil
 
+import infbench
 import util
 
 
@@ -131,7 +132,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
     # Attempt to find a valid scale, starting with "perfect" scaling
     nModel = nCpy * len(models)
     if scale is None:
-        scale = ((1 / nModel) * util.getNGpu())
+        scale = ((1 / nModel) * infbench.getNGpu())
         startScale = scale
         succeedScale = 0
         failureScale = scale

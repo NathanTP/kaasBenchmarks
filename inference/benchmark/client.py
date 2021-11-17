@@ -41,7 +41,7 @@ def sendReq(socket, clientID, data):
 
 
 def preWarm(serverSock, barrierSock, inputs):
-    nReq = util.getNGpu()*2
+    nReq = infbench.getNGpu()*2
     for i in range(nReq):
         sendReq(serverSock, bytes(1), inputs)
     for i in range(nReq):
@@ -117,7 +117,7 @@ def nShot(modelSpec, n, benchConfig):
 
     # Cold starts
     inp = loader.get(0)
-    for i in range(util.getNGpu()*2):
+    for i in range(infbench.getNGpu()*2):
         sendReq(serverSocket, bytes(1), inp)
         serverSocket.recv_multipart()
 
