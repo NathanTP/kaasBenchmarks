@@ -97,6 +97,11 @@ class Pool():
 
         self.stats = {}
 
+    async def ensureReady(self):
+        """Ray is lazy about initializing actors, calling this remote method
+        will ensure that the pool is fully initialized"""
+        return True
+
     async def getStats(self):
         stats = {}
         policyStats = await self.policy.getStats()
@@ -529,7 +534,7 @@ class PolicyBalance(Policy):
             newActor = self.runnerClass.remote()
 
             # Ensure actor is fully booted and ready
-            ray.wait([newActor.getStats.remote()], fetch_local=False)
+            ray.wait([newActor.ensureWarm.remote()], fetch_local=False)
 
             newStatus = actorStatus()
             newStatus.state = actorStatus.PENDING

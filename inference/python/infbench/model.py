@@ -8,8 +8,6 @@ import json
 import yaml
 import pickle
 import collections
-import re
-from pprint import pprint
 import ray
 
 import mlperf_loadgen
@@ -514,90 +512,3 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
 # I've seen actually use it. MLPerf needs a callback for it though.
 def flushQueries():
     pass
-
-
-def parseMlPerf(prefix):
-    with open(prefix + "summary.txt", 'r') as f:
-        mlLog = f.readlines()
-
-    metrics = {}
-
-    scheduledPattern = re.compile("Scheduled samples per second : (.*)$")
-    completedPattern = re.compile("Completed samples per second    : (.*)$")
-    validPattern = re.compile(".*INVALID$")
-
-    metrics['valid'] = True
-    for idx, line in enumerate(mlLog):
-        match = scheduledPattern.match(line)
-        if match is not None:
-            metrics['submission_rate'] = float(match.group(1))
-            continue
-
-        match = completedPattern.match(line)
-        if match is not None:
-            metrics['completion_rate'] = float(match.group(1))
-            continue
-
-        match = validPattern.match(line)
-        if match is not None:
-            metrics['valid'] = False
-            continue
-
-        if line == "Test Parameters Used\n":
-            break
-
-    if 'submission_rate' not in metrics or 'completion_rate' not in metrics or 'valid' not in metrics:
-        raise RuntimeError("Failed to parse mlperf log: ", prefix + "summary.txt")
-
-    return metrics
-
-
-def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerfPrefix="mlperf_log_"):
-    """Reads latencies from mlperf and generates both human and machine
-    readable reports."""
-
-    # latencies is a list of latencies for each query issued (in ns).
-    lats = np.array(rawLatencies, dtype=np.float32)
-
-    lats = np.divide(lats, 1E9)
-    metrics = {}
-    metrics['t_min'] = float(lats.min())
-    metrics['t_max'] = float(lats.max())
-    metrics['t_mean'] = float(lats.mean())
-    metrics['t_p50'] = float(np.quantile(lats, 0.50))
-    metrics['t_p90'] = float(np.quantile(lats, 0.90))
-    metrics['t_p99'] = float(np.quantile(lats, 0.99))
-    metrics['latencies'] = lats.tolist()
-
-    return metrics
-
-
-def saveReport(metrics, benchConfig, outPath):
-    if not isinstance(outPath, pathlib.Path):
-        outPath = pathlib.Path(outPath).resolve()
-
-    if not metrics['valid']:
-        print("\n*********************************************************")
-        print("WARNING: Results invalid, reduce target QPS and try again")
-        print("*********************************************************\n")
-        # pprint({(m, metrics[m]) for m in metrics.keys() if m != "latencies"})
-
-    if outPath.exists():
-        with open(outPath, 'r') as f:
-            allMetrics = json.load(f)
-    else:
-        allMetrics = []
-
-    record = {
-        "config": benchConfig,
-        "metrics": metrics
-    }
-    allMetrics.append(record)
-
-    print("Saving metrics to: ", outPath)
-    with open(outPath, 'w') as f:
-        json.dump(allMetrics, f)
-
-    print("Results:")
-    # pprint(record)
-    pprint({m: record['metrics'][m] for m in metrics.keys() if m != "latencies"})

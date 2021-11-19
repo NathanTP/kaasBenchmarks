@@ -12,6 +12,7 @@ import time
 import tempfile
 import shutil
 
+import infbench
 import util
 
 
@@ -131,7 +132,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
     # Attempt to find a valid scale, starting with "perfect" scaling
     nModel = nCpy * len(models)
     if scale is None:
-        scale = ((1 / nModel) * util.getNGpu())
+        scale = ((1 / nModel) * infbench.getNGpu())
         startScale = scale
         succeedScale = 0
         failureScale = scale
@@ -247,7 +248,7 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="
     models = [model]*nCpy
 
     if scale is None:
-        scale = ((1 / len(models)) * util.getNGpu())
+        scale = ((1 / len(models)) * infbench.getNGpu())
 
     prefix = f"{prefix}_{modelType}"
 
@@ -259,15 +260,15 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="
     # rather than direct observation to include any additional overheads the
     # workload might introduce.
     results = {'normalizedThroughput': 0}
-    for resultsFile in expResultsDir.glob("*_results.json"):
+    for resultsFile in expResultsDir.glob("throughput_*_results.json"):
         with open(resultsFile, 'r') as f:
-            result = json.load(f)[0]
+            result = json.load(f)
 
-        results[result['config']['name']] = result['metrics']['throughput']
+        results[result['config']['name']] = result['metrics_warm']['throughput']['mean']
 
         modelSpec = util.getModelSpec(result['config']['model'])
-        maxQps, medianLatency = modelSpec.modelClass.getPerfEstimates(util.getGpuType())
-        results['normalizedThroughput'] += result['metrics']['throughput'] * medianLatency
+        maxQps, medianLatency = modelSpec.modelClass.getPerfEstimates(infbench.getGpuType())
+        results['normalizedThroughput'] += result['metrics_warm']['throughput']['mean'] * medianLatency
 
     print("Aggregated Results:")
     pprint(results)

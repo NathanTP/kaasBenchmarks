@@ -22,7 +22,7 @@ tileN = 16
 tileM = (tileN * tile_tb_height)
 
 # This has to match the DIM constant in gemm.cu
-sideLength = 128
+sideLength = 1024
 
 # Size of one element in bytes, e.g. float32=4
 elemSize = 4
