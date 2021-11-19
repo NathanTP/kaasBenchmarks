@@ -182,10 +182,6 @@ def getMaxThroughputs(thrReport):
     return maxThr
 
 
-def loadKaasNShot(res):
-    clean = {}
-
-
 def loadOneNShot(resPath):
     with open(resPath, 'r') as f:
         allRes = json.load(f)
@@ -195,10 +191,77 @@ def loadOneNShot(resPath):
     pprint(allRes[0]['config'])
 
 
+def loadMicroNative(builtinMetrics, nvMetrics):
+    builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
+
+    metrics = {}
+
+    metrics['t_kernel'] = nvMetrics['Time'].get('sgemm', 0)
+    metrics['t_cudaMM'] = nvMetrics['Time'].get('cuMemAlloc', 0)
+    metrics['t_cudaMM'] += nvMetrics['Time'].get('cuMemsetD8', 0)
+    metrics['t_kernel_init'] = nvMetrics['Time'].get('cuModuleLoad', 0)
+    metrics['t_cuda_copy'] = nvMetrics['Time'].get('cuMemcpyDtoH', 0)
+    metrics['t_cuda_copy'] += nvMetrics['Time'].get('cuMemcpyHtoD', 0)
+
+    metrics['t_data_layer'] = builtinMetrics['t_loadInput']
+    metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
+    metrics['t_e2e'] = builtinMetrics['t_run']
+
+    return metrics
+
+
+def loadMicroKaas(builtinMetrics):
+    builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
+
+    metrics = {}
+    metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
+    metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
+    metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
+    metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
+    metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
+    metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
+    metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
+
+    metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
+    metrics['t_e2e'] = builtinMetrics['t_run']
+
+    return metrics
+
+
+def loadMicro(resPath):
+    with open(resPath / 'kaasPipeline.json', 'r') as f:
+        kaasNative = json.load(f)
+
+    kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
+    kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
+
+    actNvCold = pd.read_csv(resPath / "actorNvprofCold.csv", skiprows=[0, 1, 2, 3, 5]).set_index('Name')
+    actNvWarm = pd.read_csv(resPath / "actorNvprofWarm.csv", skiprows=[0, 1, 2, 3, 5]).set_index('Name')
+
+    with open(resPath / 'actorPipeline.json', 'r') as f:
+        actPipeNative = json.load(f)
+
+    actPipeCold = loadMicroNative(actPipeNative['metrics_cold'], actNvCold)
+    actPipeWarm = loadMicroNative(actPipeNative['metrics_warm'], actNvWarm)
+
+    print("Actor Warm")
+    pprint(actPipeWarm)
+
+    print('\nActor Cold')
+    pprint(actPipeCold)
+
+    print('\nKaaS Cold')
+    pprint(kaasCold)
+
+    print('\nKaaS Warm')
+    pprint(kaasWarm)
+
+
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
-    loadOneNShot(resPath)
+    loadMicro(resPath)
+    # loadOneNShot(resPath)
     # model = 'resnet50'
 
     # print(model)

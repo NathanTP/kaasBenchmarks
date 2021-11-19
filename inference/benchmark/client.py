@@ -139,15 +139,13 @@ def nShot(modelSpec, n, benchConfig):
     else:
         print("Accuracy checking not supported for this model")
 
-    report = stats.report(includeEvents=False)
-    # print("E2E Results:")
-    # pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
-    #
-    report['valid'] = True
-    report['throughput'] = n / (report['t_all']['total'] / 1000)
+    report = stats.report()
+
+    print("Stats: ")
+    infbench.printReport(report, metrics=['mean'])
 
     print("Writing full report to: ", benchConfig['name'] + '_results.json')
-    infbench.model.saveReport(report, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
 
     return results
 
@@ -167,7 +165,7 @@ class throughputLoop():
         self.loader = modelSpec.loader(modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        gpuType = util.getGpuType()
+        gpuType = infbench.getGpuType()
         maxQps, medianLat = modelSpec.modelClass.getPerfEstimates(gpuType)
 
         # This number is more sensitive than it should be. I'm not sure why but
@@ -229,32 +227,32 @@ class throughputLoop():
             self.loop.add_callback(self.submitReqs)
 
     def reportMetrics(self):
-        metrics = {}
+        metrics = infbench.profCollection()
 
         # useful for debugging mostly. Ideally t_total ~= targetTime
-        metrics['n_completed'] = self.nCompleted
-        metrics['t_total'] = self.runTime * 1000  # we always report time in ms
+        metrics['n_completed'].increment(self.nCompleted)
+        metrics['t_total'].increment(self.runTime * 1000)  # we always report time in ms
 
         # completions/second
-        metrics['throughput'] = self.nCompleted / self.runTime
+        metrics['throughput'].increment(self.nCompleted / self.runTime)
 
         if self.nCompleted < self.targetOutstanding:
             print("\n*********************************************************")
             print("WARNING: Too few queries completed!")
             print("*********************************************************\n")
-            metrics['valid'] = False
+            valid = False
         elif self.runTime > self.targetTime*1.2 or self.runTime < self.targetTime*0.2:
             print("\n*********************************************************")
             print("WARNING: Actual runtime too far from target: ")
             print("\tTarget: ", self.targetTime)
             print("\tActual: ", self.runTime)
             print("*********************************************************\n")
-            metrics['valid'] = False
+            valid = False
 
         else:
-            metrics['valid'] = True
+            valid = True
 
-        return metrics
+        return metrics, valid
 
 
 def throughput(modelSpec, benchConfig):
@@ -268,8 +266,10 @@ def throughput(modelSpec, benchConfig):
     testLoop = throughputLoop(modelSpec, benchConfig, context, targetTime=runTime)
     IOLoop.instance().start()
 
-    metrics = testLoop.reportMetrics()
-    infbench.model.saveReport(metrics, benchConfig, benchConfig['name'] + '_results.json')
+    metrics, valid = testLoop.reportMetrics()
+    benchConfig['valid'] = valid
+
+    infbench.saveReport(metrics.report(), None, benchConfig, benchConfig['name'] + '_results.json')
 
 
 # =============================================================================
@@ -281,7 +281,7 @@ class mlperfRunner(threading.Thread):
         self.zmqContext = zmqContext
         self.benchConfig = benchConfig
         self.modelSpec = modelSpec
-        self.metrics = {}
+        self.metrics = infbench.profCollection()
         self.nQuery = 0
 
         threading.Thread.__init__(self)
@@ -293,10 +293,10 @@ class mlperfRunner(threading.Thread):
             sendReq(self.sutSock, q.id.to_bytes(8, sys.byteorder), inp)
 
     def processLatencies(self, latencies):
-        self.metrics = {**infbench.model.processLatencies(self.benchConfig, latencies), **self.metrics}
+        self.metrics['t_response'] = infbench.processLatencies(self.benchConfig, latencies)
 
     def run(self):
-        gpuType = util.getGpuType()
+        gpuType = infbench.getGpuType()
 
         self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
 
@@ -316,7 +316,7 @@ class mlperfRunner(threading.Thread):
 
         start = time.time()
         mlperf_loadgen.StartTestWithLogSettings(sut, qsl, runSettings, logSettings)
-        self.metrics['t_e2e'] = time.time() - start
+        self.metrics['t_e2e'].increment(time.time() - start)
 
         mlperf_loadgen.DestroyQSL(qsl)
         mlperf_loadgen.DestroySUT(sut)
@@ -325,7 +325,7 @@ class mlperfRunner(threading.Thread):
         self.sutSock.send_multipart([b'', b''])
         self.sutSock.close()
 
-        self.metrics['n_query'] = self.nQuery
+        self.metrics['n_query'].increment(self.nQuery)
 
 
 class mlperfLoop():
@@ -386,6 +386,11 @@ def mlperfBench(modelSpec, benchConfig):
     testRunner.start()
 
     IOLoop.instance().start()
-    mlPerfMetrics = infbench.model.parseMlPerf(benchConfig['name'] + '_')
-    infbench.model.saveReport({**testRunner.metrics, **mlPerfMetrics},
-                              benchConfig, benchConfig['name'] + '_results.json')
+    mlPerfMetrics, valid = infbench.parseMlPerf(benchConfig['name'] + '_')
+    benchConfig['valid'] = valid
+
+    metrics = infbench.profCollection()
+    metrics.merge(testRunner.metrics)
+    metrics.merge(mlPerfMetrics)
+
+    infbench.saveReport(metrics.report(), None, benchConfig, benchConfig['name'] + '_results.json')

@@ -31,7 +31,7 @@ def main():
                         help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("-p", "--policy",
-                        choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default=None,
+                        choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default='rr',
                         help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--force-cold", action="store_true", dest='forceCold',
                         help="Force cold starts if possible (this is only valid in some configurations)")

@@ -4,8 +4,6 @@ import infbench
 import threading
 import os
 import signal
-import pathlib
-import json
 import math
 
 import time
@@ -559,33 +557,17 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     warmStats.merge(warmPoolStats[None])
 
-    print("\nDetailed Stats: ")
-    print("Cold:")
     coldReport = coldStats.report(includeEvents=False)
-    util.analyzeStats(coldReport)
-
-    print("Warm:")
     warmReport = warmStats.report(includeEvents=False)
-    util.analyzeStats(warmReport)
 
-    if not isinstance(reportPath, pathlib.Path):
-        reportPath = pathlib.Path(reportPath).resolve()
+    print("Warm Results: ")
+    infbench.printReport(warmReport, metrics=['mean'])
 
-    print("Saving results to: ", reportPath)
-    if reportPath.exists():
-        reportPath.unlink()
+    print("Cold Results: ")
+    infbench.printReport(coldReport, metrics=['mean'])
 
-    record = {
-        "config": benchConfig,
-        "metrics_cold": coldReport,
-        "metrics_warm": warmReport
-    }
-
-    with open(reportPath, 'w') as f:
-        json.dump(record, f)
-
-    # print("Ray Profiling:")
-    # ray.timeline(filename="rayProfile.json")
+    print("Saving results to ", reportPath)
+    infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
 
     return results
 
@@ -643,7 +625,7 @@ class throughputLoop():
 
         # This info is only used to get performance estimates
         gpuType = infbench.getGpuType()
-        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType, benchConfig)
+        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -720,35 +702,35 @@ class throughputLoop():
         self.loop.add_callback(self.handleResponses)
 
     def reportMetrics(self):
-        metrics = {}
+        metrics = infbench.profCollection()
 
         # useful for debugging mostly. Ideally t_total ~= targetTime
-        metrics['n_completed'] = self.nCompleted
-        metrics['t_total'] = self.runTime * 1000  # we always report time in ms
+        metrics['n_completed'].increment(self.nCompleted)
+        metrics['t_total'].increment(self.runTime * 1000)  # we always report time in ms
 
         # completions/second
-        metrics['throughput'] = self.nCompleted / self.runTime
+        metrics['throughput'].increment(self.nCompleted / self.runTime)
 
         if self.nCompleted < self.targetOutstanding:
             print("\n*********************************************************")
             print("WARNING: Too few queries completed!")
             print("*********************************************************\n")
-            metrics['valid'] = False
+            valid = False
         elif self.runTime > self.targetTime*1.2 or self.runTime < self.targetTime*0.2:
             print("\n*********************************************************")
             print("WARNING: Actual runtime too far from target: ")
             print("\tTarget: ", self.targetTime)
             print("\tActual: ", self.runTime)
             print("*********************************************************\n")
-            metrics['valid'] = False
+            valid = False
 
         else:
-            metrics['valid'] = True
+            valid = True
 
         warmPoolStats = ray.get(self.pool.getStats.remote())
         self.warmStats.merge(warmPoolStats[None])
 
-        return metrics
+        return metrics, valid
 
 
 def throughput(modelSpec, benchConfig):
@@ -764,12 +746,18 @@ def throughput(modelSpec, benchConfig):
     # quiesces. I guess we should just wait till everything clears up before
     # reporting...
     time.sleep(2)
-    metrics = testLoop.reportMetrics()
 
+    metrics, valid = testLoop.reportMetrics()
     report = testLoop.warmStats.report(includeEvents=False)
     util.analyzeStats(report)
 
-    infbench.model.saveReport(metrics, benchConfig, benchConfig['name'] + '_results.json')
+    warmReport = {**metrics.report(), **report}
+
+    print("Saving results to ", benchConfig['name'] + '_results.json')
+    infbench.saveReport(warmReport, None, benchConfig, benchConfig['name'] + '_results.json')
+
+    print("Results")
+    infbench.printReport(warmReport, metrics=['mean'])
 
 
 # =============================================================================
@@ -892,7 +880,7 @@ class mlperfRunner():
         self.nIssued += len(queryBatch)
 
     def processLatencies(self, latencies):
-        self.latMetrics = infbench.model.processLatencies(self.benchConfig, latencies)
+        self.latMetrics = infbench.processLatencies(self.benchConfig, latencies)
 
     def stop(self):
         self.completionQueue.put((self.nIssued, None))
@@ -937,13 +925,23 @@ def mlperfBench(modelSpec, benchConfig):
     coldStats, warmStats = runner.stop()
 
     print("\nResults:")
-    mlPerfMetrics = infbench.model.parseMlPerf('mlperf_log_')
+    mlPerfMetrics, valid = infbench.parseMlPerf('mlperf_log_')
+    benchConfig['valid'] = valid
+
+    if not valid:
+        print("\n*********************************************************")
+        print("WARNING: Results invalid, reduce target QPS and try again")
+        print("*********************************************************\n")
 
     print("\nStats:")
-    report = warmStats.report()
-    util.analyzeStats(report)
+    warmReport = warmStats.report()
+    fullReport = {**warmReport, **mlPerfMetrics.report()}
+    fullReport['t_response'] = runner.latMetrics.report()
 
-    infbench.model.saveReport({**runner.latMetrics, **mlPerfMetrics}, benchConfig, 'results.json')
+    infbench.printReport(fullReport, metrics=['p50'])
+    # util.analyzeStats(warmReport)
+
+    infbench.saveReport(fullReport, None, benchConfig, 'results.json')
 
 
 # =============================================================================
@@ -1141,7 +1139,9 @@ def serveRequests(benchConfig):
     IOLoop.instance().start()
     print("Server Exiting")
 
-    # print("Stats:")
-    # for cID, stats in looper.warmStats.items():
-    #     print("Client: ", cID)
-    #     util.analyzeStats(stats.report(includeEvents=False))
+    print("Reporting server stats:")
+    for cID, stats in looper.warmStats.items():
+        strCID = cID.decode("utf-8")
+        resPath = f"server_stats_{strCID}.json"
+        print(f"Saving client {strCID} report to {resPath}")
+        infbench.saveReport(stats.report(), None, benchConfig, resPath)
