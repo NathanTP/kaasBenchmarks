@@ -8,8 +8,6 @@ import json
 import yaml
 import pickle
 import collections
-import re
-from pprint import pprint
 import ray
 
 import mlperf_loadgen
