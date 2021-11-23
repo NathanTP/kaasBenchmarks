@@ -270,23 +270,14 @@ def loadMicro(resPath):
     actPipeCold = loadMicroNative(actPipeNative['metrics_cold'], actNvCold)
     actPipeWarm = loadMicroNative(actPipeNative['metrics_warm'], actNvWarm)
 
-    print("Actor Warm")
-    pprint(actPipeWarm)
-
-    print('\nActor Cold')
-    pprint(actPipeCold)
-
-    print('\nKaaS Cold')
-    pprint(kaasCold)
-
-    print('\nKaaS Warm')
-    pprint(kaasWarm)
+    return pd.DataFrame.from_dict({"actWarm": actPipeWarm, "actCold": actPipeCold,
+                                   "kaasWarm": kaasWarm, "kaasCold": kaasCold}).transpose()
 
 
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
-    loadMicro(resPath)
+    print(loadMicro(resPath))
     # loadOneNShot(resPath)
     # model = 'resnet50'
 
