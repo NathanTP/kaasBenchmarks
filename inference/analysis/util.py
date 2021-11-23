@@ -1,3 +1,4 @@
+import io
 import json
 import pathlib
 import itertools
@@ -196,12 +197,12 @@ def loadMicroNative(builtinMetrics, nvMetrics):
 
     metrics = {}
 
-    metrics['t_kernel'] = nvMetrics['Time'].get('sgemm', 0)
-    metrics['t_cudaMM'] = nvMetrics['Time'].get('cuMemAlloc', 0)
-    metrics['t_cudaMM'] += nvMetrics['Time'].get('cuMemsetD8', 0)
-    metrics['t_kernel_init'] = nvMetrics['Time'].get('cuModuleLoad', 0)
-    metrics['t_cuda_copy'] = nvMetrics['Time'].get('cuMemcpyDtoH', 0)
-    metrics['t_cuda_copy'] += nvMetrics['Time'].get('cuMemcpyHtoD', 0)
+    metrics['t_kernel'] = nvMetrics['Time'].get('sgemm', 0.0)
+    metrics['t_cudaMM'] = nvMetrics['Time'].get('cuMemAlloc', 0.0)
+    metrics['t_cudaMM'] += nvMetrics['Time'].get('cuMemsetD8', 0.0)
+    metrics['t_kernel_init'] = nvMetrics['Time'].get('cuModuleLoad', 0.0)
+    metrics['t_cuda_copy'] = nvMetrics['Time'].get('cuMemcpyDtoH', 0.0)
+    metrics['t_cuda_copy'] += nvMetrics['Time'].get('cuMemcpyHtoD', 0.0)
 
     metrics['t_data_layer'] = builtinMetrics['t_loadInput']
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
@@ -228,6 +229,31 @@ def loadMicroKaas(builtinMetrics):
     return metrics
 
 
+def loadNvProf(resPath):
+    with open(resPath, 'r') as f:
+        dirtyLines = f.readlines()
+
+    # NVProf sucks and produces invalid CSVs that are so bad we can't clean
+    # them with pandas' builtin stuff. Gotta manually strip out the garbage.
+    cleanLines = []
+    for line in dirtyLines:
+        if line[0] == ',':
+            types = line.split(',')
+        elif line[0] != '=':
+            cleanLines.append(line)
+
+    raw = io.StringIO('\n'.join(cleanLines))
+
+    df = pd.read_csv(raw).set_index('Name')
+
+    # us -> ms
+    for i, t in enumerate(types):
+        if t == 'us':
+            df.iloc[:, i] /= 1000
+
+    return df
+
+
 def loadMicro(resPath):
     with open(resPath / 'kaasPipeline.json', 'r') as f:
         kaasNative = json.load(f)
@@ -235,8 +261,8 @@ def loadMicro(resPath):
     kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
     kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
 
-    actNvCold = pd.read_csv(resPath / "actorNvprofCold.csv", skiprows=[0, 1, 2, 3, 5]).set_index('Name')
-    actNvWarm = pd.read_csv(resPath / "actorNvprofWarm.csv", skiprows=[0, 1, 2, 3, 5]).set_index('Name')
+    actNvCold = loadNvProf(resPath / "actorNvprofCold.csv")
+    actNvWarm = loadNvProf(resPath / "actorNvprofWarm.csv")
 
     with open(resPath / 'actorPipeline.json', 'r') as f:
         actPipeNative = json.load(f)
