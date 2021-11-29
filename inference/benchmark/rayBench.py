@@ -250,19 +250,22 @@ class runActor():
         # kill and restart the actor. cacheModel is kept for consistency with
         # runTask but is ignored here.
         if clientID in self.modelCache:
-            model = self.modelCache[clientID]
+            model, consts = self.modelCache[clientID]
         else:
             with infbench.timer("t_model_init", self.stats[clientID]):
                 with infbench.timer('t_loadInput', self.stats[clientID], final=False):
                     modelSpec = ray.get(modelInfo[0])
                     modelArg = ray.get(modelInfo[1])
+
                 model = modelSpec.modelClass(modelArg)
-                self.modelCache[clientID] = model
+                consts = ray.get(inputRefs[:modelSpec.modelClass.nConst])
+
+                self.modelCache[clientID] = (model, consts)
 
         with infbench.timer('t_loadInput', self.stats[clientID]):
-            inputs = ray.get(inputRefs)
+            inputs = ray.get(inputRefs[model.nConst:])
 
-        result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
+        result = _run(model, consts + inputs, completionQ, queryId, stats=self.stats[clientID])
 
         return result
 
