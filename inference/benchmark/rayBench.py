@@ -258,7 +258,9 @@ class runActor():
                     modelArg = ray.get(modelInfo[1])
 
                 model = modelSpec.modelClass(modelArg)
-                consts = ray.get(inputRefs[:modelSpec.modelClass.nConst])
+
+                with infbench.timer('t_loadInput', self.stats[clientID], final=False):
+                    consts = ray.get(inputRefs[:modelSpec.modelClass.nConst])
 
                 self.modelCache[clientID] = (model, consts)
 
