@@ -196,20 +196,26 @@ def loadMicroNative(builtinMetrics, nvMetrics):
 
     metrics = {}
 
-    metrics['t_kernel'] = nvMetrics.get('sgemm', 0.0)
+    kernelMetrics = nvMetrics.reset_index()
+    nameCond = kernelMetrics['Name'].apply(lambda x: x[0] != '[')
+    typeCond = kernelMetrics['Type'] == "GPU activities"
+    kernelMetrics = kernelMetrics[nameCond & typeCond]
 
-    metrics['t_cudaMM'] = nvMetrics.get('cuMemAlloc', 0.0)
-    metrics['t_cudaMM'] += nvMetrics.get('cudaMalloc', 0.0)
-    metrics['t_cudaMM'] += nvMetrics.get('cuMemsetD8', 0.0)
+    metrics['t_kernel'] = kernelMetrics['Time'].sum()
 
-    metrics['t_kernel_init'] = nvMetrics.get('cuModuleLoad', 0.0)
-    metrics['t_kernel_init'] += nvMetrics.get('cuModuleLoadData', 0.0)
-    metrics['t_kernel_init'] += nvMetrics.get('cudaSetDevice', 0.0)
-    metrics['t_kernel_init'] += nvMetrics.get('cuDeviceTotalMem', 0.0)
+    nvTimes = nvMetrics['Time']
+    metrics['t_cudaMM'] = nvTimes.get('cuMemAlloc', 0.0)
+    metrics['t_cudaMM'] += nvTimes.get('cudaMalloc', 0.0)
+    metrics['t_cudaMM'] += nvTimes.get('cuMemsetD8', 0.0)
 
-    metrics['t_cuda_copy'] = nvMetrics.get('cuMemcpyDtoH', 0.0)
-    metrics['t_cuda_copy'] += nvMetrics.get('cuMemcpyHtoD', 0.0)
-    metrics['t_cuda_copy'] += nvMetrics.get('cudaMemcpy', 0.0)
+    metrics['t_kernel_init'] = nvTimes.get('cuModuleLoad', 0.0)
+    metrics['t_kernel_init'] += nvTimes.get('cuModuleLoadData', 0.0)
+    metrics['t_kernel_init'] += nvTimes.get('cudaSetDevice', 0.0)
+    metrics['t_kernel_init'] += nvTimes.get('cuDeviceTotalMem', 0.0)
+
+    metrics['t_cuda_copy'] = nvTimes.get('cuMemcpyDtoH', 0.0)
+    metrics['t_cuda_copy'] += nvTimes.get('cuMemcpyHtoD', 0.0)
+    metrics['t_cuda_copy'] += nvTimes.get('cudaMemcpy', 0.0)
 
     metrics['t_data_layer'] = builtinMetrics['t_loadInput']
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
@@ -295,11 +301,13 @@ def loadMicroSuiteNative(resDir):
 
     nvColds = []
     for resPath in (resDir / 'actNvCold').glob("*.csv"):
-        nvColds.append(loadNvProf(resPath)['Time'])
+        # nvColds.append(loadNvProf(resPath)['Time'])
+        nvColds.append(loadNvProf(resPath))
 
     nvWarms = []
     for resPath in (resDir / 'actNvWarm').glob("*.csv"):
-        nvWarms.append(loadNvProf(resPath)['Time'])
+        # nvWarms.append(loadNvProf(resPath)['Time'])
+        nvWarms.append(loadNvProf(resPath))
 
     builtinColds = []
     builtinWarms = []
