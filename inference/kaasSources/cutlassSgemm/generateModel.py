@@ -44,12 +44,7 @@ if __name__ == "__main__":
     d = rng.random((N, 1), dtype=np.float32)
     e = np.zeros(shape=(M, 1), dtype=np.float32)
 
-    #b = np.asfortranarray(b)
-    #d = np.asfortranarray(d)
-
-
-    req = createReq(M, N, K, alpha, beta)
-
+    req = createReq(M, N, K, alpha, beta, a, b, c, d, e)
     meta_data = getMeta(M, N, K)
     with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)

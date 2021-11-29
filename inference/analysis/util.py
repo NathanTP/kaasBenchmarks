@@ -1,3 +1,4 @@
+import io
 import json
 import pathlib
 import itertools
@@ -182,12 +183,106 @@ def getMaxThroughputs(thrReport):
     return maxThr
 
 
+def loadOneNShot(resPath):
+    with open(resPath, 'r') as f:
+        allRes = json.load(f)
+
+    for res in allRes:
+        res['metrics'] = {k: v['mean'] for k, v in res['metrics'].items()}
+    pprint(allRes[0]['config'])
+
+
+def loadMicroNative(builtinMetrics, nvMetrics):
+    builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
+
+    metrics = {}
+
+    metrics['t_kernel'] = nvMetrics['Time'].get('sgemm', 0.0)
+    metrics['t_cudaMM'] = nvMetrics['Time'].get('cuMemAlloc', 0.0)
+    metrics['t_cudaMM'] += nvMetrics['Time'].get('cuMemsetD8', 0.0)
+    metrics['t_kernel_init'] = nvMetrics['Time'].get('cuModuleLoad', 0.0)
+    metrics['t_cuda_copy'] = nvMetrics['Time'].get('cuMemcpyDtoH', 0.0)
+    metrics['t_cuda_copy'] += nvMetrics['Time'].get('cuMemcpyHtoD', 0.0)
+
+    metrics['t_data_layer'] = builtinMetrics['t_loadInput']
+    metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
+    metrics['t_e2e'] = builtinMetrics['t_run']
+
+    return metrics
+
+
+def loadMicroKaas(builtinMetrics):
+    builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
+
+    metrics = {}
+    metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
+    metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
+    metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
+    metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
+    metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
+    metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
+    metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
+
+    metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
+    metrics['t_e2e'] = builtinMetrics['t_run']
+
+    return metrics
+
+
+def loadNvProf(resPath):
+    with open(resPath, 'r') as f:
+        dirtyLines = f.readlines()
+
+    # NVProf sucks and produces invalid CSVs that are so bad we can't clean
+    # them with pandas' builtin stuff. Gotta manually strip out the garbage.
+    cleanLines = []
+    for line in dirtyLines:
+        if line[0] == ',':
+            types = line.split(',')
+        elif line[0] != '=':
+            cleanLines.append(line)
+
+    raw = io.StringIO('\n'.join(cleanLines))
+
+    df = pd.read_csv(raw).set_index('Name')
+
+    # us -> ms
+    for i, t in enumerate(types):
+        if t == 'us':
+            df.iloc[:, i] /= 1000
+
+    return df
+
+
+def loadMicro(resPath):
+    with open(resPath / 'kaasPipeline.json', 'r') as f:
+        kaasNative = json.load(f)
+
+    kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
+    kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
+
+    actNvCold = loadNvProf(resPath / "actorNvprofCold.csv")
+    actNvWarm = loadNvProf(resPath / "actorNvprofWarm.csv")
+
+    with open(resPath / 'actorPipeline.json', 'r') as f:
+        actPipeNative = json.load(f)
+
+    actPipeCold = loadMicroNative(actPipeNative['metrics_cold'], actNvCold)
+    actPipeWarm = loadMicroNative(actPipeNative['metrics_warm'], actNvWarm)
+
+    return pd.DataFrame.from_dict({"actWarm": actPipeWarm, "actCold": actPipeCold,
+                                   "kaasWarm": kaasWarm, "kaasCold": kaasCold}).transpose()
+
+
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
-    model = 'resnet50'
-    print(model)
-    print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
+    print(loadMicro(resPath))
+    # loadOneNShot(resPath)
+    # model = 'resnet50'
+
+    # print(model)
+    # print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
 
     # print(getMaxThroughputs(loadAllThroughput(resPath)))
     # print(loadAllThroughput(resPath)[model])

@@ -1,19 +1,13 @@
 from libff import kaas
-import numpy as np
 import ctypes as ct
-import libff as ff
-import libff.kv
-import libff.invoke
-import libff.kaas.kaasFF
-import libff.kaas as kaas
 
 
 # define complex ctype as a python class
 class complex(ct.Structure):
     _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
 
-c_complex_p = ct.POINTER(complex)
 
+c_complex_p = ct.POINTER(complex)
 
 
 class kernelConfig(ct.Structure):
@@ -27,6 +21,7 @@ class kernelConfig(ct.Structure):
         ("blockZ", ct.c_int),
         ("smem_size", ct.c_int)
     ]
+
 
 def loadDims():
     libc = ct.cdll.LoadLibrary("./getDims.so")
@@ -44,33 +39,23 @@ def loadDims():
 
     return getDims
 
+
 def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     lda = M
     ldb = K
     ldc = M
 
-    #libffCtx = getCtx(remote=False)
     getDims = loadDims()
-    #rng = np.random.default_rng(0)
-    #a = rng.random((M, K), dtype=np.float32)
-    #b = rng.random((K, N), dtype=np.float32)
-    #c = np.zeros(shape=(M, N), dtype=np.float32)
-
-    #getArg, getDims = loadAdapter()
-
     cfg = getDims(M, N, K).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
     block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
     smem = cfg.smem_size
 
-    #libffCtx.kv.put('a', a)
     aBuf = kaas.bufferSpec('a', a.nbytes, ephemeral=False)
 
-    #libffCtx.kv.put('b', b)
     bBuf = kaas.bufferSpec('b', b.nbytes, ephemeral=False)
 
-    #libffCtx.kv.put('c', c)
     cBuf = kaas.bufferSpec('c', c.nbytes, ephemeral=True)
     literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
                 kaas.literalSpec('f', M), kaas.literalSpec('f', N), kaas.literalSpec('f', K), kaas.literalSpec('f', lda), kaas.literalSpec('f', ldb), kaas.literalSpec('f', ldc)]
@@ -79,8 +64,6 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     dBuf = kaas.bufferSpec('d', d.nbytes)
 
     dBuf = kaas.bufferSpec('d', d.nbytes, ephemeral=False)
-    #libffCtx.kv.put('d', d)
-    #libffCtx.kv.put('e', e)
     eBuf = kaas.bufferSpec('e', e.nbytes, ephemeral=False)
 
     cfg = getDims(M, 1, N).contents
@@ -94,12 +77,3 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
 
     req = kaas.kaasReq([firstKern, secondKern])
     return req
-    #req = kaas.kaasReqDense([firstKern, secondKern])
-    #kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
-    #kaasHandle.Invoke(req)
-    #return req
-    #e = np.frombuffer(libffCtx.kv.get('e'), dtype=np.csingle)
-    #e = np.reshape(e, (M, 1), order='F')
-    #print(e)
-    #print(c)
-
