@@ -8,6 +8,7 @@ import tvm.relay as relay
 import pickle
 import subprocess as sp
 import shutil
+import argparse
 
 # Gluoncv throws out some stupid warning about having both mxnet and torch,
 # have to go through this nonsense to suppress it.
@@ -132,14 +133,14 @@ def getOnnx(inputPath, outputDir, modelName, inputShapeMap=None):
         f.write(cudaLib.get_source())
 
 
-def getKaasModel(name):
+def getKaasModel(name, force=False):
     modelPath = modelDir / name
     print(kaasSrcDir / name)
-    if not (modelPath / (name + "_model.yaml")).exists():
+    if not (modelPath / (name + "_model.yaml")).exists() or force:
         sp.run(['./generateModel.py', '-o', str(modelPath), '-n', name], cwd=kaasSrcDir / name)
 
 
-def getResnet50():
+def getResnet50(force=False):
     resnetDir = modelDir / 'resnet50'
     if not resnetDir.exists():
         resnetDir.mkdir()
@@ -149,25 +150,30 @@ def getResnet50():
         wget.download("https://zenodo.org/record/4735647/files/resnet50_v1.onnx", str(modelPath))
 
     tvmLibPath = resnetDir / 'resnet50.so'
-    if not tvmLibPath.exists():
+    if not tvmLibPath.exists() or force:
         getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
 
     getKaasModel('resnet50')
 
 
-def getSuperRes():
+def getSuperRes(force=False):
     superResDir = modelDir / 'superRes'
+    modelPath = superResDir / 'superres.onnx'
+    tvmLibPath = superResDir / 'superres.so'
+
     if not superResDir.exists():
         superResDir.mkdir()
-        modelPath = superResDir / 'superres.onnx'
-        if not modelPath.exists():
-            wget.download("https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx", str(modelPath))
+
+    if not modelPath.exists():
+        wget.download("https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx", str(modelPath))
+
+    if not tvmLibPath.exists() or force:
         getOnnx(modelPath, superResDir, "superRes")
 
-    getKaasModel('superRes')
+    getKaasModel('superRes', force=force)
 
 
-def getBert():
+def getBert(force=False):
     bertDir = modelDir / 'bert'
     modelPath = bertDir / 'bert.onnx'
     tvmLibPath = bertDir / 'bert.so'
@@ -179,11 +185,12 @@ def getBert():
     if not modelPath.exists():
         print("Downloading BERT model")
         wget.download("https://zenodo.org/record/3733910/files/model.onnx", str(modelPath))
+
     if not vocabPath.exists():
         print("Downloading BERT vocab")
         wget.download("https://zenodo.org/record/3733910/files/vocab.txt", str(vocabPath))
 
-    if not tvmLibPath.exists():
+    if not tvmLibPath.exists() or force:
         print("Converting BERT to .so")
         getOnnx(modelPath, bertDir, "bert",
                 inputShapeMap={
@@ -191,11 +198,11 @@ def getBert():
                     'input_mask': (1, 384),
                     'segment_ids': (1, 384)})
 
-    getKaasModel('bert')
+    getKaasModel('bert', force=force)
 
 
-def getSsdMobilenet():
-    if not (modelDir / 'ssdMobilenet').exists():
+def getSsdMobilenet(force=False):
+    if not (modelDir / 'ssdMobilenet').exists() or force:
         block = gluoncv.model_zoo.get_model("ssd_512_mobilenet1.0_coco", pretrained=True)
         mod, params = relay.frontend.from_mxnet(block, {"data": (1, 3, 512, 512)})
         with tvm.transform.PassContext(opt_level=3):
@@ -233,47 +240,52 @@ def getSsdMobilenet():
             json.dump(meta, f)
 
 
-def getTestModel():
-    getKaasModel('sgemm')
+def getTestModel(force=False):
+    getKaasModel('sgemm', force=force)
 
 
-def getCutlassSgemm():
-    getKaasModel("cutlassSgemm")
+def getCutlassSgemm(force=False):
+    getKaasModel("cutlassSgemm", force=force)
 
 
-def getCutlassComplexGemm():
-    getKaasModel("complexCutlassGemm")
+def getCutlassComplexGemm(force=False):
+    getKaasModel("complexCutlassGemm", force=force)
 
 
-def getJacobi():
-    getKaasModel("jacobi")
+def getJacobi(force=False):
+    getKaasModel("jacobi", force=force)
     shutil.copy2(kaasSrcDir / 'jacobi' / 'jacobi.ptx', modelDir / 'jacobi' / 'jacobi.ptx')
 
 
 def main():
+    parser = argparse.ArgumentParser("Download and compile models")
+    parser.add_argument("-f", "--force", action="store_true", help="Recompile all models, even if they are already compiled. Does not re-download")
+
+    args = parser.parse_args()
+
     if not modelDir.exists():
         modelDir.mkdir(mode=0o700)
 
     print("Getting testModel (sgemm)")
-    getTestModel()
+    getTestModel(force=args.force)
 
     print("Getting BERT")
-    getBert()
+    getBert(force=args.force)
 
     print("\nGetting Resnet")
-    getResnet50()
+    getResnet50(force=args.force)
 
     print("\nGetting SuperRes")
-    getSuperRes()
+    getSuperRes(force=args.force)
 
     print("\nGetting cutlassSgemm")
-    getCutlassSgemm()
+    getCutlassSgemm(force=args.force)
 
     print("\nGetting complex cutlassSgemm")
-    getCutlassComplexGemm()
+    getCutlassComplexGemm(force=args.force)
 
     print("\nGetting Jacobi")
-    getJacobi()
+    getJacobi(force=args.force)
 
     # print("\nGetting SSD-Mobilenet")
     # getSsdMobilenet()
