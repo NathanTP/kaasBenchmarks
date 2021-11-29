@@ -8,12 +8,16 @@ import subprocess as sp
 nIter = 10
 
 
+# model = 'testModel'
+# model = 'resnet50'
+model = 'cutlassSgemm'
+
 nvCmd = ['nvprof', '-f', '--log-file', 'results.csv', '--profile-from-start', 'off', '--csv']
-actNvColdCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '--force-cold', '-m', 'testModelTvm']
-actNvWarmCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '-m', 'testModelTvm']
-actPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', 'testModelTvm']
-actInlineCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', 'testModelTvm', '--inline']
-kaasPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', 'testModelKaas']
+actNvColdCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '--force-cold', '-m', model + "Tvm"]
+actNvWarmCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '-m', model + "Tvm"]
+actPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Tvm"]
+actInlineCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Tvm", '--inline']
+kaasPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Kaas"]
 
 
 def runTest(cmd, niter, resDir, cmdOutPath, environ):

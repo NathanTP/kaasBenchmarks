@@ -197,11 +197,19 @@ def loadMicroNative(builtinMetrics, nvMetrics):
     metrics = {}
 
     metrics['t_kernel'] = nvMetrics.get('sgemm', 0.0)
+
     metrics['t_cudaMM'] = nvMetrics.get('cuMemAlloc', 0.0)
+    metrics['t_cudaMM'] += nvMetrics.get('cudaMalloc', 0.0)
     metrics['t_cudaMM'] += nvMetrics.get('cuMemsetD8', 0.0)
+
     metrics['t_kernel_init'] = nvMetrics.get('cuModuleLoad', 0.0)
+    metrics['t_kernel_init'] += nvMetrics.get('cuModuleLoadData', 0.0)
+    metrics['t_kernel_init'] += nvMetrics.get('cudaSetDevice', 0.0)
+    metrics['t_kernel_init'] += nvMetrics.get('cuDeviceTotalMem', 0.0)
+
     metrics['t_cuda_copy'] = nvMetrics.get('cuMemcpyDtoH', 0.0)
     metrics['t_cuda_copy'] += nvMetrics.get('cuMemcpyHtoD', 0.0)
+    metrics['t_cuda_copy'] += nvMetrics.get('cudaMemcpy', 0.0)
 
     metrics['t_data_layer'] = builtinMetrics['t_loadInput']
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
@@ -234,12 +242,17 @@ def loadNvProf(resPath):
 
     # NVProf sucks and produces invalid CSVs that are so bad we can't clean
     # them with pandas' builtin stuff. Gotta manually strip out the garbage.
+    headerIdx = None
+    for idx, line in enumerate(dirtyLines):
+        if line[0:6] != '"Type"':
+            continue
+        else:
+            headerIdx = idx
+
     cleanLines = []
-    for line in dirtyLines:
-        if line[0] == ',':
-            types = line.split(',')
-        elif line[0] != '=':
-            cleanLines.append(line)
+    cleanLines.append(dirtyLines[headerIdx])
+    types = dirtyLines[headerIdx + 1].split(',')
+    cleanLines += dirtyLines[headerIdx + 2:]
 
     raw = io.StringIO('\n'.join(cleanLines))
 
@@ -321,8 +334,11 @@ def loadMicroSuite(resDir):
 
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
+
+    # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
+
     means, stds = loadMicroSuite(resPath)
-    print(stds)
+    print(means)
 
     # print(loadMicro(resPath))
     # loadOneNShot(resPath)
