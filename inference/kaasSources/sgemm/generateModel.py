@@ -22,13 +22,13 @@ tileN = 16
 tileM = (tileN * tile_tb_height)
 
 # This has to match the DIM constant in gemm.cu
-sideLength = 128
+sideLength = 1024
 
 # Size of one element in bytes, e.g. float32=4
 elemSize = 4
 
 
-def generateLayer(namePrefix, inputName, outputLayer=False, inputLayer=False):
+def generateLayer(namePrefix, inputName, libraryPath, outputLayer=False, inputLayer=False):
     matSize = (sideLength**2) * elemSize
 
     aBuf = kaas.bufferSpec(inputName, matSize, ephemeral=(not inputLayer), const=False)
@@ -47,7 +47,7 @@ def generateLayer(namePrefix, inputName, outputLayer=False, inputLayer=False):
 
     # libraryName will be overwritten by the client when it loads
     # the model, as will the buffer keys
-    kern = kaas.kernelSpec(libraryName, mmKern,
+    kern = kaas.kernelSpec(libraryPath, mmKern,
                            gridDim, blockDim, sharedSize,
                            literals=[],
                            arguments=arguments)
@@ -55,18 +55,19 @@ def generateLayer(namePrefix, inputName, outputLayer=False, inputLayer=False):
     return (kern, outputName)
 
 
-def generateModel(depth):
+def generateModel(depth, libraryPath):
     layers = []
-    layer, previousOut = generateLayer("input", "inputA", outputLayer=False, inputLayer=True)
+    layer, previousOut = generateLayer("input", "inputA", libraryPath,
+                                       outputLayer=False, inputLayer=True)
     layers.append(layer)
 
     for i in range(depth - 2):
-        layer, previousOut = generateLayer("intermediate" + str(i), previousOut,
-                                           outputLayer=False,
-                                           inputLayer=False)
+        layer, previousOut = generateLayer("intermediate" + str(i), previousOut, libraryPath,
+                                           outputLayer=False, inputLayer=False)
         layers.append(layer)
 
-    layer, _ = generateLayer("output", previousOut, outputLayer=True, inputLayer=False)
+    layer, _ = generateLayer("output", previousOut, libraryPath,
+                             outputLayer=True, inputLayer=False)
     layers.append(layer)
 
     return kaas.kaasReq(layers)
@@ -115,6 +116,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    libraryPath = args.output / (args.name + ".cubin")
+
     if args.depth < 3:
         print("Depth must be >= 3")
         sys.exit(1)
@@ -122,7 +125,7 @@ if __name__ == "__main__":
     if not args.output.exists():
         args.output.mkdir(mode=0o700, parents=True)
 
-    req = generateModel(args.depth)
+    req = generateModel(args.depth, libraryPath)
     with open(args.output / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 
@@ -134,4 +137,4 @@ if __name__ == "__main__":
     with open(args.output / (args.name + "_params.pkl"), 'wb') as f:
         pickle.dump(consts, f)
 
-    generateCubin(args.output / (args.name + ".cubin"))
+    generateCubin(libraryPath)

@@ -60,9 +60,11 @@ def runKaas(model, kaasCtx, kaasHandle, constants, inputs, preOut):
         kaasNextId += 1
 
     runInp = util.packInputs(model.runMap, const=constants, inp=inputKeys, pre=preKeys)
-    req = model.run(runInp, outKeys=outKeys)
+    req, renameMap = model.run(runInp, outKeys=outKeys)
 
-    kaasHandle.Invoke(req.toDict())
+    req.reKey(renameMap)
+
+    kaasHandle.Invoke(req)
 
     outputs = []
     for name, key in outKeys:
@@ -97,18 +99,27 @@ def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None,
     return postOut
 
 
-def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
-    loader, models = _getHandlers(modelSpec)
-    stats = infbench.profCollection()
+def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
+    cold = benchConfig['forceCold']
 
-    loader.preLoad(list(range(min(n, loader.ndata))))
-    model = models[0]
-    constants = model.getConstants(modelSpec.modelPath.parent)
+    if not isinstance(reportPath, pathlib.Path):
+        reportPath = pathlib.Path(reportPath)
+
+    coldStats = infbench.profCollection()
+    warmStats = infbench.profCollection()
+
+    if infbench.getNGpu() != 1:
+        raise ValueError("Deep Profile should be run with only one GPU (try setting the CUDA_VISIBLE_DEVICES environment variable)")
+
+    loader = modelSpec.loader(modelSpec.dataDir)
+    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+    loader.preLoad([0])
+    inputs = loader.get(0)
 
     if modelSpec.modelType == "kaas":
         objStore = ff.kv.Local(copyObjs=False, serialize=False)
         kaasCtx = ff.invoke.RemoteCtx(None, objStore)
-        kaasHandle = kaas.kaasFF.getHandle('direct', kaasCtx, stats=stats)
+        kaasHandle = kaas.kaasFF.getHandle('direct', kaasCtx, stats=coldStats)
 
         global kaasNextId
         constKeys = []
@@ -121,8 +132,78 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         kaasHandle = None
         constKeys = None
 
+    # Cold Start
+    with infbench.cudaProfile(enable=cold):
+        if modelSpec.modelType == 'kaas':
+            model = modelSpec.getModelArg(constRefs=constKeys, backend='local')
+        else:
+            model = modelSpec.modelClass(modelSpec.getModelArg())
+
+        _runOne(model, constants, inputs, stats=coldStats, constKeys=constKeys,
+                kaasCtx=kaasCtx, kaasHandle=kaasHandle)
+
+    if modelSpec.modelType == "kaas":
+        kaasHandle.getStats()
+        kaasHandle.resetStats(newStats=warmStats)
+
+    # Warm Start
+    with infbench.timer("t_e2e", warmStats):
+        with infbench.cudaProfile(enable=not cold):
+            _runOne(model, constants, inputs, constKeys=constKeys,
+                    stats=warmStats, kaasCtx=kaasCtx, kaasHandle=kaasHandle)
+
+    if modelSpec.modelType == "kaas":
+        kaasHandle.getStats()
+
+    fullReport = {}
+    fullReport['config'] = benchConfig
+
+    fullReport['coldMetrics'] = coldStats.report()
+    fullReport['warmMetrics'] = warmStats.report()
+
+    print("Cold Stats: ")
+    util.analyzeStats(fullReport['coldMetrics'])
+
+    print("\nWarm Stats: ")
+    util.analyzeStats(fullReport['warmMetrics'])
+
+    if reportPath.exists():
+        reportPath.unlink()
+
+    print("Saving results to: ", reportPath)
+    with open(reportPath, 'w') as f:
+        json.dump(fullReport, f)
+
+
+def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
+    stats = infbench.profCollection()
+
+    loader = modelSpec.loader(modelSpec.dataDir)
+    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+
+    if modelSpec.modelType == "kaas":
+        objStore = ff.kv.Local(copyObjs=False, serialize=False)
+        kaasCtx = ff.invoke.RemoteCtx(None, objStore)
+        kaasHandle = kaas.kaasFF.getHandle('direct', kaasCtx, stats=stats)
+
+        global kaasNextId
+        constKeys = []
+        for const in constants:
+            kaasCtx.kv.put(kaasNextId, const)
+            constKeys.append(kaasNextId)
+            kaasNextId += 1
+
+        model = modelSpec.getModelArg(constRefs=constKeys, backend='local')
+    else:
+        kaasCtx = None
+        kaasHandle = None
+        constKeys = None
+        model = modelSpec.modelClass(modelSpec.getModelArg())
+
+    loader.preLoad(list(range(min(n, loader.ndata))))
+
     # Cold starts
-    for i in range(util.getNGpu()):
+    for i in range(infbench.getNGpu()):
         inputs = loader.get(0)
         _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
 
@@ -164,24 +245,24 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
 
-    if not isinstance(reportPath, pathlib.Path):
-        reportPath = pathlib.Path(reportPath).resolve()
-
-    print("Saving results to: ", reportPath)
-    if reportPath.exists():
-        with open(reportPath, 'r') as f:
-            fullReport = json.load(f)
-    else:
-        fullReport = []
-
-    record = {
-        "config": benchConfig,
-        "metrics": report
-    }
-    fullReport.append(record)
-
-    with open(reportPath, 'w') as f:
-        json.dump(fullReport, f)
+    # if not isinstance(reportPath, pathlib.Path):
+    #     reportPath = pathlib.Path(reportPath).resolve()
+    #
+    # print("Saving results to: ", reportPath)
+    # if reportPath.exists():
+    #     with open(reportPath, 'r') as f:
+    #         fullReport = json.load(f)
+    # else:
+    #     fullReport = []
+    #
+    # record = {
+    #     "config": benchConfig,
+    #     "metrics": report
+    # }
+    # fullReport.append(record)
+    #
+    # with open(reportPath, 'w') as f:
+    #     json.dump(fullReport, f)
 
     return results
 
@@ -237,7 +318,7 @@ class mlperfRunner():
 def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
-    gpuType = util.getGpuType()
+    gpuType = infbench.getGpuType()
 
     loader, models = _getHandlers(modelSpec)
     constants = models[0].getConstants(modelSpec.modelPath.parent)
