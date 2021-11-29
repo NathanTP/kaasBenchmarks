@@ -7,7 +7,7 @@ import numpy as np
 import ctypes as ct
 
 redDim = 2
-M = 10000
+M = 100
 N = 8000
 K = 10000
 alpha = 1
@@ -84,12 +84,6 @@ def createReq(M, N, K, alpha, beta):
 
 
 def runManual():
-    M = 10000
-    N = 8000
-    K = 10000
-    alpha = 1
-    beta = 1
-
     req = kaas.kaasReqDense.fromDict(createReq(M, N, K, alpha, beta).toDict())
 
     rng = np.random.default_rng()

@@ -113,6 +113,12 @@ class sgemmBase(model.Model):
 class sgemm(sgemmBase):
     def __init__(self, modelArgs):
         self.modelDir = modelArgs
+        self.initialized = False
+        self.dbufA = None
+        self.dbufB = None
+        self.dbufD = None
+        self.dbufC = None
+        self.dbufE = None
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
@@ -136,24 +142,31 @@ class sgemm(sgemmBase):
         dSz = N*redDim*4
         eSz = M*redDim*4
 
-        a_d = cuda.mem_alloc(aSz)
-        cuda.memcpy_htod(a_d, a)
+        if self.dbufA is None:
+            self.dbufA = cuda.mem_alloc(aSz)
+            self.dbufB = cuda.mem_alloc(bSz)
+            self.dbufC = cuda.mem_alloc(cSz)
+            self.dbufD = cuda.mem_alloc(dSz)
+            self.dbufE = cuda.mem_alloc(eSz)
 
-        b_d = cuda.mem_alloc(bSz)
-        cuda.memcpy_htod(b_d, b)
+        if not self.initialized:
+            cuda.memcpy_htod(self.dbufB, b)
+            cuda.memcpy_htod(self.dbufD, d)
+            self.initialized = True
 
-        c_d = cuda.mem_alloc(cSz)
-        cuda.memset_d8(c_d, 0, cSz)
+        cuda.memcpy_htod(self.dbufA, a)
+        cuda.memset_d8(self.dbufC, 0, cSz)
+        cuda.memset_d8(self.dbufE, 0, eSz)
 
         cfg = getDims(M, N, K).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         params = getArg(M, N, K, alpha,
-                        ct.cast(int(a_d), ct.POINTER(ct.c_float)), lda,
-                        ct.cast(int(b_d), ct.POINTER(ct.c_float)), ldb,
+                        ct.cast(int(self.dbufA), ct.POINTER(ct.c_float)), lda,
+                        ct.cast(int(self.dbufB), ct.POINTER(ct.c_float)), ldb,
                         beta,
-                        ct.cast(int(c_d), ct.POINTER(ct.c_float)), ldc)
+                        ct.cast(int(self.dbufC), ct.POINTER(ct.c_float)), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
@@ -161,29 +174,23 @@ class sgemm(sgemmBase):
         ldb = N
         ldc = M
 
-        d_d = cuda.mem_alloc(dSz)
-        cuda.memcpy_htod(d_d, d)
-
-        e_d = cuda.mem_alloc(eSz)
-        cuda.memset_d8(e_d, 0, eSz)
-
         cfg = getDims(M, redDim, N).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         smem = cfg.smem_size
         params = getArg(M, redDim, N, alpha,
-                        ct.cast(int(c_d), ct.POINTER(ct.c_float)), lda,
-                        ct.cast(int(d_d), ct.POINTER(ct.c_float)), ldb,
+                        ct.cast(int(self.dbufC), ct.POINTER(ct.c_float)), lda,
+                        ct.cast(int(self.dbufD), ct.POINTER(ct.c_float)), ldb,
                         beta,
-                        ct.cast(int(e_d), ct.POINTER(ct.c_float)), ldc)
+                        ct.cast(int(self.dbufE), ct.POINTER(ct.c_float)), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
 
         e = bytearray(eSz)
-        cuda.memcpy_dtoh(e, e_d)
+        cuda.memcpy_dtoh(e, self.dbufE)
 
         return e
 
