@@ -5,7 +5,7 @@ import shutil
 import datetime
 import subprocess as sp
 
-nIter = 2
+nIter = 10
 
 
 nvCmd = ['nvprof', '-f', '--log-file', 'results.csv', '--profile-from-start', 'off', '--csv']

@@ -247,6 +247,9 @@ def loadNvProf(resPath):
 
     # us -> ms
     for i, t in enumerate(types):
+        if t not in ['us', 'ms', '%', '', '\n']:
+            print("Unrecognized type: ", repr(t))
+
         if t == 'us':
             df.iloc[:, i] /= 1000
 
