@@ -142,6 +142,7 @@ def getKaasModel(name, force=False):
 
 def getResnet50(force=False):
     resnetDir = modelDir / 'resnet50'
+    tvmLibPath = resnetDir / 'resnet50.so'
     if not resnetDir.exists():
         resnetDir.mkdir()
 
