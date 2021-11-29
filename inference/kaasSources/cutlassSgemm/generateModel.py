@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 import yaml
 import pathlib
-from cutlassSgemm import createReq
+# from cutlassSgemm import createReq
+import cutlassSgemm as model
 import argparse
 import subprocess as sp
 import numpy as np
 import pickle
+import shutil
 
-cwd = pathlib.Path(__file__).parent.resolve()
-modelDir = cwd / ".." / ".." / "models"
+sourceDir = pathlib.Path(__file__).parent.resolve()
+modelDir = (sourceDir / ".." / ".." / "models").resolve()
 cutlassDir = modelDir / "cutlassSgemm"
 
 
@@ -29,23 +31,18 @@ if __name__ == "__main__":
     if not targetDir.exists():
         targetDir.mkdir()
 
-    sp.run(['make'], cwd=cwd, check=True)
-
-    M = 100
-    N = 8000
-    K = 10000
-    alpha = 1
-    beta = 1
+    print("Making in: ", sourceDir)
+    sp.run(['make'], cwd=sourceDir, check=True)
+    print(f"Copying from: {sourceDir} to {modelDir}")
+    shutil.copy(sourceDir / 'cutlassAdapters.so', cutlassDir / 'cutlassAdapters.so')
+    shutil.copy(sourceDir / 'cutlass.cubin', cutlassDir / 'cutlass.cubin')
 
     rng = np.random.default_rng(0)
-    a = rng.random((M, K), dtype=np.float32)
-    b = rng.random((K, N), dtype=np.float32)
-    c = np.zeros(shape=(M, N), dtype=np.float32)
-    d = rng.random((N, 1), dtype=np.float32)
-    e = np.zeros(shape=(M, 1), dtype=np.float32)
+    b = rng.random((model.K, model.N), dtype=np.float32)
+    d = rng.random((model.N, model.redDim), dtype=np.float32)
 
-    req = createReq(M, N, K, alpha, beta, a, b, c, d, e)
-    meta_data = getMeta(M, N, K)
+    req = model.createReq(model.M, model.N, model.K, model.alpha, model.beta)
+    meta_data = getMeta(model.M, model.N, model.K)
     with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)
 

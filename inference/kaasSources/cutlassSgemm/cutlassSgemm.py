@@ -7,6 +7,11 @@ import numpy as np
 import ctypes as ct
 
 redDim = 2
+M = 10000
+N = 8000
+K = 10000
+alpha = 1
+beta = 1
 
 
 class kernelConfig(ct.Structure):

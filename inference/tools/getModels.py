@@ -291,5 +291,7 @@ def main():
     # print("\nGetting SSD-Mobilenet")
     # getSsdMobilenet()
 
+print("\nGetting cutlassSgemm")
+getCutlassSgemm(force=True)
 
-main()
+# main()

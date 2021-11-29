@@ -62,7 +62,7 @@ M = 100
 N = 8000
 K = 10000
 alpha = 1
-beta = 0
+beta = 1
 
 
 class sgemmBase(model.Model):
