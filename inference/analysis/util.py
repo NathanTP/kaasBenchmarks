@@ -218,6 +218,7 @@ def loadMicroNative(builtinMetrics, nvMetrics):
     metrics['t_cuda_copy'] += nvTimes.get('cudaMemcpy', 0.0)
 
     metrics['t_data_layer'] = builtinMetrics['t_loadInput']
+
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
     metrics['t_e2e'] = builtinMetrics['t_run']
 
@@ -311,7 +312,7 @@ def loadMicroSuiteNative(resDir):
 
     builtinColds = []
     builtinWarms = []
-    for resPath in (resDir / "actInline").glob("*.json"):
+    for resPath in (resDir / "actPipe").glob("*.json"):
         with open(resPath, 'r') as f:
             actPipeNative = json.load(f)
 

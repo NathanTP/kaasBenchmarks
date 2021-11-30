@@ -17,7 +17,7 @@ actNvColdCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '--fo
 actNvWarmCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '-m', model + "Tvm"]
 actPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Tvm"]
 actInlineCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Tvm", '--inline']
-kaasPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Kaas"]
+kaasPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'balance', '-m', model + "Kaas"]
 
 
 def runTest(cmd, niter, resDir, cmdOutPath, environ):
@@ -48,8 +48,8 @@ def main():
     print("Running Actor Pipelined")
     runTest(actPipeCmd, nIter, suiteOutDir / "actPipe", pathlib.Path("./results.json"), environ)
 
-    print("Running Actor Inlined")
-    runTest(actInlineCmd, nIter, suiteOutDir / "actInline", pathlib.Path("./results.json"), environ)
+    # print("Running Actor Inlined")
+    # runTest(actInlineCmd, nIter, suiteOutDir / "actInline", pathlib.Path("./results.json"), environ)
 
     print("Running KaaS")
     runTest(kaasPipeCmd, nIter, suiteOutDir / "kaas", pathlib.Path("./results.json"), environ)
