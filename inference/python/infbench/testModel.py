@@ -43,7 +43,7 @@ class testModel():
     def pre(data):
         result = np.frombuffer(data[0], dtype=np.float32) + 1
         time.sleep(preTime / 1000)
-        return (result.data.cast('B'),)
+        return (result,)
 
     @staticmethod
     def post(data):
@@ -53,7 +53,7 @@ class testModel():
 
         time.sleep(postTime / 1000)
 
-        return (result.data.cast('B'),)
+        return (result,)
 
     @staticmethod
     def getPerfEstimates(gpuType, benchConfig):
@@ -121,23 +121,24 @@ class testModelNative(testModel, model.Model):
     def run(self, data, stats=None):
         constants = data[:self.nConst]
         hInp = data[self.nConst]
+        inpSize = hInp.nbytes
 
         if self.dConsts is None:
             self.dConsts = []
             for hConst in constants:
-                dConst = cuda.mem_alloc(len(hConst))
+                dConst = cuda.mem_alloc(inpSize)
                 cuda.memcpy_htod(dConst, hConst)
                 self.dConsts.append(dConst)
 
         if self.dIOs is None:
             self.dIOs = []
-            self.dIOs.append(cuda.mem_alloc(len(hInp)))
+            self.dIOs.append(cuda.mem_alloc(inpSize))
 
             for i in range(depth):
-                self.dIOs.append(cuda.mem_alloc(len(hInp)))
+                self.dIOs.append(cuda.mem_alloc(inpSize))
 
         for i in range(1, depth + 1):
-            cuda.memset_d8(self.dIOs[i], 0, len(hInp))
+            cuda.memset_d8(self.dIOs[i], 0, inpSize)
 
         cuda.memcpy_htod(self.dIOs[0], hInp)
 
@@ -146,7 +147,7 @@ class testModelNative(testModel, model.Model):
                                     self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)
 
-        hRes = bytearray(len(hInp))
+        hRes = bytearray(inpSize)
         cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
         return (hRes,)
@@ -186,7 +187,9 @@ class testLoader(dataset.loader):
         return [self.data[idx].data.cast('B')]
 
     def check(self, result, idx):
-        result = np.frombuffer(result[0], dtype=np.float32)
+        result = result[0]
+        if isinstance(result, bytes):
+            result = np.frombuffer(result, dtype=np.float32)
         result.shape = (matSize, matSize)
 
         expect = np.frombuffer(self.data[idx], dtype=np.float32)
