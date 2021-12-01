@@ -41,7 +41,12 @@ class testModel():
 
     @staticmethod
     def pre(data):
-        result = np.frombuffer(data[0], dtype=np.float32) + 1
+        result = data[0]
+        if isinstance(result, bytes):
+            result = np.frombuffer(result, dtype=np.float32)
+        result.shape = (matSize, matSize)
+
+        result = result + 1
         time.sleep(preTime / 1000)
         return (result,)
 
@@ -147,7 +152,7 @@ class testModelNative(testModel, model.Model):
                                     self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)
 
-        hRes = bytearray(inpSize)
+        hRes = np.empty(inpSize, dtype=np.int8)
         cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
         return (hRes,)
@@ -184,7 +189,7 @@ class testLoader(dataset.loader):
             del self.data[i]
 
     def get(self, idx):
-        return [self.data[idx].data.cast('B')]
+        return [self.data[idx]]
 
     def check(self, result, idx):
         result = result[0]
