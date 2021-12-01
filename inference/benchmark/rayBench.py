@@ -251,6 +251,11 @@ class runActor():
         # runTask but is ignored here.
         if clientID in self.modelCache:
             model, consts = self.modelCache[clientID]
+
+            if model.runMap.const is None:
+                nConst = 0
+            else:
+                nConst = len(model.runMap.const)
         else:
             with infbench.timer("t_model_init", self.stats[clientID]):
                 with infbench.timer('t_loadInput', self.stats[clientID], final=False):
@@ -259,13 +264,18 @@ class runActor():
 
                 model = modelSpec.modelClass(modelArg)
 
-                with infbench.timer('t_loadInput', self.stats[clientID], final=False):
-                    consts = ray.get(inputRefs[:modelSpec.modelClass.nConst])
+            if modelSpec.modelClass.runMap.const is None:
+                nConst = 0
+            else:
+                nConst = len(modelSpec.modelClass.runMap.const)
 
-                self.modelCache[clientID] = (model, consts)
+            with infbench.timer('t_loadInput', self.stats[clientID], final=False):
+                consts = ray.get(inputRefs[:nConst])
+
+            self.modelCache[clientID] = (model, consts)
 
         with infbench.timer('t_loadInput', self.stats[clientID]):
-            inputs = ray.get(inputRefs[model.nConst:])
+            inputs = ray.get(inputRefs[nConst:])
 
         result = _run(model, consts + inputs, completionQ, queryId, stats=self.stats[clientID])
 
@@ -565,11 +575,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     coldReport = coldStats.report(includeEvents=False)
     warmReport = warmStats.report(includeEvents=False)
 
-    print("Warm Results: ")
-    infbench.printReport(warmReport, metrics=['mean'])
-
-    print("Cold Results: ")
-    infbench.printReport(coldReport, metrics=['mean'])
+    # print("Warm Results: ")
+    # infbench.printReport(warmReport, metrics=['mean'])
+    #
+    # print("Cold Results: ")
+    # infbench.printReport(coldReport, metrics=['mean'])
 
     print("Saving results to ", reportPath)
     infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
