@@ -18,6 +18,7 @@ import libff.kaas.kaasRay as kaasRay
 
 import util
 
+
 # There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
 # a bit slower for unknown reasons, but it's easier to implement policies so
 # we're sticking with it for now
@@ -183,8 +184,11 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
     # The router actor wraps data in an additional reference
     data = maybeDereference(rawData)
 
-    if modelSpec.modelType == 'kaas':
-        data = maybeDereference(data)
+    # Some outputs get stored explicitly into the plasma store rather than
+    # passed directly. This might cause performance issues depending on if/when
+    # we hit weird ray performance issues (it doesn't like reading/writing
+    # certain data types).
+    data = maybeDereference(data)
 
     results = modelSpec.modelClass.post(constants + list(data))
 
@@ -279,7 +283,14 @@ class runActor():
 
         result = _run(model, consts + inputs, completionQ, queryId, stats=self.stats[clientID])
 
-        return result
+        with infbench.timer('t_writeOutput', self.stats[clientID]):
+            if isinstance(result, list):
+                resRefs = [ray.put(res) for res in result]
+            else:
+                resRefs = ray.put(result)
+        return resRefs
+
+        # return result
 
     def runInline(self, modelInfo, constRefs, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
@@ -575,8 +586,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     coldReport = coldStats.report(includeEvents=False)
     warmReport = warmStats.report(includeEvents=False)
 
-    # print("Warm Results: ")
-    # infbench.printReport(warmReport, metrics=['mean'])
+    print("Warm Results: ")
+    infbench.printReport(warmReport, metrics=['mean'])
     #
     # print("Cold Results: ")
     # infbench.printReport(coldReport, metrics=['mean'])
@@ -1156,7 +1167,11 @@ def serveRequests(benchConfig):
 
     print("Reporting server stats:")
     for cID, stats in looper.warmStats.items():
-        strCID = cID.decode("utf-8")
+        if cID is None:
+            strCID = "None"
+        else:
+            strCID = cID.decode("utf-8")
+
         resPath = f"server_stats_{strCID}.json"
         print(f"Saving client {strCID} report to {resPath}")
         infbench.saveReport(stats.report(), None, benchConfig, resPath)
