@@ -1141,7 +1141,11 @@ def serveRequests(benchConfig):
 
     print("Reporting server stats:")
     for cID, stats in looper.warmStats.items():
-        strCID = cID.decode("utf-8")
+        if cID is None:
+            strCID = "None"
+        else:
+            strCID = cID.decode("utf-8")
+
         resPath = f"server_stats_{strCID}.json"
         print(f"Saving client {strCID} report to {resPath}")
         infbench.saveReport(stats.report(), None, benchConfig, resPath)
