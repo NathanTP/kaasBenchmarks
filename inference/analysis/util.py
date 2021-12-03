@@ -218,6 +218,7 @@ def loadMicroNative(builtinMetrics, nvMetrics):
     metrics['t_cuda_copy'] += nvTimes.get('cudaMemcpy', 0.0)
 
     metrics['t_data_layer'] = builtinMetrics['t_loadInput']
+    metrics['t_data_layer'] += builtinMetrics['t_writeOutput']
 
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
     metrics['t_e2e'] = builtinMetrics['t_run']
@@ -232,10 +233,13 @@ def loadMicroKaas(builtinMetrics):
     metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
     metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
     metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
+
     metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
     metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
+
     metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
     metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
+    metrics['t_data_layer'] += builtinMetrics['kaas:t_load_request']
 
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
     metrics['t_e2e'] = builtinMetrics['t_run']

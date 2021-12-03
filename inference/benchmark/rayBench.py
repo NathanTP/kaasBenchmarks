@@ -409,15 +409,15 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if modelSpec.modelType == "kaas":
             model = modelArg
             with infbench.timer('t_kaas_generate_req', stats):
-                req = ray.put(model.run(runInp, stats=stats))
+                reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [(reqRef,)],
                            {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [(reqRef,)],
                            {"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
@@ -588,9 +588,9 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     print("Warm Results: ")
     infbench.printReport(warmReport, metrics=['mean'])
-    #
-    # print("Cold Results: ")
-    # infbench.printReport(coldReport, metrics=['mean'])
+
+    print("Cold Results: ")
+    infbench.printReport(coldReport, metrics=['mean'])
 
     print("Saving results to ", reportPath)
     infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
