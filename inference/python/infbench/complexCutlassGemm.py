@@ -68,6 +68,7 @@ class kernelConfig(ct.Structure):
 M = 100
 N = 25000
 K = 10000
+redDim = 1
 alpha = 1
 beta = 0
 
@@ -93,10 +94,10 @@ class sgemmBase(model.Model):
     @staticmethod
     def getConstants(modelDir):
         rng = np.random.default_rng(0)
-        b = rng.random((K, N), dtype=np.float32) + rng.random((K, N), dtype=np.float32) * (1j)
-        d = rng.random((N, 1), dtype=np.float32) + rng.random((N, 1), dtype=np.float32) * (1j)
+        b = np.asfortranarray(rng.random((K, N), dtype=np.float32)) + np.asfortranarray(rng.random((K, N), dtype=np.float32) * (1j))
+        d = np.asfortranarray(rng.random((N, redDim), dtype=np.float32)) + np.asfortranarray(rng.random((N, redDim), dtype=np.float32) * (1j))
 
-        return [b, d]
+        return [b.ravel(order='K').data, d.ravel(order='K').data]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -137,16 +138,22 @@ class sgemm(sgemmBase):
         a = dat[2]
         b = dat[0]
         d = dat[1]
+        aSz = M*K*8
+        bSz = K*N*8
+        cSz = M*N*8
+        dSz = N*redDim*8
+        eSz = M*redDim*8
+
 
         c = np.zeros(shape=(M, N), dtype=np.float32) + np.zeros(shape=(M, N), dtype=np.float32) * (1j)
 
-        a_d = cuda.mem_alloc(a.nbytes)
+        a_d = cuda.mem_alloc(aSz)
         cuda.memcpy_htod(a_d, a)
 
-        b_d = cuda.mem_alloc(b.nbytes)
+        b_d = cuda.mem_alloc(bSz)
         cuda.memcpy_htod(b_d, b)
 
-        c_d = cuda.mem_alloc(c.nbytes)
+        c_d = cuda.mem_alloc(cSz)
         cuda.memset_d8(c_d, 0, c.nbytes)
 
         cfg = getDims(M, N, K).contents
@@ -161,17 +168,26 @@ class sgemm(sgemmBase):
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
+        cuda.Context.synchronize()
+        cuda.memcpy_dtoh(c, c_d)
+        print(c)
+        #b_m = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
+
+        #print(np.matmul(a, b_m))
+
+
+
         lda = M
         ldb = N
-        ldc = 1
+        ldc = M
 
         d = dat[1]
         e = np.zeros(shape=(M, 1), dtype=np.float32) + np.zeros(shape=(M, 1), dtype=np.float32) * (1j)
 
-        d_d = cuda.mem_alloc(d.nbytes)
+        d_d = cuda.mem_alloc(dSz)
         cuda.memcpy_htod(d_d, d)
 
-        e_d = cuda.mem_alloc(e.nbytes)
+        e_d = cuda.mem_alloc(eSz)
         cuda.memset_d8(e_d, 0, e.nbytes)
 
         cfg = getDims(M, 1, N).contents
@@ -188,13 +204,23 @@ class sgemm(sgemmBase):
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
+        
+        e = bytearray(eSz)
+
         cuda.memcpy_dtoh(e, e_d)
 
         return e
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
-    pass
+    @staticmethod
+    def getConstants(modelDir):
+        """Default constant loader assumes the kaasModel simply pickled their
+        constants and we can load them directly."""
+        baseName = modelDir.stem
+        #with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
+        constants = sgemmBase.getConstants(None)
+        return constants
 
 
 class cutlassSgemmLoader(dataset.loader):
@@ -209,20 +235,26 @@ class cutlassSgemmLoader(dataset.loader):
 
     def preLoad(self, idxs):
         rng = np.random.default_rng(0)
-        a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
+        #a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
+        aTile = np.arange(1, 101, dtype=np.float32) / 100
+        a = np.asfortranarray(np.tile(aTile, (M, int(K / 100)))) + np.asfortranarray(np.tile(aTile * 1j, (M, int(K / 100))))
         self.a = a
 
     def unLoad(self, idxs):
         self.a = None
 
     def get(self, idx):
-        return [self.a]
+        return [self.a.ravel(order='K').data]
 
     def check(self, result, idx):
-        actual = np.asfortranarray(np.array(result).view('<c8'))
-        actual = actual.reshape(M, 1, order='F')
+        actual = np.ndarray(shape=(M, redDim), buffer=result[0], order='F', dtype=np.csingle)
+        #actual = np.asfortranarray(np.array(result).view('<c8'))
+        #actual = actual.reshape(M, 1, order='F')
         consts = sgemmBase.getConstants(None)
-        b = consts[0]
-        d = consts[1]
-        expected = np.matmul(np.matmul(self.a, b), d)
+        b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
+        d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
+        expected = np.matmul(self.a, b)
+        #expected = np.matmul(np.matmul(self.a, b), d)
+        #print(actual)
+        print(expected)
         return np.allclose(actual, expected, rtol=0.5)
