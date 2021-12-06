@@ -1,8 +1,10 @@
 from . import model
 from . import dataset
+from . import util
 import numpy as np
 import ctypes as ct
 import pycuda.driver as cuda
+import pycuda.tools
 
 
 def loadAdapter(modelDir):
@@ -120,12 +122,17 @@ class sgemm(sgemmBase):
         self.dbufC = None
         self.dbufE = None
 
+        cuda.init()
+        self.cudaCtx = pycuda.tools.make_default_context()
+        util.cudaProfilerResetCtx()
+
+    def __del__(self):
+        self.cudaCtx.detach()
+
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
-        import pycuda.autoinit  # NOQA
-
         lda = M
         ldb = K
         ldc = M

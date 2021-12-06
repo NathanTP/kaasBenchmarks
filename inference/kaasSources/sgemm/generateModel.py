@@ -104,7 +104,8 @@ def generateConstants(depth):
     for i in range(depth):
         const = np.zeros((sideLength, sideLength), dtype=np.float32)
         np.fill_diagonal(const, i+1)
-        consts.append(const.tobytes())
+        consts.append(const)
+
     return consts
 
 

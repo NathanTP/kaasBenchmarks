@@ -18,6 +18,7 @@ import libff.kaas.kaasRay as kaasRay
 
 import util
 
+
 # There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
 # a bit slower for unknown reasons, but it's easier to implement policies so
 # we're sticking with it for now
@@ -183,8 +184,11 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
     # The router actor wraps data in an additional reference
     data = maybeDereference(rawData)
 
-    if modelSpec.modelType == 'kaas':
-        data = maybeDereference(data)
+    # Some outputs get stored explicitly into the plasma store rather than
+    # passed directly. This might cause performance issues depending on if/when
+    # we hit weird ray performance issues (it doesn't like reading/writing
+    # certain data types).
+    data = maybeDereference(data)
 
     results = modelSpec.modelClass.post(constants + list(data))
 
@@ -250,21 +254,43 @@ class runActor():
         # kill and restart the actor. cacheModel is kept for consistency with
         # runTask but is ignored here.
         if clientID in self.modelCache:
-            model = self.modelCache[clientID]
+            model, consts = self.modelCache[clientID]
+
+            if model.runMap.const is None:
+                nConst = 0
+            else:
+                nConst = len(model.runMap.const)
         else:
             with infbench.timer("t_model_init", self.stats[clientID]):
                 with infbench.timer('t_loadInput', self.stats[clientID], final=False):
                     modelSpec = ray.get(modelInfo[0])
                     modelArg = ray.get(modelInfo[1])
+
                 model = modelSpec.modelClass(modelArg)
-                self.modelCache[clientID] = model
+
+            if modelSpec.modelClass.runMap.const is None:
+                nConst = 0
+            else:
+                nConst = len(modelSpec.modelClass.runMap.const)
+
+            with infbench.timer('t_loadInput', self.stats[clientID], final=False):
+                consts = ray.get(inputRefs[:nConst])
+
+            self.modelCache[clientID] = (model, consts)
 
         with infbench.timer('t_loadInput', self.stats[clientID]):
-            inputs = ray.get(inputRefs)
+            inputs = ray.get(inputRefs[nConst:])
 
-        result = _run(model, inputs, completionQ, queryId, stats=self.stats[clientID])
+        result = _run(model, consts + inputs, completionQ, queryId, stats=self.stats[clientID])
 
-        return result
+        with infbench.timer('t_writeOutput', self.stats[clientID]):
+            if isinstance(result, list):
+                resRefs = [ray.put(res) for res in result]
+            else:
+                resRefs = ray.put(result)
+        return resRefs
+
+        # return result
 
     def runInline(self, modelInfo, constRefs, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
@@ -383,15 +409,15 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if modelSpec.modelType == "kaas":
             model = modelArg
             with infbench.timer('t_kaas_generate_req', stats):
-                req = ray.put(model.run(runInp, stats=stats))
+                reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [(reqRef,)],
                            {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [req],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [(reqRef,)],
                            {"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:

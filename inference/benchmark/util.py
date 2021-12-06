@@ -88,7 +88,7 @@ def getModelSpec(modelName):
                          modelClass=infbench.cutlassSgemm.sgemmKaas,
                          modelType="kaas")
 
-    elif modelName == "cutlassSgemm":
+    elif modelName == "cutlassSgemmTvm":
         import infbench.cutlassSgemm
         return ModelSpec(name="cutlassSgemm",
                          loader=infbench.cutlassSgemm.cutlassSgemmLoader,
