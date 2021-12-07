@@ -38,7 +38,16 @@ class ModelSpec():
 # bigger impact than others.
 def getModelSpec(modelName):
     # You must run tools/getModels.py first to get these .so's
-    if modelName == "testModelKaas":
+    if modelName == "dummyModelKaas":
+        import infbench.dummyModel
+        return ModelSpec(name="dummyModelKaas",
+                         loader=infbench.dummyModel.dummyLoader,
+                         dataDir=modelDir / "dummy",
+                         modelPath=modelDir / "dummy" / "dummy_model.yaml",
+                         modelClass=infbench.dummyModel.dummyModelKaas,
+                         modelType="kaas")
+
+    elif modelName == "testModelKaas":
         import infbench.testModel
         return ModelSpec(name="testModelKaas",
                          loader=infbench.testModel.testLoader,
