@@ -464,11 +464,10 @@ def warmKaas(pool):
     loader = modelSpec.loader(modelSpec.dataDir)
     loader.preLoad(0)
 
-    inpRef = ray.put(loader.get(0))
+    inpRefs = [ray.put(val) for val in loader.get(0)]
+    res = ray.get(_runOne(modelSpec, specRef, modelArg, [], inpRefs, runPool=pool))
 
-    res = ray.get(_runOne(modelSpec, specRef, modelArg, [], [inpRef], runPool=pool))
-
-    loader.check(0, res)
+    assert loader.check(res, 0)
 
 
 def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):

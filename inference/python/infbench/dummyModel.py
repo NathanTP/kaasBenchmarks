@@ -60,7 +60,13 @@ class dummyLoader(dataset.loader):
         pass
 
     def get(self, idx):
-        return bytes([1]*1024)
+        return (bytes([1]*1024),)
 
     def check(self, result, idx):
-        return (result == [1]*1024)
+        if len(result[0]) != 1024:
+            return False
+
+        for b in result[0]:
+            if b != 1:
+                return False
+        return True
