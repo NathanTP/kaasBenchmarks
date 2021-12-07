@@ -457,6 +457,20 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
     return postOut
 
 
+def warmKaas(pool):
+    modelSpec = util.getModelSpec("dummyModelKaas")
+    specRef = ray.put(modelSpec)
+    modelArg = modelSpec.getModelArg()
+    loader = modelSpec.loader(modelSpec.dataDir)
+    loader.preLoad(0)
+
+    inpRef = ray.put(loader.get(0))
+
+    res = ray.get(_runOne(modelSpec, specRef, modelArg, [], [inpRef], runPool=pool))
+
+    loader.check(0, res)
+
+
 def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     refs = []
     for i in range(n):
@@ -554,6 +568,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         pool = policy.Pool.remote(nGpu, benchConfig['policy'], runActor)
 
     ray.get(pool.ensureReady.remote())
+    if modelSpec.modelType == 'kaas':
+        warmKaas(pool)
 
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
@@ -575,12 +591,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     warmPoolStats = ray.get(pool.getStats.remote())
 
-    if loader.checkAvailable:
-        accuracies = [loader.check(res, idx) for idx, res in results]
-        print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
-    else:
-        print("Accuracy checking not supported by this dataset")
-
     warmStats.merge(warmPoolStats[None])
 
     coldReport = coldStats.report(includeEvents=False)
@@ -594,6 +604,12 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     print("Saving results to ", reportPath)
     infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
+
+    if loader.checkAvailable:
+        accuracies = [loader.check(res, idx) for idx, res in results]
+        print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
+    else:
+        print("Accuracy checking not supported by this dataset")
 
     return results
 
