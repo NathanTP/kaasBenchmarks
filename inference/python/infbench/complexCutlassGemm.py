@@ -145,7 +145,7 @@ class sgemm(sgemmBase):
         eSz = M*redDim*8
 
 
-        c = np.zeros(shape=(M, N), dtype=np.float32) + np.zeros(shape=(M, N), dtype=np.float32) * (1j)
+        c = np.zeros(shape=(M, N), dtype=np.float32, order='F') + np.zeros(shape=(M, N), order='F', dtype=np.float32) * (1j)
 
         a_d = cuda.mem_alloc(aSz)
         cuda.memcpy_htod(a_d, a)
@@ -170,11 +170,16 @@ class sgemm(sgemmBase):
 
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(c, c_d)
-        print(c)
-        #b_m = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
+        #print(c)
+        
+        a_m = np.ndarray(shape=(M, K), buffer=a, order='F', dtype=np.csingle)
+        b_m = np.ndarray(shape=(K, N), buffer=b, order='F', dtype=np.csingle)
 
-        #print(np.matmul(a, b_m))
+        c_m = np.matmul(a_m, b_m)
 
+
+        d_m = np.ndarray(shape=(N, redDim), buffer=d, order='F', dtype=np.csingle)
+        e_m = np.matmul(c_m, d_m)
 
 
         lda = M
@@ -182,7 +187,8 @@ class sgemm(sgemmBase):
         ldc = M
 
         d = dat[1]
-        e = np.zeros(shape=(M, 1), dtype=np.float32) + np.zeros(shape=(M, 1), dtype=np.float32) * (1j)
+        #e = np.zeros(shape=(M, 1), order='F', dtype=np.float32) + np.zeros(shape=(M, 1), order='F', dtype=np.float32) * (1j)
+        e = np.zeros(shape=(M, 1), order='F', dtype=np.csingle)
 
         d_d = cuda.mem_alloc(dSz)
         cuda.memcpy_htod(d_d, d)
@@ -195,7 +201,7 @@ class sgemm(sgemmBase):
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         smem = cfg.smem_size
-        params = getArg(M, 1, K, alpha,
+        params = getArg(M, 1, N, alpha,
                         ct.cast(int(c_d), c_complex_p), lda,
                         ct.cast(int(d_d), c_complex_p), ldb,
                         beta,
@@ -205,9 +211,16 @@ class sgemm(sgemmBase):
 
         cuda.Context.synchronize()
         
-        e = bytearray(eSz)
+        #e = bytearray(eSz)
 
         cuda.memcpy_dtoh(e, e_d)
+
+
+        #print(np.allclose(c, c_m, rtol=0.05))
+        #print(e) 
+        #print(e_m)
+        #print(np.matmul(c, d_m))
+
 
         return e
 
@@ -253,8 +266,8 @@ class cutlassSgemmLoader(dataset.loader):
         consts = sgemmBase.getConstants(None)
         b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
         d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
-        expected = np.matmul(self.a, b)
-        #expected = np.matmul(np.matmul(self.a, b), d)
-        #print(actual)
+        #expected = np.matmul(self.a, b)
+        expected = np.matmul(np.matmul(self.a, b), d)
+        print(actual)
         print(expected)
         return np.allclose(actual, expected, rtol=0.5)
