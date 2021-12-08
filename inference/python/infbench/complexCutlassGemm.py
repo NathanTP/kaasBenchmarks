@@ -188,7 +188,7 @@ class sgemm(sgemmBase):
 
         d = dat[1]
         #e = np.zeros(shape=(M, 1), order='F', dtype=np.float32) + np.zeros(shape=(M, 1), order='F', dtype=np.float32) * (1j)
-        e = np.zeros(shape=(M, 1), order='F', dtype=np.csingle)
+        e = np.zeros(shape=(M, redDim), order='F', dtype=np.csingle)
 
         d_d = cuda.mem_alloc(dSz)
         cuda.memcpy_htod(d_d, d)

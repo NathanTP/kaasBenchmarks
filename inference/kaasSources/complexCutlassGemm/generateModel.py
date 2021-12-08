@@ -31,10 +31,10 @@ if __name__ == "__main__":
     sp.run(['make'], cwd=cwd, check=True)
 
     M = 100
-    N = 8000
+    N = 25000
     K = 10000
     alpha = 1
-    beta = 1
+    beta = 0
 
     rng = np.random.default_rng(0)
     a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
