@@ -94,8 +94,8 @@ class sgemmBase(model.Model):
     @staticmethod
     def getConstants(modelDir):
         rng = np.random.default_rng(0)
-        b = np.asfortranarray(rng.random((K, N), dtype=np.float32)) + np.asfortranarray(rng.random((K, N), dtype=np.float32) * (1j))
-        d = np.asfortranarray(rng.random((N, redDim), dtype=np.float32)) + np.asfortranarray(rng.random((N, redDim), dtype=np.float32) * (1j))
+        b = np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32)) + np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32) * (1j))
+        d = np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32)) + np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32) * (1j))
 
         return [b.ravel(order='K').data, d.ravel(order='K').data]
 
@@ -171,7 +171,7 @@ class sgemm(sgemmBase):
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(c, c_d)
         #print(c)
-        
+
         a_m = np.ndarray(shape=(M, K), buffer=a, order='F', dtype=np.csingle)
         b_m = np.ndarray(shape=(K, N), buffer=b, order='F', dtype=np.csingle)
 
@@ -210,14 +210,14 @@ class sgemm(sgemmBase):
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
-        
+
         #e = bytearray(eSz)
 
         cuda.memcpy_dtoh(e, e_d)
 
 
         #print(np.allclose(c, c_m, rtol=0.05))
-        #print(e) 
+        #print(e)
         #print(e_m)
         #print(np.matmul(c, d_m))
 
@@ -247,10 +247,8 @@ class cutlassSgemmLoader(dataset.loader):
         return 1
 
     def preLoad(self, idxs):
-        rng = np.random.default_rng(0)
-        #a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
-        aTile = np.arange(1, 101, dtype=np.float32) / 100
-        a = np.asfortranarray(np.tile(aTile, (M, int(K / 100)))) + np.asfortranarray(np.tile(aTile * 1j, (M, int(K / 100))))
+        rng = np.random.default_rng(1)
+        a = np.asfortranarray(rng.standard_normal((M, K), dtype=np.float32)) + np.asfortranarray(rng.standard_normal((M, K), dtype=np.float32) * (1j))
         self.a = a
 
     def unLoad(self, idxs):
@@ -269,5 +267,5 @@ class cutlassSgemmLoader(dataset.loader):
         #expected = np.matmul(self.a, b)
         expected = np.matmul(np.matmul(self.a, b), d)
         print(actual)
-        print(expected)
+        # print(expected)
         return np.allclose(actual, expected, rtol=0.5)
