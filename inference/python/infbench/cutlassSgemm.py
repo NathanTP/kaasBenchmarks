@@ -1,8 +1,10 @@
 from . import model
 from . import dataset
+from . import util
 import numpy as np
 import ctypes as ct
 import pycuda.driver as cuda
+import pycuda.tools
 
 
 def loadAdapter(modelDir):
@@ -86,8 +88,8 @@ class sgemmBase(model.Model):
     @staticmethod
     def getConstants(modelDir):
         rng = np.random.default_rng(0)
-        b = np.asfortranarray(rng.random((K, N), dtype=np.float32))
-        d = np.asfortranarray(rng.random((N, redDim), dtype=np.float32))
+        b = np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32))
+        d = np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32))
 
         return [b.ravel(order='K').data, d.ravel(order='K').data]
 
@@ -120,12 +122,17 @@ class sgemm(sgemmBase):
         self.dbufC = None
         self.dbufE = None
 
+        cuda.init()
+        self.cudaCtx = pycuda.tools.make_default_context()
+        util.cudaProfilerResetCtx()
+
+    def __del__(self):
+        self.cudaCtx.detach()
+
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
-        import pycuda.autoinit  # NOQA
-
         lda = M
         ldb = K
         ldc = M
@@ -210,12 +217,9 @@ class cutlassSgemmLoader(dataset.loader):
         return 1
 
     def preLoad(self, idxs):
-        # rng = np.random.default_rng(0)
-        # a = rng.random((M, K), dtype=np.float32)
-        # self.a = np.asfortranarray(a)
-
-        aTile = np.arange(1, 101, dtype=np.float32) / 100
-        self.a = np.asfortranarray(np.tile(aTile, (M, int(K / 100))))
+        rng = np.random.default_rng(1)
+        a = rng.standard_normal((M, K), dtype=np.float32)
+        self.a = np.asfortranarray(a)
 
     def unLoad(self, idxs):
         self.a = None

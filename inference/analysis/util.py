@@ -39,7 +39,6 @@ def aggregateModels(fullResults, metric):
 
 
 def cleanAndMergeRuns(runs):
-
     for run in runs:
         if 'runTime' in run['config']:
             run['config']['t_total'] = run['config']['runTime'] * 1000
@@ -197,18 +196,34 @@ def loadMicroNative(builtinMetrics, nvMetrics):
 
     metrics = {}
 
-    metrics['t_kernel'] = nvMetrics['Time'].get('sgemm', 0.0)
-    metrics['t_cudaMM'] = nvMetrics['Time'].get('cuMemAlloc', 0.0)
-    metrics['t_cudaMM'] += nvMetrics['Time'].get('cuMemsetD8', 0.0)
-    metrics['t_kernel_init'] = nvMetrics['Time'].get('cuModuleLoad', 0.0)
-    metrics['t_cuda_copy'] = nvMetrics['Time'].get('cuMemcpyDtoH', 0.0)
-    metrics['t_cuda_copy'] += nvMetrics['Time'].get('cuMemcpyHtoD', 0.0)
+    kernelMetrics = nvMetrics.reset_index()
+    nameCond = kernelMetrics['Name'].apply(lambda x: x[0] != '[')
+    typeCond = kernelMetrics['Type'] == "GPU activities"
+    kernelMetrics = kernelMetrics[nameCond & typeCond]
+
+    metrics['t_kernel'] = kernelMetrics['Time'].sum()
+
+    nvTimes = nvMetrics['Time']
+    metrics['t_cudaMM'] = nvTimes.get('cuMemAlloc', 0.0)
+    metrics['t_cudaMM'] += nvTimes.get('cudaMalloc', 0.0)
+    metrics['t_cudaMM'] += nvTimes.get('cuMemsetD8', 0.0)
+
+    metrics['t_kernel_init'] = nvTimes.get('cuModuleLoad', 0.0)
+    metrics['t_kernel_init'] += nvTimes.get('cuModuleLoadData', 0.0)
+    metrics['t_kernel_init'] += nvTimes.get('cudaSetDevice', 0.0)
+    metrics['t_kernel_init'] += nvTimes.get('cuDeviceTotalMem', 0.0)
+
+    metrics['t_cuda_copy'] = nvTimes.get('cuMemcpyDtoH', 0.0)
+    metrics['t_cuda_copy'] += nvTimes.get('cuMemcpyHtoD', 0.0)
+    metrics['t_cuda_copy'] += nvTimes.get('cudaMemcpy', 0.0)
 
     metrics['t_data_layer'] = builtinMetrics['t_loadInput']
+    metrics['t_data_layer'] += builtinMetrics['t_writeOutput']
+
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
     metrics['t_e2e'] = builtinMetrics['t_run']
 
-    return metrics
+    return pd.Series(metrics)
 
 
 def loadMicroKaas(builtinMetrics):
@@ -218,15 +233,18 @@ def loadMicroKaas(builtinMetrics):
     metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
     metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
     metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
+
     metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
     metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
+
     metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
     metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
+    metrics['t_data_layer'] += builtinMetrics['kaas:t_load_request']
 
     metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
     metrics['t_e2e'] = builtinMetrics['t_run']
 
-    return metrics
+    return pd.Series(metrics)
 
 
 def loadNvProf(resPath):
@@ -235,12 +253,17 @@ def loadNvProf(resPath):
 
     # NVProf sucks and produces invalid CSVs that are so bad we can't clean
     # them with pandas' builtin stuff. Gotta manually strip out the garbage.
+    headerIdx = None
+    for idx, line in enumerate(dirtyLines):
+        if line[0:6] != '"Type"':
+            continue
+        else:
+            headerIdx = idx
+
     cleanLines = []
-    for line in dirtyLines:
-        if line[0] == ',':
-            types = line.split(',')
-        elif line[0] != '=':
-            cleanLines.append(line)
+    cleanLines.append(dirtyLines[headerIdx])
+    types = dirtyLines[headerIdx + 1].split(',')
+    cleanLines += dirtyLines[headerIdx + 2:]
 
     raw = io.StringIO('\n'.join(cleanLines))
 
@@ -248,36 +271,89 @@ def loadNvProf(resPath):
 
     # us -> ms
     for i, t in enumerate(types):
+        if t not in ['us', 'ms', '%', '', '\n']:
+            print("Unrecognized type: ", repr(t))
+
         if t == 'us':
             df.iloc[:, i] /= 1000
 
     return df
 
 
-def loadMicro(resPath):
-    with open(resPath / 'kaasPipeline.json', 'r') as f:
-        kaasNative = json.load(f)
+def loadMicroSuiteKaas(resDir):
+    resDir = resDir / 'kaas'
+    coldAgg = pd.DataFrame()
+    warmAgg = pd.DataFrame()
+    for resPath in resDir.glob("*.json"):
+        with open(resPath, 'r') as f:
+            kaasNative = json.load(f)
 
-    kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
-    kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
+        kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
+        kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
 
-    actNvCold = loadNvProf(resPath / "actorNvprofCold.csv")
-    actNvWarm = loadNvProf(resPath / "actorNvprofWarm.csv")
+        coldAgg = coldAgg.append(kaasCold, ignore_index=True)
+        warmAgg = warmAgg.append(kaasWarm, ignore_index=True)
 
-    with open(resPath / 'actorPipeline.json', 'r') as f:
-        actPipeNative = json.load(f)
+    meanDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.mean(), "kaasCold": coldAgg.mean()})
+    stdDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.std(), "kaasCold": coldAgg.std()})
 
-    actPipeCold = loadMicroNative(actPipeNative['metrics_cold'], actNvCold)
-    actPipeWarm = loadMicroNative(actPipeNative['metrics_warm'], actNvWarm)
+    return (meanDf, stdDf)
 
-    return pd.DataFrame.from_dict({"actWarm": actPipeWarm, "actCold": actPipeCold,
-                                   "kaasWarm": kaasWarm, "kaasCold": kaasCold}).transpose()
+
+def loadMicroSuiteNative(resDir):
+    coldAgg = pd.DataFrame()
+    warmAgg = pd.DataFrame()
+
+    nvColds = []
+    for resPath in (resDir / 'actNvCold').glob("*.csv"):
+        # nvColds.append(loadNvProf(resPath)['Time'])
+        nvColds.append(loadNvProf(resPath))
+
+    nvWarms = []
+    for resPath in (resDir / 'actNvWarm').glob("*.csv"):
+        # nvWarms.append(loadNvProf(resPath)['Time'])
+        nvWarms.append(loadNvProf(resPath))
+
+    builtinColds = []
+    builtinWarms = []
+    for resPath in (resDir / "actPipe").glob("*.json"):
+        with open(resPath, 'r') as f:
+            actPipeNative = json.load(f)
+
+        builtinColds.append(actPipeNative['metrics_cold'])
+        builtinWarms.append(actPipeNative['metrics_warm'])
+
+    for nv, builtin in zip(nvColds, builtinColds):
+        coldAgg = coldAgg.append(loadMicroNative(builtin, nv), ignore_index=True)
+
+    for nv, builtin in zip(nvWarms, builtinWarms):
+        warmAgg = warmAgg.append(loadMicroNative(builtin, nv), ignore_index=True)
+
+    meanDf = pd.DataFrame.from_dict({"actWarm": warmAgg.mean(), "actCold": coldAgg.mean()})
+    stdDf = pd.DataFrame.from_dict({"actWarm": warmAgg.std(), "actCold": coldAgg.std()})
+
+    return (meanDf, stdDf)
+
+
+def loadMicroSuite(resDir):
+    kaasMeans, kaasStds = loadMicroSuiteKaas(resDir)
+    nativeMeans, nativeStds = loadMicroSuiteNative(resDir)
+
+    means = pd.concat([kaasMeans, nativeMeans], axis=1)
+    stds = pd.concat([kaasStds, nativeStds], axis=1)
+
+    return (means, stds)
 
 
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
-    print(loadMicro(resPath))
+    # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
+
+    means, stds = loadMicroSuite(resPath)
+    print(means)
+
+    # print(loadMicro(resPath))
     # loadOneNShot(resPath)
     # model = 'resnet50'
 

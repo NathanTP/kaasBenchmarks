@@ -426,10 +426,13 @@ class kaasModel(Model):
     def getConstants(modelDir):
         """Default constant loader assumes the kaasModel simply pickled their
         constants and we can load them directly."""
-        baseName = modelDir.stem
-        with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
-            constants = pickle.load(f)
-        return constants
+        paramPath = modelDir / (modelDir.stem + "_params.pkl")
+        if paramPath.exists():
+            with open(paramPath, 'rb') as f:
+                constants = pickle.load(f)
+            return constants
+        else:
+            return []
 
     def run(self, dat, outKeys=None, stats=None):
         """Unlike other Models, kaas accepts keys or references to inputs in
