@@ -170,7 +170,6 @@ class sgemm(sgemmBase):
 
         cuda.Context.synchronize()
         cuda.memcpy_dtoh(c, c_d)
-        #print(c)
 
         a_m = np.ndarray(shape=(M, K), buffer=a, order='F', dtype=np.csingle)
         b_m = np.ndarray(shape=(K, N), buffer=b, order='F', dtype=np.csingle)
@@ -187,7 +186,6 @@ class sgemm(sgemmBase):
         ldc = M
 
         d = dat[1]
-        #e = np.zeros(shape=(M, 1), order='F', dtype=np.float32) + np.zeros(shape=(M, 1), order='F', dtype=np.float32) * (1j)
         e = np.zeros(shape=(M, redDim), order='F', dtype=np.csingle)
 
         d_d = cuda.mem_alloc(dSz)
@@ -211,15 +209,9 @@ class sgemm(sgemmBase):
 
         cuda.Context.synchronize()
 
-        #e = bytearray(eSz)
 
         cuda.memcpy_dtoh(e, e_d)
 
-
-        #print(np.allclose(c, c_m, rtol=0.05))
-        #print(e)
-        #print(e_m)
-        #print(np.matmul(c, d_m))
 
 
         return e
@@ -231,7 +223,6 @@ class sgemmKaas(sgemmBase, model.kaasModel):
         """Default constant loader assumes the kaasModel simply pickled their
         constants and we can load them directly."""
         baseName = modelDir.stem
-        #with open(modelDir / (baseName + "_params.pkl"), 'rb') as f:
         constants = sgemmBase.getConstants(None)
         return constants
 
@@ -264,8 +255,7 @@ class cutlassSgemmLoader(dataset.loader):
         consts = sgemmBase.getConstants(None)
         b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
         d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
-        #expected = np.matmul(self.a, b)
         expected = np.matmul(np.matmul(self.a, b), d)
-        print(actual)
+        # print(actual)
         # print(expected)
         return np.allclose(actual, expected, rtol=0.5)
