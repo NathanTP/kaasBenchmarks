@@ -209,16 +209,15 @@ class sgemm(sgemmBase):
 
         cuda.memcpy_dtoh(e, self.dbufE)
 
-
-
         return e
 
+
 class sgemmKaas(sgemmBase, model.kaasModel):
+
     @staticmethod
     def getConstants(modelDir):
         """Default constant loader assumes the kaasModel simply pickled their
         constants and we can load them directly."""
-        baseName = modelDir.stem
         constants = sgemmBase.getConstants(None)
         return constants
 
