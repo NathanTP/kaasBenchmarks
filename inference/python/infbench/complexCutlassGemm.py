@@ -77,10 +77,10 @@ class sgemmBase(model.Model):
     noPost = True
     preMap = model.inputMap(inp=(0,))
     runMap = model.inputMap(pre=(0,), const=(0, 1))
-    postMap = model.inputMap(run=(0,))
+    postMap = model.inputMap()
     nOutRun = 1
     nOutPre = 1
-    nOutPost = 1
+    nOutPost = None
     nConst = 2
 
     @staticmethod
