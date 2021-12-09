@@ -1,9 +1,10 @@
 from . import model
 from . import dataset
+from . import util
 import numpy as np
 import ctypes as ct
 import pycuda.driver as cuda
-
+import pycuda.tools
 
 # define complex ctype as a python class
 class complex(ct.Structure):
@@ -121,12 +122,25 @@ class sgemmBase(model.Model):
 class sgemm(sgemmBase):
     def __init__(self, modelArgs):
         self.modelDir = modelArgs
+        self.initialized = False
+        self.dbufA = None
+        self.dbufB = None
+        self.dbufD = None
+        self.dbufC = None
+        self.dbufE = None
+
+        cuda.init()
+        self.cudaCtx = pycuda.tools.make_default_context()
+        util.cudaProfilerResetCtx()
+    
+    def __del__(self):
+        self.cudaCtx.detach()
+
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
        object that can be converted to numpy/tvm and passed to the model as
        input."""
-        import pycuda.autoinit  # NOQA
 
         lda = M
         ldb = K
@@ -145,31 +159,36 @@ class sgemm(sgemmBase):
         eSz = M*redDim*8
 
 
-        c = np.zeros(shape=(M, N), dtype=np.float32, order='F') + np.zeros(shape=(M, N), order='F', dtype=np.float32) * (1j)
+        if self.dbufA is None:
+            self.dbufA = cuda.mem_alloc(aSz)
+            self.dbufB = cuda.mem_alloc(bSz)
+            self.dbufC = cuda.mem_alloc(cSz)
+            self.dbufD = cuda.mem_alloc(dSz)
+            self.dbufE = cuda.mem_alloc(eSz)
 
-        a_d = cuda.mem_alloc(aSz)
-        cuda.memcpy_htod(a_d, a)
+        if not self.initialized:
+            cuda.memcpy_htod(self.dbufB, b)
+            cuda.memcpy_htod(self.dbufD, d)
+            self.initialized = True
 
-        b_d = cuda.mem_alloc(bSz)
-        cuda.memcpy_htod(b_d, b)
 
-        c_d = cuda.mem_alloc(cSz)
-        cuda.memset_d8(c_d, 0, c.nbytes)
+        cuda.memcpy_htod(self.dbufA, a)
+        cuda.memset_d8(self.dbufC, 0, cSz)
+        cuda.memset_d8(self.dbufE, 0, eSz)
+
 
         cfg = getDims(M, N, K).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         params = getArg(M, N, K, alpha,
-                        ct.cast(int(a_d), c_complex_p), lda,
-                        ct.cast(int(b_d), c_complex_p), ldb,
+                        ct.cast(int(self.dbufA), c_complex_p), lda,
+                        ct.cast(int(self.dbufB), c_complex_p), ldb,
                         beta,
-                        ct.cast(int(c_d), c_complex_p), ldc)
+                        ct.cast(int(self.dbufC), c_complex_p), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
-        cuda.Context.synchronize()
-        cuda.memcpy_dtoh(c, c_d)
 
         a_m = np.ndarray(shape=(M, K), buffer=a, order='F', dtype=np.csingle)
         b_m = np.ndarray(shape=(K, N), buffer=b, order='F', dtype=np.csingle)
@@ -185,32 +204,24 @@ class sgemm(sgemmBase):
         ldb = N
         ldc = M
 
-        d = dat[1]
-        e = np.zeros(shape=(M, redDim), order='F', dtype=np.csingle)
-
-        d_d = cuda.mem_alloc(dSz)
-        cuda.memcpy_htod(d_d, d)
-
-        e_d = cuda.mem_alloc(eSz)
-        cuda.memset_d8(e_d, 0, e.nbytes)
-
-        cfg = getDims(M, 1, N).contents
+        cfg = getDims(M, redDim, N).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         smem = cfg.smem_size
-        params = getArg(M, 1, N, alpha,
-                        ct.cast(int(c_d), c_complex_p), lda,
-                        ct.cast(int(d_d), c_complex_p), ldb,
+        params = getArg(M, redDim, N, alpha,
+                        ct.cast(int(self.dbufC), c_complex_p), lda,
+                        ct.cast(int(self.dbufD), c_complex_p), ldb,
                         beta,
-                        ct.cast(int(e_d), c_complex_p), ldc)
+                        ct.cast(int(self.dbufE), c_complex_p), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
+        
+        e = bytearray(eSz)
 
-
-        cuda.memcpy_dtoh(e, e_d)
+        cuda.memcpy_dtoh(e, self.dbufE)
 
 
 
@@ -250,8 +261,6 @@ class cutlassSgemmLoader(dataset.loader):
 
     def check(self, result, idx):
         actual = np.ndarray(shape=(M, redDim), buffer=result[0], order='F', dtype=np.csingle)
-        #actual = np.asfortranarray(np.array(result).view('<c8'))
-        #actual = actual.reshape(M, 1, order='F')
         consts = sgemmBase.getConstants(None)
         b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
         d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
