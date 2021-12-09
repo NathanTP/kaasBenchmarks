@@ -348,7 +348,14 @@ class runActor():
         if completionQ is not None:
             completionQ.put((results, queryId))
 
-        return results
+        # This is a ray weirdness. If you return multiple values in a tuple, it's
+        # returned as multiple independent references, if you return a tuple of length
+        # one, it's passed as a reference to a tuple. We can't have an extra layer
+        # of indirection for references.
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results
 
     def terminate(self):
         ray.actor.exit_actor()

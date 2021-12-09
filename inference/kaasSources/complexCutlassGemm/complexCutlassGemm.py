@@ -40,7 +40,7 @@ def loadDims():
     return getDims
 
 
-def createReq(M, N, K, alpha, beta, a, b, c, d, e):
+def createReq(M, N, K, redDim, alpha, beta, a, b, c, d, e):
     lda = M
     ldb = K
     ldc = M
@@ -66,7 +66,7 @@ def createReq(M, N, K, alpha, beta, a, b, c, d, e):
     dBuf = kaas.bufferSpec('d', d.nbytes, ephemeral=False)
     eBuf = kaas.bufferSpec('e', e.nbytes, ephemeral=False)
 
-    cfg = getDims(M, 1, N).contents
+    cfg = getDims(M, redDim, N).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
     block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
