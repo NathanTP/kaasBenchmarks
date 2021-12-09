@@ -6,6 +6,7 @@ import ctypes as ct
 import pycuda.driver as cuda
 import pycuda.tools
 
+
 # define complex ctype as a python class
 class complex(ct.Structure):
     _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
@@ -132,10 +133,9 @@ class sgemm(sgemmBase):
         cuda.init()
         self.cudaCtx = pycuda.tools.make_default_context()
         util.cudaProfilerResetCtx()
-    
+
     def __del__(self):
         self.cudaCtx.detach()
-
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
@@ -158,7 +158,6 @@ class sgemm(sgemmBase):
         dSz = N*redDim*8
         eSz = M*redDim*8
 
-
         if self.dbufA is None:
             self.dbufA = cuda.mem_alloc(aSz)
             self.dbufB = cuda.mem_alloc(bSz)
@@ -171,11 +170,9 @@ class sgemm(sgemmBase):
             cuda.memcpy_htod(self.dbufD, d)
             self.initialized = True
 
-
         cuda.memcpy_htod(self.dbufA, a)
         cuda.memset_d8(self.dbufC, 0, cSz)
         cuda.memset_d8(self.dbufE, 0, eSz)
-
 
         cfg = getDims(M, N, K).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
@@ -188,17 +185,6 @@ class sgemm(sgemmBase):
                         ct.cast(int(self.dbufC), c_complex_p), ldc)
 
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
-
-
-        a_m = np.ndarray(shape=(M, K), buffer=a, order='F', dtype=np.csingle)
-        b_m = np.ndarray(shape=(K, N), buffer=b, order='F', dtype=np.csingle)
-
-        c_m = np.matmul(a_m, b_m)
-
-
-        d_m = np.ndarray(shape=(N, redDim), buffer=d, order='F', dtype=np.csingle)
-        e_m = np.matmul(c_m, d_m)
-
 
         lda = M
         ldb = N
@@ -218,7 +204,7 @@ class sgemm(sgemmBase):
         cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
-        
+
         e = bytearray(eSz)
 
         cuda.memcpy_dtoh(e, self.dbufE)
@@ -226,7 +212,6 @@ class sgemm(sgemmBase):
 
 
         return e
-
 
 class sgemmKaas(sgemmBase, model.kaasModel):
     @staticmethod
