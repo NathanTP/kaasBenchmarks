@@ -5,11 +5,11 @@ from complexCutlassGemm import createReq
 import argparse
 import subprocess as sp
 import numpy as np
+import shutil
 
 cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
 cutlassDir = modelDir / "complexCutlassGemm"
-
 
 def getMeta(M, N, K):
     constants = [{"name": "b", "type": "csingle", "shape": [K, N]}, {"name": "d", "type": "csingle", "shape": [N, 1]}]
@@ -29,21 +29,26 @@ if __name__ == "__main__":
         targetDir.mkdir()
 
     sp.run(['make'], cwd=cwd, check=True)
+    
+    shutil.copy(cwd / 'cutlassAdapters.so', cutlassDir / 'cutlassAdapters.so')
+    shutil.copy(cwd / 'cutlass.cubin', cutlassDir / 'cutlass.cubin')
+
 
     M = 100
     N = 25000
     K = 10000
     alpha = 1
     beta = 0
+    redDim = 1
 
     rng = np.random.default_rng(0)
     a = rng.random((M, K), dtype=np.float32) + rng.random((M, K), dtype=np.float32) * (1j)
     b = rng.random((K, N), dtype=np.float32) + rng.random((K, N), dtype=np.float32) * (1j)
     c = rng.random((M, N), dtype=np.float32) + rng.random((M, N), dtype=np.float32) * (1j)
-    d = rng.random((N, 1), dtype=np.float32) + rng.random((N, 1), dtype=np.float32) * (1j)
-    e = rng.random((M, 1), dtype=np.float32) + rng.random((M, 1), dtype=np.float32) * (1j)
+    d = rng.random((N, redDim), dtype=np.float32) + rng.random((N, redDim), dtype=np.float32) * (1j)
+    e = rng.random((M, redDim), dtype=np.float32) + rng.random((M, redDim), dtype=np.float32) * (1j)
 
-    req = createReq(M, N, K, alpha, beta, a, b, c, d, e)
+    req = createReq(M, N, K, redDim, alpha, beta, a, b, c, d, e)
     meta_data = getMeta(M, N, K)
     with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
         yaml.safe_dump(req.toDict(), f)
