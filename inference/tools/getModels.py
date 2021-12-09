@@ -258,6 +258,10 @@ def getJacobi(force=False):
     shutil.copy2(kaasSrcDir / 'jacobi' / 'jacobi.ptx', modelDir / 'jacobi' / 'jacobi.ptx')
 
 
+def getDummy(force=False):
+    getKaasModel("dummy", force=force)
+
+
 def main():
     parser = argparse.ArgumentParser("Download and compile models")
     parser.add_argument("-f", "--force", action="store_true", help="Recompile all models, even if they are already compiled. Does not re-download")
@@ -287,6 +291,9 @@ def main():
 
     print("\nGetting Jacobi")
     getJacobi(force=args.force)
+
+    print("\nGetting Dummy")
+    getDummy(force=args.force)
 
     # print("\nGetting SSD-Mobilenet")
     # getSsdMobilenet()
