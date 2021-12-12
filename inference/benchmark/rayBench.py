@@ -39,7 +39,7 @@ else:
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
 # PROF_LEVEL = 1  # minimal performance impact
-PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+PROF_LEVEL = 1  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -485,10 +485,17 @@ def warmKaas(pool):
 
 def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     refs = []
+    cachedInputs = {}
     for i in range(n):
         idx = i % loader.ndata
-        inputs = loader.get(idx)
-        inpRefs = [ray.put(val) for val in inputs]
+        if modelSpec.cacheInputs:
+            if idx not in cachedInputs:
+                inputs = loader.get(idx)
+                cachedInputs[i] = [ray.put(val) for val in inputs]
+            inpRefs = cachedInputs[idx]
+        else:
+            inputs = loader.get(idx)
+            inpRefs = [ray.put(val) for val in inputs]
 
         # Ray is lazy and asynchronous so it's difficult to collect more
         # detailed metrics than e2e. Details within the remote functions
@@ -520,10 +527,17 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
 
 def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     results = []
+    cachedInputs = {}
     for i in range(n):
         idx = i % loader.ndata
-        inputs = loader.get(idx)
-        inpRefs = [ray.put(val) for val in inputs]
+        if modelSpec.cacheInputs:
+            if idx not in cachedInputs:
+                inputs = loader.get(idx)
+                cachedInputs[i] = [ray.put(val) for val in inputs]
+            inpRefs = cachedInputs[idx]
+        else:
+            inputs = loader.get(idx)
+            inpRefs = [ray.put(val) for val in inputs]
 
         with infbench.timer('t_e2e', stats):
             # Ray is lazy and asynchronous so it's difficult to collect more
@@ -871,6 +885,9 @@ class mlperfRunner():
         self.coldStats = infbench.profCollection()
         self.warmStats = infbench.profCollection()
 
+        if self.modelSpec.cacheInputs:
+            self.inputRefs = {}
+
         if modelSpec.modelType == "kaas":
             runConstRefs = []
             if modelSpec.modelClass.runMap.const is not None:
@@ -923,8 +940,16 @@ class mlperfRunner():
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
-            inputs = self.loader.get(q.index)
-            inpRefs = [ray.put(val) for val in inputs]
+            if self.modelSpec.cacheInputs:
+                if q.index in self.inputRefs:
+                    inpRefs = self.inputRefs[q.index]
+                else:
+                    inputs = self.loader.get(q.index)
+                    inpRefs = [ray.put(val) for val in inputs]
+                    self.inputRefs[q.index] = inpRefs
+            else:
+                inputs = self.loader.get(q.index)
+                inpRefs = [ray.put(val) for val in inputs]
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inpRefs, inline=self.benchConfig['inline'],
