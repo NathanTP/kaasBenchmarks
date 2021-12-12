@@ -106,11 +106,11 @@ class sgemmBase(model.Model):
     @staticmethod
     def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
-            maxQps = 0
-            medianLatency = 0.07
+            maxQps = None
+            medianLatency = None
         elif gpuType == "Tesla V100-SXM2-16GB":
             maxQps = 0
-            medianLatency = 0.05
+            medianLatency = 64.77
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
@@ -135,6 +135,8 @@ class sgemm(sgemmBase):
         cuda.init()
         self.cudaCtx = pycuda.tools.make_default_context()
         util.cudaProfilerResetCtx()
+        self.getArg, self.getDims = loadAdapter(self.modelDir.parent)
+        self.refKern, self.cutlassKern = loadKerns(self.modelDir.parent)
 
     def __del__(self):
         self.cudaCtx.detach()
@@ -147,9 +149,6 @@ class sgemm(sgemmBase):
         lda = M
         ldb = K
         ldc = M
-
-        getArg, getDims = loadAdapter(self.modelDir.parent)
-        refKern, cutlassKern = loadKerns(self.modelDir.parent)
 
         a = dat[2]
         b = dat[0]
@@ -176,34 +175,34 @@ class sgemm(sgemmBase):
         cuda.memset_d8(self.dbufC, 0, cSz)
         cuda.memset_d8(self.dbufE, 0, eSz)
 
-        cfg = getDims(M, N, K).contents
+        cfg = self.getDims(M, N, K).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
-        params = getArg(M, N, K, alpha,
-                        ct.cast(int(self.dbufA), c_complex_p), lda,
-                        ct.cast(int(self.dbufB), c_complex_p), ldb,
-                        beta,
-                        ct.cast(int(self.dbufC), c_complex_p), ldc)
+        params = self.getArg(M, N, K, alpha,
+                             ct.cast(int(self.dbufA), c_complex_p), lda,
+                             ct.cast(int(self.dbufB), c_complex_p), ldb,
+                             beta,
+                             ct.cast(int(self.dbufC), c_complex_p), ldc)
 
-        cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
+        self.cutlassKern.prepared_call(grid, block, params.contents, shared_size=cfg.smem_size)
 
         lda = M
         ldb = N
         ldc = M
 
-        cfg = getDims(M, redDim, N).contents
+        cfg = self.getDims(M, redDim, N).contents
         grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
         block = (cfg.blockX, cfg.blockY, cfg.blockZ)
 
         smem = cfg.smem_size
-        params = getArg(M, redDim, N, alpha,
-                        ct.cast(int(self.dbufC), c_complex_p), lda,
-                        ct.cast(int(self.dbufD), c_complex_p), ldb,
-                        beta,
-                        ct.cast(int(self.dbufE), c_complex_p), ldc)
+        params = self.getArg(M, redDim, N, alpha,
+                             ct.cast(int(self.dbufC), c_complex_p), lda,
+                             ct.cast(int(self.dbufD), c_complex_p), ldb,
+                             beta,
+                             ct.cast(int(self.dbufE), c_complex_p), ldc)
 
-        cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
+        self.cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
         cuda.Context.synchronize()
 
@@ -229,6 +228,7 @@ class cutlassSgemmLoader(dataset.loader):
 
     def __init__(self, dataDir):
         self.dataDir = dataDir
+        self.cachedExpect = None
         pass
 
     @property
@@ -248,10 +248,11 @@ class cutlassSgemmLoader(dataset.loader):
         return [self.a.ravel(order='K')]
 
     def check(self, result, idx):
-        actual = np.ndarray(shape=(M, redDim), buffer=result[0], order='F', dtype=np.csingle)
-        consts = sgemmBase.getConstants(self.dataDir)
-        b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
-        d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
-        expected = np.matmul(np.matmul(self.a, b), d)
+        if self.cachedExpect is None:
+            consts = sgemmBase.getConstants(self.dataDir)
+            b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
+            d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
+            self.cachedExpect = np.matmul(np.matmul(self.a, b), d)
 
-        return np.allclose(actual, expected, rtol=0.05)
+        actual = np.ndarray(shape=(M, redDim), buffer=result[0], order='F', dtype=np.csingle)
+        return np.allclose(actual, self.cachedExpect, rtol=0.05)
