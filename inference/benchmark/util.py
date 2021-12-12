@@ -76,16 +76,17 @@ def getModelSpec(modelName):
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
                          loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
+                         dataDir=modelDir / "complexCutlassGemm",
                          modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
                          modelClass=infbench.complexCutlassGemm.sgemmKaas,
                          modelType="kaas")
 
-    elif modelName == "complexCutlassGemm":
+    elif modelName == "complexCutlassGemmTvm":
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
                          loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
-                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
                          dataDir=modelDir / "complexCutlassGemm",
+                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
                          modelClass=infbench.complexCutlassGemm.sgemm,
                          modelType="direct")
 
