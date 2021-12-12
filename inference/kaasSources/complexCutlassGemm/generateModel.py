@@ -2,10 +2,12 @@
 import yaml
 import pathlib
 from complexCutlassGemm import createReq
+from complexCutlassGemm import generateData
 import argparse
 import subprocess as sp
 import numpy as np
 import shutil
+import pickle
 
 cwd = pathlib.Path(__file__).parent.resolve()
 modelDir = cwd / ".." / ".." / "models"
@@ -55,3 +57,10 @@ if __name__ == "__main__":
 
     with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta_data, f)
+
+    inp, consts = generateData(M, N, K, redDim)
+    with open(targetDir / (args.name + "_input.pkl"), 'wb') as f:
+        pickle.dump(inp, f)
+
+    with open(targetDir / (args.name + "_consts.pkl"), 'wb') as f:
+        pickle.dump(consts, f)

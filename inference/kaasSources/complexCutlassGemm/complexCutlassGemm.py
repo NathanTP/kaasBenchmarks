@@ -1,5 +1,6 @@
 from libff import kaas
 import ctypes as ct
+import numpy as np
 
 
 # define complex ctype as a python class
@@ -77,3 +78,18 @@ def createReq(M, N, K, redDim, alpha, beta, a, b, c, d, e):
 
     req = kaas.kaasReq([firstKern, secondKern])
     return req
+
+
+def generateData(M, N, K, redDim):
+    rng = np.random.default_rng(0)
+
+    a = np.asfortranarray(rng.standard_normal((M, K), dtype=np.float32)) + \
+        np.asfortranarray(rng.standard_normal((M, K), dtype=np.float32) * (1j))
+
+    b = np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32)) + \
+        np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32) * (1j))
+
+    d = np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32)) + \
+        np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32) * (1j))
+
+    return (a, (b, d))

@@ -5,6 +5,7 @@ import numpy as np
 import ctypes as ct
 import pycuda.driver as cuda
 import pycuda.tools
+import pickle
 
 
 # define complex ctype as a python class
@@ -95,9 +96,8 @@ class sgemmBase(model.Model):
 
     @staticmethod
     def getConstants(modelDir):
-        rng = np.random.default_rng(0)
-        b = np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32)) + np.asfortranarray(rng.standard_normal((K, N), dtype=np.float32) * (1j))
-        d = np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32)) + np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32) * (1j))
+        with open(modelDir / 'complexCutlassGemm_consts.pkl', 'rb') as f:
+            b, d = pickle.load(f)
 
         return [b.ravel(order='K').data, d.ravel(order='K').data]
 
@@ -218,7 +218,7 @@ class sgemmKaas(sgemmBase, model.kaasModel):
     def getConstants(modelDir):
         """Default constant loader assumes the kaasModel simply pickled their
         constants and we can load them directly."""
-        constants = sgemmBase.getConstants(None)
+        constants = sgemmBase.getConstants(modelDir)
         return constants
 
 
@@ -226,6 +226,7 @@ class cutlassSgemmLoader(dataset.loader):
     checkAvailable = True
 
     def __init__(self, dataDir):
+        self.dataDir = dataDir
         pass
 
     @property
@@ -233,8 +234,9 @@ class cutlassSgemmLoader(dataset.loader):
         return 1
 
     def preLoad(self, idxs):
-        rng = np.random.default_rng(1)
-        a = np.asfortranarray(rng.standard_normal((M, K), dtype=np.float32)) + np.asfortranarray(rng.standard_normal((M, K), dtype=np.float32) * (1j))
+        with open(self.dataDir / 'complexCutlassGemm_input.pkl', 'rb') as f:
+            a = pickle.load(f)
+
         self.a = a
 
     def unLoad(self, idxs):
@@ -245,7 +247,7 @@ class cutlassSgemmLoader(dataset.loader):
 
     def check(self, result, idx):
         actual = np.ndarray(shape=(M, redDim), buffer=result[0], order='F', dtype=np.csingle)
-        consts = sgemmBase.getConstants(None)
+        consts = sgemmBase.getConstants(self.dataDir)
         b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
         d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
         expected = np.matmul(np.matmul(self.a, b), d)
