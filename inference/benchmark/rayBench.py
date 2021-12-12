@@ -3,6 +3,7 @@ import ray.util.queue
 import infbench
 import threading
 import os
+import sys
 import signal
 import math
 
@@ -678,6 +679,9 @@ class throughputLoop():
         else:
             self.modelArg = ray.put(modelSpec.getModelArg())
 
+        if self.modelSpec.cacheInputs:
+            self.inputRefs = {}
+
         #
         # Common Test Components
         #
@@ -740,8 +744,16 @@ class throughputLoop():
 
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
-            inputs = self.loader.get(self.nextIdx % self.loader.ndata)
-            inpRefs = [ray.put(val) for val in inputs]
+            idx = self.nextIdx % self.loader.ndata
+            if self.modelSpec.cacheInputs:
+                if idx not in self.inputRefs:
+                    inputs = self.loader.get(self.nextIdx % self.loader.ndata)
+                    inpRefs = [ray.put(val) for val in inputs]
+                    self.inputRefs[idx] = inpRefs
+                inpRefs = self.inputRefs[idx]
+            else:
+                inputs = self.loader.get(self.nextIdx % self.loader.ndata)
+                inpRefs = [ray.put(val) for val in inputs]
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constRefs, inpRefs, inline=self.benchConfig['inline'],
@@ -1033,6 +1045,14 @@ class clientState():
         self.modelSpec = util.getModelSpec(modelName)
         self.specRef = ray.put(self.modelSpec)
 
+        # This is a work-around for Ray's immutable object store that can fill
+        # up when models have even modestly sized inputs.
+        if self.modelSpec.cacheInputs:
+            self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
+            self.loader.preLoad(range(self.loader.ndata))
+            self.cachedInputs = {}
+
+
         constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
         if constants is None:
             constRefs = None
@@ -1179,7 +1199,14 @@ class serverLoop():
                 self.clientStream.stop_on_recv()
                 self.overwhelmed = True
 
-            inpRefs = [ray.put(val) for val in data]
+            if cState.modelSpec.cacheInputs:
+                idx = int.from_bytes(data[0], sys.byteorder)
+                if idx not in cState.cachedInputs:
+                    inputs = cState.loader.get(idx)
+                    cState.cachedInputs[idx] = [ray.put(val) for val in inputs]
+                inpRefs = cState.cachedInputs[idx]
+            else:
+                inpRefs = [ray.put(val) for val in data]
 
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, inpRefs, completionQ=self.rayQ,
