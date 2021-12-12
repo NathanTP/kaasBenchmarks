@@ -1,4 +1,4 @@
-CUTLASS_PATH ?= ../../../../fakefaas/examples/cutlass/cutlass-src
+CUTLASS_PATH ?= ../../../dependencies/fakefaas/examples/cutlass/cutlass-src
 
 70FOUND:=$(shell lspci | grep "V100")
 
@@ -54,4 +54,4 @@ cutlass.cubin: kern.cu
 	-x cu -c $^ -o $@ 
 
 clean: 
-	rm getDims.so cutlassAdapters.so cutlass.cubin
+	rm -f getDims.so cutlassAdapters.so cutlass.cubin
