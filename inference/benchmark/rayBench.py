@@ -474,6 +474,9 @@ def warmKaas(pool):
     inpRefs = [ray.put(val) for val in loader.get(0)]
     res = ray.get(_runOne(modelSpec, specRef, modelArg, [], inpRefs, runPool=pool))
 
+    # clear stats after dummy
+    ray.get(pool.getStats.remote())
+
     assert loader.check(res, 0)
 
 
