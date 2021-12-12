@@ -101,7 +101,7 @@ class sgemmBase(model.Model):
         with open(modelDir / 'complexCutlassGemm_consts.pkl', 'rb') as f:
             b, d = pickle.load(f)
 
-        return [b.ravel(order='K').data, d.ravel(order='K').data]
+        return [b.ravel(order='K'), d.ravel(order='K')]
 
     @staticmethod
     def getPerfEstimates(gpuType):
@@ -245,7 +245,7 @@ class cutlassSgemmLoader(dataset.loader):
         self.a = None
 
     def get(self, idx):
-        return [self.a.ravel(order='K').data]
+        return [self.a.ravel(order='K')]
 
     def check(self, result, idx):
         actual = np.ndarray(shape=(M, redDim), buffer=result[0], order='F', dtype=np.csingle)
@@ -253,6 +253,5 @@ class cutlassSgemmLoader(dataset.loader):
         b = np.ndarray(shape=(K, N), buffer=consts[0], order='F', dtype=np.csingle)
         d = np.ndarray(shape=(N, redDim), buffer=consts[1], order='F', dtype=np.csingle)
         expected = np.matmul(np.matmul(self.a, b), d)
-        # print(actual)
-        # print(expected)
-        return np.allclose(actual, expected, rtol=0.5)
+
+        return np.allclose(actual, expected, rtol=0.05)
