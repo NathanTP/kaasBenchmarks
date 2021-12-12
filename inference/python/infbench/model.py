@@ -293,6 +293,8 @@ class Model(abc.ABC):
         """Number of outputs from postprocessing"""
         ...
 
+    noPre = False
+
     @property
     @abc.abstractmethod
     def noPost(self) -> bool:

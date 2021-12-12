@@ -78,6 +78,7 @@ beta = 0
 
 class sgemmBase(model.Model):
     noPost = True
+    noPre = True
     preMap = model.inputMap(inp=(0,))
     runMap = model.inputMap(pre=(0,), const=(0, 1))
     postMap = model.inputMap()
@@ -88,7 +89,8 @@ class sgemmBase(model.Model):
 
     @staticmethod
     def pre(imgBuf):
-        return imgBuf
+        raise AttributeError("cutlass sgemm has no post-processing")
+        # return imgBuf
 
     @staticmethod
     def post(label):

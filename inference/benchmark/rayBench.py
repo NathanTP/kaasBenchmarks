@@ -396,15 +396,18 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 ray.wait(postOut, fetch_local=False)
     else:
         # Pre
-        preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
+        if mClass.noPre:
+            preOut = inputRefs
+        else:
+            preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
 
-        preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
-        if mClass.nOutPre == 1:
-            preOut = [preOut]
+            preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
+            if mClass.nOutPre == 1:
+                preOut = [preOut]
 
-        if PROF_LEVEL > 1:
-            with infbench.timer("t_pre", stats):
-                ray.wait(preOut, fetch_local=False)
+            if PROF_LEVEL > 1:
+                with infbench.timer("t_pre", stats):
+                    ray.wait(preOut, fetch_local=False)
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
