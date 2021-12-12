@@ -44,7 +44,7 @@ class testModel():
         result = data[0]
         if isinstance(result, bytes):
             result = np.frombuffer(result, dtype=np.float32)
-        result.shape = (matSize, matSize)
+            result.shape = (matSize, matSize)
 
         result = result + 1
         time.sleep(preTime / 1000)
@@ -52,8 +52,11 @@ class testModel():
 
     @staticmethod
     def post(data):
-        inputArr = np.frombuffer(data[0], dtype=np.float32)
-        inputArr.shape = (matSize, matSize)
+        inputArr = data[0]
+        if isinstance(inputArr, bytes):
+            inputArr = np.frombuffer(data[0], dtype=np.float32)
+            inputArr.shape = (matSize, matSize)
+
         result = inputArr - 1
 
         time.sleep(postTime / 1000)
