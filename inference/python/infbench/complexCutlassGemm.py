@@ -209,7 +209,7 @@ class sgemm(sgemmBase):
 
         cuda.memcpy_dtoh(e, self.dbufE)
 
-        return e
+        return (e,)
 
 
 class sgemmKaas(sgemmBase, model.kaasModel):
