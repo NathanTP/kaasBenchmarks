@@ -109,8 +109,8 @@ class sgemmBase(model.Model):
             maxQps = None
             medianLatency = None
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 0
-            medianLatency = 64.77
+            maxQps = 10
+            medianLatency = 46
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
