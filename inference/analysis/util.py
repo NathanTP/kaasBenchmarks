@@ -11,7 +11,7 @@ from pprint import pprint
 
 
 def aggregateModels(fullResults, metric):
-    models = ['resnet50', 'bert', 'jacobi']
+    models = ['resnet50', 'bert', 'jacobi', 'complexCutlassGemm']
     resDfs = {}
     for model in models:
         modelRes = [res for res in fullResults.values() if model in res['config']['model']]
@@ -45,12 +45,12 @@ def cleanAndMergeRuns(runs):
         else:
             run['config']['t_total'] = float('nan')
 
-        if 'completion_rate' in run['metrics']:
-            run['completion_rate'] = run['metrics']['completion_rate']
-            run['submission_rate'] = run['metrics']['submission_rate']
+        if 'completion_rate' in run['metrics_warm']:
+            run['completion_rate'] = run['metrics_warm']['completion_rate']['mean']
+            run['submission_rate'] = run['metrics_warm']['submission_rate']['mean']
         else:
-            run['completion_rate'] = run['metrics']['n_completed']
-            run['submission_rate'] = run['metrics']['n_scheduled']
+            run['completion_rate'] = run['metrics_warm']['n_completed']['mean']
+            run['submission_rate'] = run['metrics_warm']['n_scheduled']['mean']
 
     merged = {}
     merged['config'] = copy.deepcopy(runs[0]['config'])
@@ -68,7 +68,7 @@ def cleanAndMergeRuns(runs):
     merged['submission_rate'] = sum(sRates) / len(sRates)
     merged['completion_rate'] = sum(cRates) / len(cRates)
 
-    merged['latencies'] = np.array(list(itertools.chain.from_iterable([run['metrics']['latencies'] for run in runs])))
+    merged['latencies'] = np.array(list(itertools.chain.from_iterable([run['metrics_warm']['t_response']['events'] for run in runs])))
     merged['latencies'] *= 1000
 
     return merged
@@ -80,7 +80,8 @@ def loadOneMlPerf(resDirs):
     for resDir in resDirs:
         for resFile in resDir.glob("*_results.json"):
             with open(resFile, 'r') as f:
-                expRuns[resFile.name].append(json.load(f)[0])
+                # expRuns[resFile.name].append(json.load(f)[0])
+                expRuns[resFile.name].append(json.load(f))
 
     resDicts = []
     for runs in expRuns.values():
@@ -118,15 +119,17 @@ def loadOneThroughput(resPath):
     resDicts = []
     for resFile in resPath.glob("*_results.json"):
         with open(resFile, 'r') as f:
-            resDicts += json.load(f)
+            # resDicts += json.load(f)
+            resDicts.append(json.load(f))
 
     aggDict = {}
     aggDict['config'] = resDicts[0]['config']
     aggDict['config']['n_replica'] = len(resDicts)
 
-    aggDict['throughput'] = sum(d['metrics']['throughput'] for d in resDicts)
+    aggDict['throughput'] = sum([d['metrics_warm']['throughput']['mean'] for d in resDicts])
+
     # Standard deviation between replicas
-    aggDict['std'] = np.std(np.array([d['metrics']['throughput'] for d in resDicts]))
+    aggDict['std'] = np.std(np.array([d['metrics_warm']['throughput']['mean'] for d in resDicts]))
 
     return aggDict, resDicts
 
@@ -350,8 +353,8 @@ if __name__ == "__main__":
 
     # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
 
-    means, stds = loadMicroSuite(resPath)
-    print(means)
+    # means, stds = loadMicroSuite(resPath)
+    # print(means)
 
     # print(loadMicro(resPath))
     # loadOneNShot(resPath)
@@ -359,6 +362,8 @@ if __name__ == "__main__":
 
     # print(model)
     # print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
+    # print(loadAllMlPerf(resPath, metric="p90"))
+    # print(loadAllMlPerf(resPath, metric="submission_rate"))
 
     # print(getMaxThroughputs(loadAllThroughput(resPath)))
     # print(loadAllThroughput(resPath)[model])
@@ -366,4 +371,7 @@ if __name__ == "__main__":
 
     # dirs = getRunDirs(resPath, expNames=['resnet50_tvm_5'])
     # res, _ = loadOneMlPerf(dirs['resnet50_tvm_5'])
+    res, _ = loadOneMlPerf([resPath])
+    print(res['p90'])
     # print(res['submission_rate'])
+    # print(res['mean'])

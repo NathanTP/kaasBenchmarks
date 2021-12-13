@@ -13,13 +13,22 @@ modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
 
 
 class ModelSpec():
-    def __init__(self, name, loader, modelPath, modelClass, dataDir=dataDir, modelType='tvm'):
+    def __init__(self, name, loader, modelPath, modelClass, dataDir=dataDir, modelType='tvm', cacheInputs=False):
         self.name = name
         self.loader = loader
         self.dataDir = dataDir
         self.modelPath = modelPath
         self.modelClass = modelClass
         self.modelType = modelType
+
+        # This is a hack to deal with Ray's immutable object store. For models
+        # with even modestly sized inputs, the benchmarks start crashing if you
+        # generate a fresh input for every invocation. If cacheInputs is True,
+        # we will re-use the same reference every time. This isn't ideal since
+        # it will cut out a bunch of data layer contributions, but it will
+        # affect both model types equally and it's the only way to avoid
+        # crashes due to spilling to disk.
+        self.cacheInputs = cacheInputs
 
     def getModelArg(self, constRefs=None, backend='ray'):
         if self.modelType == 'tvm':
@@ -76,18 +85,21 @@ def getModelSpec(modelName):
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
                          loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
+                         dataDir=modelDir / "complexCutlassGemm",
                          modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
                          modelClass=infbench.complexCutlassGemm.sgemmKaas,
-                         modelType="kaas")
+                         modelType="kaas",
+                         cacheInputs=True)
 
-    elif modelName == "complexCutlassGemm":
+    elif modelName == "complexCutlassGemmTvm":
         import infbench.complexCutlassGemm
         return ModelSpec(name="complexCutlassGemm",
                          loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
-                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
                          dataDir=modelDir / "complexCutlassGemm",
+                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
                          modelClass=infbench.complexCutlassGemm.sgemm,
-                         modelType="direct")
+                         modelType="direct",
+                         cacheInputs=True)
 
     elif modelName == "cutlassSgemmKaas":
         import infbench.cutlassSgemm

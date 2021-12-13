@@ -3,6 +3,7 @@ import ray.util.queue
 import infbench
 import threading
 import os
+import sys
 import signal
 import math
 
@@ -39,7 +40,7 @@ else:
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
 # PROF_LEVEL = 1  # minimal performance impact
-PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+PROF_LEVEL = 1  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -396,15 +397,18 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 ray.wait(postOut, fetch_local=False)
     else:
         # Pre
-        preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
+        if mClass.noPre:
+            preOut = inputRefs
+        else:
+            preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
 
-        preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
-        if mClass.nOutPre == 1:
-            preOut = [preOut]
+            preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
+            if mClass.nOutPre == 1:
+                preOut = [preOut]
 
-        if PROF_LEVEL > 1:
-            with infbench.timer("t_pre", stats):
-                ray.wait(preOut, fetch_local=False)
+            if PROF_LEVEL > 1:
+                with infbench.timer("t_pre", stats):
+                    ray.wait(preOut, fetch_local=False)
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
@@ -482,10 +486,17 @@ def warmKaas(pool):
 
 def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     refs = []
+    cachedInputs = {}
     for i in range(n):
         idx = i % loader.ndata
-        inputs = loader.get(idx)
-        inpRefs = [ray.put(val) for val in inputs]
+        if modelSpec.cacheInputs:
+            if idx not in cachedInputs:
+                inputs = loader.get(idx)
+                cachedInputs[i] = [ray.put(val) for val in inputs]
+            inpRefs = cachedInputs[idx]
+        else:
+            inputs = loader.get(idx)
+            inpRefs = [ray.put(val) for val in inputs]
 
         # Ray is lazy and asynchronous so it's difficult to collect more
         # detailed metrics than e2e. Details within the remote functions
@@ -517,10 +528,17 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
 
 def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, stats):
     results = []
+    cachedInputs = {}
     for i in range(n):
         idx = i % loader.ndata
-        inputs = loader.get(idx)
-        inpRefs = [ray.put(val) for val in inputs]
+        if modelSpec.cacheInputs:
+            if idx not in cachedInputs:
+                inputs = loader.get(idx)
+                cachedInputs[i] = [ray.put(val) for val in inputs]
+            inpRefs = cachedInputs[idx]
+        else:
+            inputs = loader.get(idx)
+            inpRefs = [ray.put(val) for val in inputs]
 
         with infbench.timer('t_e2e', stats):
             # Ray is lazy and asynchronous so it's difficult to collect more
@@ -661,6 +679,9 @@ class throughputLoop():
         else:
             self.modelArg = ray.put(modelSpec.getModelArg())
 
+        if self.modelSpec.cacheInputs:
+            self.inputRefs = {}
+
         #
         # Common Test Components
         #
@@ -723,8 +744,16 @@ class throughputLoop():
 
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
-            inputs = self.loader.get(self.nextIdx % self.loader.ndata)
-            inpRefs = [ray.put(val) for val in inputs]
+            idx = self.nextIdx % self.loader.ndata
+            if self.modelSpec.cacheInputs:
+                if idx not in self.inputRefs:
+                    inputs = self.loader.get(self.nextIdx % self.loader.ndata)
+                    inpRefs = [ray.put(val) for val in inputs]
+                    self.inputRefs[idx] = inpRefs
+                inpRefs = self.inputRefs[idx]
+            else:
+                inputs = self.loader.get(self.nextIdx % self.loader.ndata)
+                inpRefs = [ray.put(val) for val in inputs]
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constRefs, inpRefs, inline=self.benchConfig['inline'],
@@ -868,6 +897,9 @@ class mlperfRunner():
         self.coldStats = infbench.profCollection()
         self.warmStats = infbench.profCollection()
 
+        if self.modelSpec.cacheInputs:
+            self.inputRefs = {}
+
         if modelSpec.modelType == "kaas":
             runConstRefs = []
             if modelSpec.modelClass.runMap.const is not None:
@@ -920,8 +952,16 @@ class mlperfRunner():
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
-            inputs = self.loader.get(q.index)
-            inpRefs = [ray.put(val) for val in inputs]
+            if self.modelSpec.cacheInputs:
+                if q.index in self.inputRefs:
+                    inpRefs = self.inputRefs[q.index]
+                else:
+                    inputs = self.loader.get(q.index)
+                    inpRefs = [ray.put(val) for val in inputs]
+                    self.inputRefs[q.index] = inpRefs
+            else:
+                inputs = self.loader.get(q.index)
+                inpRefs = [ray.put(val) for val in inputs]
 
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inpRefs, inline=self.benchConfig['inline'],
@@ -1004,6 +1044,13 @@ class clientState():
     def __init__(self, modelName):
         self.modelSpec = util.getModelSpec(modelName)
         self.specRef = ray.put(self.modelSpec)
+
+        # This is a work-around for Ray's immutable object store that can fill
+        # up when models have even modestly sized inputs.
+        if self.modelSpec.cacheInputs:
+            self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
+            self.loader.preLoad(range(self.loader.ndata))
+            self.cachedInputs = {}
 
         constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
         if constants is None:
@@ -1151,7 +1198,14 @@ class serverLoop():
                 self.clientStream.stop_on_recv()
                 self.overwhelmed = True
 
-            inpRefs = [ray.put(val) for val in data]
+            if cState.modelSpec.cacheInputs:
+                idx = int.from_bytes(data[0], sys.byteorder)
+                if idx not in cState.cachedInputs:
+                    inputs = cState.loader.get(idx)
+                    cState.cachedInputs[idx] = [ray.put(val) for val in inputs]
+                inpRefs = cState.cachedInputs[idx]
+            else:
+                inpRefs = [ray.put(val) for val in data]
 
             _runOne(cState.modelSpec, cState.specRef, cState.modelArg,
                     cState.constRefs, inpRefs, completionQ=self.rayQ,

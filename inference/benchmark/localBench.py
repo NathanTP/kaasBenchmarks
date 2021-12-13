@@ -79,9 +79,12 @@ def runNative(model, constants, inputs, preOut):
 
 
 def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None, constKeys=None):
-    with infbench.timer("t_pre", stats):
-        preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
-        preOut = model.pre(preInp)
+    if model.noPre:
+        preOut = inputs
+    else:
+        with infbench.timer("t_pre", stats):
+            preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
+            preOut = model.pre(preInp)
 
     with infbench.timer("t_run", stats):
         if kaasCtx is not None:

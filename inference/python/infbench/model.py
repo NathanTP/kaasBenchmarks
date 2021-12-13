@@ -293,6 +293,8 @@ class Model(abc.ABC):
         """Number of outputs from postprocessing"""
         ...
 
+    noPre = False
+
     @property
     @abc.abstractmethod
     def noPost(self) -> bool:
@@ -334,8 +336,8 @@ class Model(abc.ABC):
         are based on single-model experiments with one GPU using the remote
         client mode (experiment.py). If different variations of a model have
         different numbers, you may return different estimated QPS, though this
-        isn't necessary. medianLatency should be from the slowest model
-        variant."""
+        isn't necessary. medianLatency is reported in seconds and should be
+        from the slowest model variant."""
         pass
 
     @classmethod

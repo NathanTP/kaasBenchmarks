@@ -289,7 +289,7 @@ if __name__ == "__main__":
                         choices=['kaas', 'tvm'], help="Which model type to use")
     parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance.")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
-    parser.add_argument("-n", "--nCopy", type=int, help="For mlperfMulti, this is the number of model replicas to use. For nshot, this is the number of iterations.")
+    parser.add_argument("-n", "--nCopy", type=int, default=1, help="For mlperfMulti, this is the number of model replicas to use. For nshot, this is the number of iterations.")
 
     args = parser.parse_args()
 

@@ -81,7 +81,7 @@ def main():
     print("\t Backend: ", args.backend)
     print("\t Testing: ", args.testing)
     print("\t Runner Policy: ", args.policy)
-    print("\t Force Cold: ", not args.forceCold)
+    print("\t Force Cold: ", args.forceCold)
     print("\t Inline: ", args.inline)
 
     if args.experiment == 'nshot':

@@ -54,14 +54,17 @@ def preWarm(serverSock, barrierSock, inputs):
 # nShot
 # =============================================================================
 
-def _nShotSync(n, loader, serverSocket, stats=None):
+def _nShotSync(n, loader, serverSocket, stats=None, cacheInputs=False):
     results = []
     stats['n_req'].increment(n)
 
     with infbench.timer("t_all", stats):
         for i in range(n):
             idx = i % loader.ndata
-            inp = loader.get(idx)
+            if cacheInputs:
+                inp = [idx.to_bytes(8, sys.byteorder)]
+            else:
+                inp = loader.get(idx)
 
             with infbench.timer('t_e2e', stats):
                 sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
@@ -116,17 +119,16 @@ def nShot(modelSpec, n, benchConfig):
     sendReq(serverSocket, benchConfig['model'].encode('utf-8'), b'')
 
     # Cold starts
-    inp = loader.get(0)
-    for i in range(infbench.getNGpu()*2):
-        sendReq(serverSocket, bytes(1), inp)
-        serverSocket.recv_multipart()
+    _nShotSync(infbench.getNGpu()*2, loader, serverSocket,
+               stats=stats, cacheInputs=modelSpec.cacheInputs)
 
     print("Waiting for other clients:")
     barrier(barrierSocket)
 
     # Send all requests
     print("Sending Requests:")
-    results = _nShotSync(n, loader, serverSocket, stats=stats)
+    results = _nShotSync(n, loader, serverSocket,
+                         stats=stats, cacheInputs=modelSpec.cacheInputs)
     print("Test complete")
 
     if loader.checkAvailable:
@@ -159,6 +161,7 @@ class throughputLoop():
         """This test uses tornado IOLoop to submit requests as fast as possible
         for targetTime seconds. It reports the total throughput acheived."""
         self.benchConfig = benchConfig
+        self.modelSpec = modelSpec
         self.clientID = benchConfig['name'].encode('utf-8')
         self.loop = IOLoop.instance()
 
@@ -183,9 +186,14 @@ class throughputLoop():
 
         # Register and PreWarm
         sendReq(self.serverSocket, self.benchConfig['model'].encode('utf-8'), b'')
-        loader = modelSpec.loader(modelSpec.dataDir)
-        loader.preLoad([0])
-        inputs = loader.get(0)
+
+        if self.modelSpec.cacheInputs:
+            inputs = [(0).to_bytes(8, sys.byteorder)]
+        else:
+            loader = modelSpec.loader(modelSpec.dataDir)
+            loader.preLoad([0])
+            inputs = loader.get(0)
+
         preWarm(self.serverSocket, self.barrierSocket, inputs)
 
         # start listening for server responses
@@ -197,7 +205,11 @@ class throughputLoop():
 
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
-            inp = self.loader.get(self.nextIdx % self.loader.ndata)
+            idx = self.nextIdx % self.loader.ndata
+            if self.modelSpec.cacheInputs:
+                inp = [idx.to_bytes(8, sys.byteorder)]
+            else:
+                inp = self.loader.get(idx)
             sendReq(self.serverStream, self.nextIdx.to_bytes(8, sys.byteorder), inp)
             self.nextIdx += 1
             self.nOutstanding += 1
@@ -289,7 +301,10 @@ class mlperfRunner(threading.Thread):
     def runBatch(self, queryBatch):
         for q in queryBatch:
             self.nQuery += 1
-            inp = self.loader.get(q.index)
+            if self.modelSpec.cacheInputs:
+                inp = [q.index.to_bytes(8, sys.byteorder)]
+            else:
+                inp = self.loader.get(q.index)
             sendReq(self.sutSock, q.id.to_bytes(8, sys.byteorder), inp)
 
     def processLatencies(self, latencies):
@@ -331,6 +346,7 @@ class mlperfRunner(threading.Thread):
 class mlperfLoop():
     def __init__(self, modelSpec, benchConfig, zmqContext):
         self.benchConfig = benchConfig
+        self.modelSpec = modelSpec
         self.clientID = benchConfig['name'].encode('utf-8')
         self.loop = IOLoop.instance()
 
@@ -347,9 +363,13 @@ class mlperfLoop():
         sendReq(self.serverSocket, self.benchConfig['model'].encode('utf-8'), b'')
 
         # PreWarm
-        loader = modelSpec.loader(modelSpec.dataDir)
-        loader.preLoad([0])
-        inputs = loader.get(0)
+        if self.modelSpec.cacheInputs:
+            inputs = [(0).to_bytes(8, sys.byteorder)]
+        else:
+            loader = modelSpec.loader(modelSpec.dataDir)
+            loader.preLoad([0])
+            inputs = loader.get(0)
+
         preWarm(self.serverSocket, self.barrierSocket, inputs)
 
     def handleSut(self, msg):
