@@ -23,6 +23,10 @@ def getTargetRuntime(nReplica, model, mode):
             runTime = 800
         elif model == 'resnet50':
             runTime = 600
+        elif model == 'complexCutlassSgemm':
+            runTime = 600
+        else:
+            raise RuntimeError("Please configure a target runtime for model: ", model)
     else:
         runTime = 300
 
@@ -58,7 +62,8 @@ def mlperfMulti(nReplicas, models, modes):
     print("Final Results in: ", suiteOutDir)
 
 
-def throughput(nReplicas, models, modes):
+# def throughput(nReplicas, models, modes):
+def throughput(configs):
     if len(sys.argv) == 1:
         suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
         suiteOutDir = pathlib.Path('results') / f"throughputSuite_{suffix}"
@@ -69,24 +74,22 @@ def throughput(nReplicas, models, modes):
 
     resultsDir = pathlib.Path("./results")
 
-    for model in models:
-        for nReplica in nReplicas:
-            for mode in modes:
-                time.sleep(20)
-                runTime = getTargetRuntime(nReplica, model, mode)
+    for model, mode, nReplica in configs:
+        time.sleep(20)
+        runTime = getTargetRuntime(nReplica, model, mode)
 
-                name = f"{model}_{mode}_{nReplica}"
-                print("\nStarting test: ", name)
-                sp.run(['./experiment.py',
-                        '-e', 'throughput',
-                        '-n', str(nReplica),
-                        '-s', str(1 / nReplica),
-                        f'-runTime={runTime}',
-                        '-t', mode,
-                        '-m', model])
+        name = f"{model}_{mode}_{nReplica}"
+        print("\nStarting test: ", name)
+        sp.run(['./experiment.py',
+                '-e', 'throughput',
+                '-n', str(nReplica),
+                '-s', str(1 / nReplica),
+                f'--runTime={runTime}',
+                '-t', mode,
+                '-m', model])
 
-                runOutDir = suiteOutDir / name
-                shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
+        runOutDir = suiteOutDir / name
+        shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
 
     print("Final Results in: ", suiteOutDir)
 
@@ -208,9 +211,13 @@ def latDistribution(configs, independent=False):
 # models = ['bert', 'resnet50', 'jacobi']
 # modes = ['kaas', 'tvm']
 
-nReplicas = [1, 4, 5, 16]
-models = ['bert', 'jacobi']
+# nReplicas = [1, 4, 5, 16]
+# nReplicas = [1, 2, 5]
+nReplicas = [1]
+# models = ['bert', 'jacobi']
+models = ['complexCutlassGemm']
 modes = ['tvm', 'kaas']
 configs = itertools.product(models, modes, nReplicas)
 
-latDistribution(configs, independent=True)
+# latDistribution(configs, independent=True)
+throughput(configs)
