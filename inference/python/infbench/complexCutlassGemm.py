@@ -109,8 +109,8 @@ class sgemmBase(model.Model):
             maxQps = None
             medianLatency = None
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 10
-            medianLatency = 46
+            maxQps = 22
+            medianLatency = 0.46
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
@@ -204,9 +204,7 @@ class sgemm(sgemmBase):
 
         self.cutlassKern.prepared_call(grid, block, params.contents, shared_size=smem)
 
-        cuda.Context.synchronize()
-
-        e = bytearray(eSz)
+        e = np.empty(eSz, dtype=np.int8)
 
         cuda.memcpy_dtoh(e, self.dbufE)
 

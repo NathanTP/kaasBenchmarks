@@ -10,7 +10,7 @@ nIter = 10
 
 # model = 'testModel'
 # model = 'resnet50'
-model = 'cutlassSgemm'
+model = 'complexCutlassGemm'
 
 nvCmd = ['nvprof', '-f', '--log-file', 'results.csv', '--profile-from-start', 'off', '--csv']
 actNvColdCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '--force-cold', '-m', model + "Tvm"]

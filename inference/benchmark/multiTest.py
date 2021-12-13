@@ -10,6 +10,7 @@ import itertools
 import infbench.bert
 import infbench.resnet50
 import infbench.jacobi
+import infbench.complexCutlassGemm
 
 
 def getTargetRuntime(nReplica, model, mode):
@@ -23,8 +24,8 @@ def getTargetRuntime(nReplica, model, mode):
             runTime = 800
         elif model == 'resnet50':
             runTime = 600
-        elif model == 'complexCutlassSgemm':
-            runTime = 600
+        elif model == 'complexCutlassGemm':
+            runTime = 800
         else:
             raise RuntimeError("Please configure a target runtime for model: ", model)
     else:
@@ -136,7 +137,20 @@ throughputBaselines = {
                  44.38489515651817, 43.98021311874452, 43.51220290525323,
                  42.50994612503706, 41.778837485314455, 41.17097591632982,
                  41.39473714769959, 40.359503014310285, 41.26309739381903,
-                 39.72380394001538]}
+                 39.72380394001538]},
+    'complexCutlassGemm': {
+        'tvm': [90.85681792081911, 92.81105124310236, 69.59237613396404,
+                91.92402379253754, 1.8159209527599, 1.263513424824398,
+                1.0391331406712292, 0.9584419107765858, 0.9188624188604786,
+                0.8155118579759689, 0.9426866422180428, 0.8600994224519808,
+                0.7922329906486072, 0.7359534006386524, 0.6785265126805546,
+                0.6613894658046942],
+        'kaas': [89.49723638458205, 89.50440521157952, 89.1882472364158,
+                 89.03848861133442, 89.35887427866976, 89.44364918180077,
+                 89.50125584906124, 49.83026619858238, 28.673893737404637,
+                 22.435888649366834, 19.210344056836572, 16.759260902476257,
+                 15.21827104284447, 13.848851591942084, 13.348677117763334,
+                 12.181386330955116]}
 }
 
 
@@ -153,7 +167,8 @@ def getThroughputScales(independent=False):
     baseThroughputs = {
         'bert': infbench.bert.bertModelBase.getPerfEstimates("Tesla V100-SXM2-16GB")[0],
         'resnet50': infbench.resnet50.resnet50Base.getPerfEstimates("Tesla V100-SXM2-16GB")[0],
-        'jacobi': infbench.jacobi.jacobiBase.getPerfEstimates("Tesla V100-SXM2-16GB")[0]
+        'jacobi': infbench.jacobi.jacobiBase.getPerfEstimates("Tesla V100-SXM2-16GB")[0],
+        'complexCutlassGemm': infbench.complexCutlassGemm.sgemmBase.getPerfEstimates("Tesla V100-SXM2-16GB")[0]
     }
 
     if independent:
@@ -213,11 +228,13 @@ def latDistribution(configs, independent=False):
 
 # nReplicas = [1, 4, 5, 16]
 # nReplicas = [1, 2, 5]
-nReplicas = [1]
+# nReplicas = [1, 3, 5, 16]
+nReplicas = [4]
+# nReplicas = [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 # models = ['bert', 'jacobi']
 models = ['complexCutlassGemm']
 modes = ['tvm', 'kaas']
 configs = itertools.product(models, modes, nReplicas)
 
-# latDistribution(configs, independent=True)
-throughput(configs)
+latDistribution(configs, independent=False)
+# throughput(configs)
