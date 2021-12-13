@@ -1052,7 +1052,6 @@ class clientState():
             self.loader.preLoad(range(self.loader.ndata))
             self.cachedInputs = {}
 
-
         constants = self.modelSpec.modelClass.getConstants(self.modelSpec.modelPath.parent)
         if constants is None:
             constRefs = None
