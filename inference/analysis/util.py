@@ -7,7 +7,61 @@ import sys
 import pandas as pd
 import numpy as np
 import collections
+import shutil
 from pprint import pprint
+
+
+def updateThroughputRes(resDict):
+    newDict = resDict[0]
+
+    newDict['metrics_warm'] = newDict['metrics']
+    del newDict['metrics']
+
+    for metric in list(newDict['metrics_warm'].keys()):
+        origValue = newDict['metrics_warm'][metric]
+        newDict['metrics_warm'][metric] = {'mean': origValue}
+
+    return newDict
+
+
+def updateMlPerfRes(resDict):
+    resDict = resDict[0]
+    newDict = {}
+
+    newDict['config'] = copy.deepcopy(resDict['config'])
+    newDict['metrics_warm'] = copy.deepcopy(resDict['metrics'])
+
+    for mName, mVal in resDict['metrics'].items():
+        newDict['metrics_warm'][mName] = {"mean": mVal}
+
+    newDict['metrics_warm']['t_response'] = {}
+    newDict['metrics_warm']['t_response']['events'] = resDict['metrics']['latencies']
+    return newDict
+
+
+def updateFormat(suitePath, outPath, suiteType):
+    if not outPath.exists():
+        outPath.mkdir(0o700, parents=True)
+
+    for expDir in suitePath.glob("*"):
+        outExpDir = outPath / expDir.name
+        outExpDir.mkdir(0o700)
+        for resFile in expDir.glob("*_results.json"):
+            with open(resFile, 'r') as f:
+                resDict = json.load(f)
+
+            if isinstance(resDict, dict):
+                shutil.copy(resFile, outExpDir / resFile.name)
+            else:
+                if suiteType == 'throughput':
+                    newDict = updateThroughputRes(resDict)
+                elif suiteType == 'mlperf':
+                    newDict = updateMlPerfRes(resDict)
+                else:
+                    raise RuntimeError("I don't know how to convert that yet")
+
+                with open(outExpDir / resFile.name, 'w') as f:
+                    json.dump(newDict, f)
 
 
 def aggregateModels(fullResults, metric):
@@ -375,3 +429,8 @@ if __name__ == "__main__":
     print(res['p90'])
     # print(res['submission_rate'])
     # print(res['mean'])
+
+    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='throughput')
+    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='mlperf')
+    # print(loadAllThroughput(resPath))
+    print(loadAllMlPerf(resPath, metric="p90"))
