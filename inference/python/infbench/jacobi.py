@@ -150,7 +150,7 @@ class jacobiLoader(dataset.loader):
         self.b = None
 
     def get(self, idx):
-        return [self.A.data, self.b.data]
+        return [self.A, self.b]
 
     def check(self, result, idx):
         # print(np.frombuffer(result[0], dtype=np.float64))

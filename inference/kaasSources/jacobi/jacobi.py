@@ -12,6 +12,12 @@ import numpy as np
 redisPwd = "Cd+OBWBEAXV0o2fg5yDrMjD9JUkW7J6MATWuGlRtkQXk/CBvf2HYEjKDYw4FC+eWPeVR8cQKWr7IztZy"
 testPath = pathlib.Path(__file__).resolve().parent
 
+N = 512
+
+# The KaaS version packs 2 iterations into a single request. This nIter should
+# be half of the baseline implementation's nIter to match the total number of
+# actual jacobi iterations
+nIter = 1500
 
 def getCtx(remote=False):
     if remote:
@@ -23,8 +29,6 @@ def getCtx(remote=False):
 
 
 def createReq(mode='direct'):
-    N = 512
-
     rng = np.random.default_rng(40)
     A = rng.random((N, N), dtype=np.float32)
     fill_arr = np.sum(np.abs(A), axis=1)
@@ -52,6 +56,6 @@ def createReq(mode='direct'):
                             literals=[kaas.literalSpec('i', N)],
                             arguments=arguments2)
 
-    req = kaas.kaasReq([kern1, kern2], nIter=1500)
+    req = kaas.kaasReq([kern1, kern2], nIter=nIter)
 
     return req
