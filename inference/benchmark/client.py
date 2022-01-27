@@ -108,8 +108,10 @@ def nShot(modelSpec, n, benchConfig):
 
     stats = infbench.profCollection()
 
+    nWarmStep = infbench.getNGpu()*2
+
     loader = modelSpec.loader(modelSpec.dataDir)
-    loader.preLoad(range(min(n, loader.ndata)))
+    loader.preLoad(range(min(max(n, nWarmStep), loader.ndata)))
 
     zmqContext = zmq.Context()
     serverSocket, barrierSocket = setupZmq(clientID, context=zmqContext)
