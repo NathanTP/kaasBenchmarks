@@ -213,5 +213,4 @@ class testLoader(dataset.loader):
         # post
         expect -= 1
 
-        print(result) #XXX
         return np.allclose(result, expect, rtol=0.05, atol=0)
