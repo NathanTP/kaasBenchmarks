@@ -33,7 +33,7 @@ def runBench(model, modelType='Kaas', backend='local', experiment='nshot', nRun=
     return True
 
 
-def quickTest():
+def quick():
     models = ['resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
     types = ['Kaas', 'Tvm']
     backends = ['local', 'ray']
@@ -47,13 +47,43 @@ def quickTest():
     return True
 
 
+def runServerMode(model, modelType='kaas', experiment='nshot', n=1, scale=1.0, runTime=None):
+    cmd = ["./experiment.py", "-m", model, '-t', modelType, '-e', experiment, '-n', str(n), '-s', str(scale)]
+    if runTime is not None:
+        cmd += ['--runTime', str(runTime)]
+
+    proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
+    if proc.returncode != 0:
+        print("Command Failed: " + " ".join(cmd))
+        print(proc.stdout)
+        return False
+
+    return True
+
+
+def serverModeQuick():
+    # models = ['resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
+    models = ['complexCutlassGemm']
+    types = ['kaas', 'tvm']
+    configs = itertools.product(models, types)
+    for model, modelType in configs:
+        if not runServerMode(model, modelType=modelType, n=32):
+            print(f"Test Failed: {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: {model}{modelType}")
+    return True
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Regression/Correctness Testing for kaasBenchmarks")
-    parser.add_argument("-t", "--test", choices=['quick'])
+    parser.add_argument("-t", "--test", choices=['quick', 'serverQuick'])
     args = parser.parse_args()
 
     if args.test == 'quick':
-        success = quickTest()
+        success = quick()
+    elif args.test == 'serverQuick':
+        success = serverModeQuick()
 
     if success:
         print("Success")
