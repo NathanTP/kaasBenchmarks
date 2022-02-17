@@ -637,7 +637,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         accuracies = [loader.check(res, idx) for idx, res in results]
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:
-        print("Accuracy checking not supported by this dataset")
+        print("Dataset does not support accuracy calculation")
 
     return results
 
