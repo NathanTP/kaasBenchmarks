@@ -9,6 +9,7 @@ import pathlib
 
 import kaas
 import kaas.local
+from kaas import profiling
 
 # for cuda profiling
 import pycuda.driver as cuda
@@ -94,10 +95,10 @@ def _runOne(model, constKeys, inpKeys, kv, mode='direct', stats=None):
     if model.noPre:
         preOutKeys = inpKeys
     else:
-        with infbench.timer("t_pre", stats):
+        with profiling.timer("t_pre", stats):
             preOutKeys = pre(model, kv, inpKeys, constKeys)
 
-    with infbench.timer("t_run", stats):
+    with profiling.timer("t_run", stats):
         if mode == 'kaas':
             runOutKeys = runKaas(model, kv, constKeys, inpKeys, preOutKeys, stats=stats)
         else:
@@ -106,7 +107,7 @@ def _runOne(model, constKeys, inpKeys, kv, mode='direct', stats=None):
     if model.noPost:
         postOutKeys = runOutKeys
     else:
-        with infbench.timer("t_post", stats):
+        with profiling.timer("t_post", stats):
             postOutKeys = post(model, kv, constKeys, inpKeys, preOutKeys, runOutKeys)
 
     # Clean up intermediate data so we don't fill up memory
@@ -147,8 +148,8 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath)
 
-    coldStats = infbench.profCollection()
-    warmStats = infbench.profCollection()
+    coldStats = profiling.profCollection()
+    warmStats = profiling.profCollection()
 
     if infbench.getNGpu() != 1:
         raise ValueError("Deep Profile should be run with only one GPU (try setting the CUDA_VISIBLE_DEVICES environment variable)")
@@ -159,13 +160,13 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
         kv.put(k, v)
 
     # Cold Start
-    with infbench.cudaProfile(enable=cold):
+    with profiling.cudaProfile(enable=cold):
         model = modelSpec.getModelInstance(constRefs=runConstKeys, backend='local')
         _runOne(model, constKeys, inputKeys, kv, mode=mode, stats=coldStats)
 
     # Warm Start
-    with infbench.timer("t_e2e", warmStats):
-        with infbench.cudaProfile(enable=not cold):
+    with profiling.timer("t_e2e", warmStats):
+        with profiling.cudaProfile(enable=not cold):
             _runOne(model, constKeys, inputKeys, kv, mode=mode, stats=warmStats)
 
     fullReport = {}
@@ -189,7 +190,7 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
 
 
 def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
-    stats = infbench.profCollection()
+    stats = profiling.profCollection()
 
     if modelSpec.modelType == 'kaas':
         mode = 'kaas'
@@ -239,7 +240,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
             kv.put(k, v)
 
         cuda.start_profiler()
-        with infbench.timer("t_e2e", stats):
+        with profiling.timer("t_e2e", stats):
             resultKeys = _runOne(model, constKeys, inpKeys, kv, mode=mode, stats=stats)
         cuda.stop_profiler()
 

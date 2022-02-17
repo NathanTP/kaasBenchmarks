@@ -53,7 +53,6 @@ class ModelSpec():
             raise ValueError("Unrecognized model type: ", self.modelType)
 
 
-
 # This is implemented this way to ensure that models are only imported if
 # necessary. Imports have a large impact on performance, and some models have a
 # bigger impact than others.
@@ -227,14 +226,6 @@ def analyzeStats(stats):
     #
     # print("Other Stats:")
     # pprint(otherStats)
-
-
-def mergePerClientStats(base, delta):
-    for cID, deltaClient in delta.items():
-        if cID in base:
-            base[cID].merge(deltaClient)
-        else:
-            base[cID] = deltaClient
 
 
 def currentGitHash():
