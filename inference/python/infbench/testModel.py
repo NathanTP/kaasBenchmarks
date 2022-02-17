@@ -1,6 +1,7 @@
 from . import model
 from . import dataset
-from . import util
+
+from kaas import profiling
 
 import math
 import time
@@ -95,7 +96,7 @@ class testModelNative(testModel, model.Model):
 
         cuda.init()
         self.cudaCtx = pycuda.tools.make_default_context()
-        util.cudaProfilerResetCtx()
+        profiling.cudaProfilerResetCtx()
 
         gpuHandle = cuda.Device(0)
         maxThreads = gpuHandle.get_attribute(cuda.device_attribute.MAX_THREADS_PER_BLOCK)

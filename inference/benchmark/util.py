@@ -214,9 +214,9 @@ def analyzeStats(stats):
     otherStats = {}
     for m, v in stats.items():
         if pat.match(m):
-            timeStats[m] = v['p50']
+            timeStats[m] = v['mean']
         else:
-            otherStats[m] = v['p50']
+            otherStats[m] = v['mean']
 
     print("Time Stats:")
     pprint(timeStats)

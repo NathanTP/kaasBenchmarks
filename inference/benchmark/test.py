@@ -9,7 +9,8 @@ import itertools
 expectedAccuracies = {
     "resnet50": 0.75,
     'bert': 0.90625,
-    'complexCutlassGemm': 1.0
+    'complexCutlassGemm': 1.0,
+    'testModel': 1.0
 }
 
 
@@ -18,7 +19,7 @@ def runBench(model, modelType='Kaas', backend='local', experiment='nshot', nRun=
     proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
     if proc.returncode != 0:
         print("Command Failed: " + " ".join(cmd))
-        print("\n".join(proc.stdout))
+        print(proc.stdout)
         return False
 
     if "Dataset does not support accuracy calculation" not in proc.stdout:
@@ -34,7 +35,7 @@ def runBench(model, modelType='Kaas', backend='local', experiment='nshot', nRun=
 
 
 def quick():
-    models = ['resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
+    models = ['testModel', 'resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
     types = ['Kaas', 'Tvm']
     backends = ['local', 'ray']
     configs = itertools.product(models, types, backends)
