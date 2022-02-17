@@ -41,6 +41,18 @@ class ModelSpec():
         else:
             raise ValueError("Unrecognized model type: ", self.modelType)
 
+    def getModelInstance(self, constRefs=None, backend='ray'):
+        if self.modelType == 'tvm':
+            arg = infbench.model.readModelBuf(self.modelPath)
+            return self.modelClass(arg)
+        elif self.modelType == 'kaas':
+            return self.modelClass(self.modelPath, constRefs, backend=backend)
+        elif self.modelType == "direct":
+            return self.modelClass(self.modelPath)
+        else:
+            raise ValueError("Unrecognized model type: ", self.modelType)
+
+
 
 # This is implemented this way to ensure that models are only imported if
 # necessary. Imports have a large impact on performance, and some models have a

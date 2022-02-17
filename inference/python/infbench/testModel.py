@@ -2,6 +2,7 @@ from . import model
 from . import dataset
 from . import util
 
+import math
 import time
 import numpy as np
 import pickle
@@ -53,9 +54,8 @@ class testModel():
     @staticmethod
     def post(data):
         inputArr = data[0]
-        if isinstance(inputArr, bytes):
-            inputArr = np.frombuffer(data[0], dtype=np.float32)
-            inputArr.shape = (matSize, matSize)
+        inputArr.dtype = np.float32
+        inputArr.shape = (matSize, matSize)
 
         result = inputArr - 1
 
@@ -93,21 +93,21 @@ class testModelNative(testModel, model.Model):
         self.dConsts = None
         self.dIOs = None
 
-        tile_tb_height = 8
-        tileN = 16
-        tileM = (tileN * tile_tb_height)
-
-        self.gridDim = (matSize // tileM, matSize // tileN, 1)
-        self.blockDim = (tileN, tile_tb_height, 1)
-        self.sharedSize = tile_tb_height * tileN * 4
-
         cuda.init()
         self.cudaCtx = pycuda.tools.make_default_context()
         util.cudaProfilerResetCtx()
 
+        gpuHandle = cuda.Device(0)
+        maxThreads = gpuHandle.get_attribute(cuda.device_attribute.MAX_THREADS_PER_BLOCK)
+
+        tileSize = int(math.sqrt(maxThreads))
+        self.gridDim = (matSize // tileSize, matSize // tileSize, 1)
+        self.blockDim = (tileSize, tileSize, 1)
+        self.sharedSize = 0
+
         mod = cuda.module_from_file(str(self.modelPath.parent / "sgemm.cubin"))
         self.kern = mod.get_function("sgemm")
-        self.kern.prepare(["P", "P", "P"])
+        self.kern.prepare(["i", "P", "P", "P"])
 
     def __del__(self):
         if self.dConsts is not None:
@@ -152,10 +152,12 @@ class testModelNative(testModel, model.Model):
 
         for i in range(depth):
             self.kern.prepared_call(self.gridDim, self.blockDim,
+                                    matSize,
                                     self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)
 
         hRes = np.empty(inpSize, dtype=np.int8)
+        # hRes = np.empty((matSize, matSize), dtype=np.float32)
         cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
         return (hRes,)
@@ -184,8 +186,9 @@ class testLoader(dataset.loader):
         self.data = {}
 
     def preLoad(self, idxs):
+        rng = np.random.default_rng(1)
         for i in idxs:
-            self.data[i] = np.full((matSize, matSize), (i+1)*10, dtype=np.float32)
+            self.data[i] = rng.standard_normal((matSize, matSize), dtype=np.float32)
 
     def unLoad(self, idxs):
         for i in idxs:
@@ -196,9 +199,6 @@ class testLoader(dataset.loader):
 
     def check(self, result, idx):
         result = result[0]
-        if isinstance(result, bytes):
-            result = np.frombuffer(result, dtype=np.float32)
-        result.shape = (matSize, matSize)
 
         expect = np.frombuffer(self.data[idx], dtype=np.float32)
         expect.shape = (matSize, matSize)
@@ -213,4 +213,5 @@ class testLoader(dataset.loader):
         # post
         expect -= 1
 
+        print(result) #XXX
         return np.allclose(result, expect, rtol=0.05, atol=0)

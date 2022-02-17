@@ -15,7 +15,8 @@ import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 
 import mlperf_loadgen
-import libff.kaas.kaasRay as kaasRay
+import kaas
+import kaas.ray
 
 import util
 
@@ -149,7 +150,7 @@ def _run(model, inputs, completionQ, queryId, stats=None):
 
 @ray.remote(num_gpus=1)
 def runKaasTask(req, queryId=None, completionQ=None):
-    results = kaasRay.kaasServeRay(req.toDict())
+    results = kaas.ray.invoke(req.toDict())
 
     if completionQ is not None:
         completionQ.put((results, queryId))
@@ -240,7 +241,7 @@ class runActor():
         self.modelCache = {}
         # {clientID -> infbench.profCollection}
         self.stats = {}
-        kaasRay.init()
+        kaas.ray.init()
 
     def ensureWarm(self):
         return True
@@ -344,7 +345,7 @@ class runActor():
             self.stats[clientID] = infbench.profCollection()
 
         with infbench.timer('t_model_run', self.stats[clientID]):
-            results = kaasRay.kaasServeRay(req, stats=self.stats[clientID].mod('kaas'))
+            results = kaas.ray.invoke(req, stats=self.stats[clientID].mod('kaas'))
 
         if completionQ is not None:
             completionQ.put((results, queryId))

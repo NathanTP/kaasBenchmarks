@@ -8,38 +8,38 @@ import shutil
 import pathlib
 import numpy as np
 import pickle
+import math
 
-import libff.kaas as kaas
+import kaas
 
+import pycuda.driver as cuda
+import pycuda.autoinit  # NOQA
 
 srcDir = pathlib.Path(__file__).parent.resolve()
 
 libraryName = "sgemm.cubin"
 mmKern = "sgemm"
 
-tile_tb_height = 8
-tileN = 16
-tileM = (tileN * tile_tb_height)
+sideLen = 1024
 
-# This has to match the DIM constant in gemm.cu
-sideLength = 1024
+maxThreads = cuda.Device(0).get_attribute(cuda.device_attribute.MAX_THREADS_PER_BLOCK)
+tileSize = int(math.sqrt(maxThreads))
+gridDim = (sideLen // tileSize, sideLen // tileSize, 1)
+blockDim = (tileSize, tileSize, 1)
+sharedSize = 0
 
 # Size of one element in bytes, e.g. float32=4
 elemSize = 4
 
 
 def generateLayer(namePrefix, inputName, libraryPath, outputLayer=False, inputLayer=False):
-    matSize = (sideLength**2) * elemSize
+    matSize = (sideLen**2) * elemSize
 
     aBuf = kaas.bufferSpec(inputName, matSize, ephemeral=(not inputLayer), const=False)
     bBuf = kaas.bufferSpec(namePrefix + "B", matSize, ephemeral=False, const=True)
 
     outputName = namePrefix + "C"
     cBuf = kaas.bufferSpec(namePrefix + "C", matSize, ephemeral=(not outputLayer), const=False)
-
-    gridDim = (sideLength // tileM, sideLength // tileN, 1)
-    blockDim = (tileN, tile_tb_height, 1)
-    sharedSize = tile_tb_height * tileN * 4
 
     arguments = [(aBuf, 'i'),
                  (bBuf, 'i'),
@@ -49,7 +49,7 @@ def generateLayer(namePrefix, inputName, libraryPath, outputLayer=False, inputLa
     # the model, as will the buffer keys
     kern = kaas.kernelSpec(libraryPath, mmKern,
                            gridDim, blockDim, sharedSize,
-                           literals=[],
+                           literals=[kaas.literalSpec('i', sideLen)],
                            arguments=arguments)
 
     return (kern, outputName)
@@ -74,7 +74,7 @@ def generateModel(depth, libraryPath):
 
 
 def metaFromReq(req):
-    shape = (sideLength, sideLength)
+    shape = (sideLen, sideLen)
     dtype = "float32"
 
     constants = []
@@ -102,7 +102,7 @@ def generateCubin(outputPath):
 def generateConstants(depth):
     consts = []
     for i in range(depth):
-        const = np.zeros((sideLength, sideLength), dtype=np.float32)
+        const = np.zeros((sideLen, sideLen), dtype=np.float32)
         np.fill_diagonal(const, i+1)
         consts.append(const)
 

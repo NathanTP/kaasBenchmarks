@@ -2,19 +2,13 @@ import infbench
 import util
 
 import mlperf_loadgen
-import threading
-import queue
 from gpuinfo import GPUInfo
 from pprint import pprint
 import json
 import pathlib
-import time
 
-import libff as ff
-import libff.invoke
-import libff.kv
-import libff.kaas as kaas
-import libff.kaas.kaasFF
+import kaas
+import kaas.local
 
 # for cuda profiling
 import pycuda.driver as cuda
@@ -32,78 +26,123 @@ def _getHandlers(modelSpec):
     return (loader, models)
 
 
-# KaaS requires an immutable object store. This means that keys must be unique.
-# This counter ensures that
-kaasNextId = 0
+# We need every key in the obj store to be unique
+nextId = 0
 
 
-def runKaas(model, kaasCtx, kaasHandle, constants, inputs, preOut):
+def getNextKey(n=None):
+    global nextId
+
+    if n is None:
+        newId = nextId
+        nextId += 1
+        return newId
+    else:
+        newIds = [nextId + (i-1) for i in range(n)]
+        nextId += n
+        return newIds
+
+
+def pre(model, kv, inputs, constants):
+    preInp = kv.get(util.packInputs(model.preMap, const=constants, inp=inputs))
+    outVals = model.pre(preInp)
+    outKeys = getNextKey(len(outVals))
+    for k, v in zip(outKeys, outVals):
+        kv.put(k, v)
+
+    return outKeys
+
+
+def post(model, kv, constants, inputs, preOut, runOut):
+    postInp = kv.get(util.packInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut))
+    outVals = model.post(postInp)
+    outKeys = getNextKey(len(outVals))
+    for k, v in zip(outKeys, outVals):
+        kv.put(k, v)
+
+    return outKeys
+
+
+def runKaas(model, kv, constants, inputs, preOut, stats=None):
     """Run a kaas model. inputs and preOut are literal values, constants should
     be keys in kaasCtx.kv for the constants"""
     global kaasNextId
 
-    inputKeys = []
-    for inp in inputs:
-        kaasCtx.kv.put(kaasNextId, inp)
-        inputKeys.append(kaasNextId)
-        kaasNextId += 1
-
-    preKeys = []
-    for val in preOut:
-        kaasCtx.kv.put(kaasNextId, val)
-        preKeys.append(kaasNextId)
-        kaasNextId += 1
-
-    outKeys = []
-    for output in model.meta['outputs']:
-        outKeys.append((output['name'], kaasNextId))
-        kaasNextId += 1
-
-    runInp = util.packInputs(model.runMap, const=constants, inp=inputKeys, pre=preKeys)
-    req, renameMap = model.run(runInp, outKeys=outKeys)
-
-    req.reKey(renameMap)
-
-    kaasHandle.Invoke(req)
-
-    outputs = []
-    for name, key in outKeys:
-        outputs.append(kaasCtx.kv.get(key))
-
-    return outputs
-
-
-def runNative(model, constants, inputs, preOut):
+    outKeys = getNextKey(model.nOutRun)
     runInp = util.packInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
-    return model.run(runInp)
+    packedReq = model.run(runInp, outKeys=outKeys)
+
+    kaas.local.invoke(packedReq, kv, stats=stats)
+
+    return outKeys
 
 
-def _runOne(model, constants, inputs, stats=None, kaasCtx=None, kaasHandle=None, constKeys=None):
+def runNative(model, kv, constants, inputs, preOut, stats=None):
+    runInpKeys = util.packInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
+    runInp = [kv.get(k) for k in runInpKeys]
+
+    runOuts = model.run(runInp)
+
+    runKeys = getNextKey(len(runOuts))
+    for k, v in zip(runKeys, runOuts):
+        kv.put(k, v)
+
+    return runKeys
+
+
+def _runOne(model, constKeys, inpKeys, kv, mode='direct', stats=None):
     if model.noPre:
-        preOut = inputs
+        preOutKeys = inpKeys
     else:
         with infbench.timer("t_pre", stats):
-            preInp = util.packInputs(model.preMap, const=constants, inp=inputs)
-            preOut = model.pre(preInp)
+            preOutKeys = pre(model, kv, inpKeys, constKeys)
 
     with infbench.timer("t_run", stats):
-        if kaasCtx is not None:
-            runOut = runKaas(model, kaasCtx, kaasHandle, constKeys, inputs, preOut)
+        if mode == 'kaas':
+            runOutKeys = runKaas(model, kv, constKeys, inpKeys, preOutKeys, stats=stats)
         else:
-            runOut = runNative(model, constants, inputs, preOut)
+            runOutKeys = runNative(model, kv, constKeys, inpKeys, preOutKeys, stats=stats)
 
     if model.noPost:
-        postOut = runOut
+        postOutKeys = runOutKeys
     else:
         with infbench.timer("t_post", stats):
-            postInp = util.packInputs(model.postMap, const=constants, inp=inputs, pre=preOut, run=runOut)
-            postOut = model.post(postInp)
+            postOutKeys = post(model, kv, constKeys, inpKeys, preOutKeys, runOutKeys)
 
-    return postOut
+    # Clean up intermediate data so we don't fill up memory
+    if not model.noPre:
+        kv.delete(preOutKeys)
+    if not model.noPost:
+        kv.delete(runOutKeys)
+
+    return postOutKeys
 
 
 def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
     cold = benchConfig['forceCold']
+
+    if modelSpec.modelType == 'kaas':
+        mode = 'kaas'
+        kaas.local.init()
+    else:
+        mode = 'direct'
+
+    kv = kaas.local.LocalKV(serialize=False)
+    loader = modelSpec.loader(modelSpec.dataDir)
+    loader.preLoad([0])
+
+    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+    if constants is not None:
+        constKeys = getNextKey(len(constants))
+        for k, v in zip(constKeys, constants):
+            kv.put(k, v)
+    else:
+        constKeys = []
+
+    runConstKeys = []
+    if modelSpec.modelClass.runMap.const is not None:
+        for idx in modelSpec.modelClass.runMap.const:
+            runConstKeys.append(constKeys[idx])
 
     if not isinstance(reportPath, pathlib.Path):
         reportPath = pathlib.Path(reportPath)
@@ -114,49 +153,20 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
     if infbench.getNGpu() != 1:
         raise ValueError("Deep Profile should be run with only one GPU (try setting the CUDA_VISIBLE_DEVICES environment variable)")
 
-    loader = modelSpec.loader(modelSpec.dataDir)
-    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
-    loader.preLoad([0])
     inputs = loader.get(0)
-
-    if modelSpec.modelType == "kaas":
-        objStore = ff.kv.Local(copyObjs=False, serialize=False)
-        kaasCtx = ff.invoke.RemoteCtx(None, objStore)
-        kaasHandle = kaas.kaasFF.getHandle('direct', kaasCtx, stats=coldStats)
-
-        global kaasNextId
-        constKeys = []
-        for const in constants:
-            kaasCtx.kv.put(kaasNextId, const)
-            constKeys.append(kaasNextId)
-            kaasNextId += 1
-    else:
-        kaasCtx = None
-        kaasHandle = None
-        constKeys = None
+    inputKeys = getNextKey(len(inputs))
+    for k, v in zip(inputKeys, inputs):
+        kv.put(k, v)
 
     # Cold Start
     with infbench.cudaProfile(enable=cold):
-        if modelSpec.modelType == 'kaas':
-            model = modelSpec.getModelArg(constRefs=constKeys, backend='local')
-        else:
-            model = modelSpec.modelClass(modelSpec.getModelArg())
-
-        _runOne(model, constants, inputs, stats=coldStats, constKeys=constKeys,
-                kaasCtx=kaasCtx, kaasHandle=kaasHandle)
-
-    if modelSpec.modelType == "kaas":
-        kaasHandle.getStats()
-        kaasHandle.resetStats(newStats=warmStats)
+        model = modelSpec.getModelInstance(constRefs=runConstKeys, backend='local')
+        _runOne(model, constKeys, inputKeys, kv, mode=mode, stats=coldStats)
 
     # Warm Start
     with infbench.timer("t_e2e", warmStats):
         with infbench.cudaProfile(enable=not cold):
-            _runOne(model, constants, inputs, constKeys=constKeys,
-                    stats=warmStats, kaasCtx=kaasCtx, kaasHandle=kaasHandle)
-
-    if modelSpec.modelType == "kaas":
-        kaasHandle.getStats()
+            _runOne(model, constKeys, inputKeys, kv, mode=mode, stats=warmStats)
 
     fullReport = {}
     fullReport['config'] = benchConfig
@@ -181,38 +191,41 @@ def deepProfile(modelSpec, benchConfig, reportPath='results.json'):
 def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     stats = infbench.profCollection()
 
-    loader = modelSpec.loader(modelSpec.dataDir)
-    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
-
-    if modelSpec.modelType == "kaas":
-        objStore = ff.kv.Local(copyObjs=False, serialize=False)
-        kaasCtx = ff.invoke.RemoteCtx(None, objStore)
-        kaasHandle = kaas.kaasFF.getHandle('direct', kaasCtx, stats=stats)
-
-        global kaasNextId
-        constKeys = []
-        for const in constants:
-            kaasCtx.kv.put(kaasNextId, const)
-            constKeys.append(kaasNextId)
-            kaasNextId += 1
-
-        model = modelSpec.getModelArg(constRefs=constKeys, backend='local')
+    if modelSpec.modelType == 'kaas':
+        mode = 'kaas'
+        kaas.local.init()
     else:
-        kaasCtx = None
-        kaasHandle = None
-        constKeys = None
-        model = modelSpec.modelClass(modelSpec.getModelArg())
+        mode = 'direct'
 
-    loader.preLoad(list(range(min(n, loader.ndata))))
+    kv = kaas.local.LocalKV(serialize=False)
+    loader = modelSpec.loader(modelSpec.dataDir)
+
+    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+    if constants is not None:
+        constKeys = getNextKey(len(constants))
+        for k, v in zip(constKeys, constants):
+            kv.put(k, v)
+    else:
+        constKeys = []
+
+    runConstKeys = []
+    if modelSpec.modelClass.runMap.const is not None:
+        for idx in modelSpec.modelClass.runMap.const:
+            runConstKeys.append(constKeys[idx])
+
+    model = modelSpec.getModelInstance(constRefs=runConstKeys, backend='local')
+
+    loader.preLoad(range(min(max(n, infbench.getNGpu()*2), loader.ndata)))
 
     # Cold starts
-    for i in range(infbench.getNGpu()):
-        inputs = loader.get(0)
-        _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
+    coldInputs = loader.get(0)
+    coldKeys = getNextKey(len(coldInputs))
+    for k, v in zip(coldKeys, coldInputs):
+        kv.put(k, v)
 
-    # make sure kaasHandle stats are fully up to date
-    if modelSpec.modelType == "kaas":
-        kaasHandle.getStats()
+    for i in range(infbench.getNGpu()):
+        _runOne(model, constKeys, coldKeys, kv, mode=mode, stats=stats)
+
     # coldReport = stats.report()
     stats.reset()
 
@@ -221,16 +234,20 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     for i in range(n):
         idx = i % loader.ndata
         inputs = loader.get(idx)
+        inpKeys = getNextKey(len(inputs))
+        for k, v in zip(inpKeys, inputs):
+            kv.put(k, v)
 
         cuda.start_profiler()
         with infbench.timer("t_e2e", stats):
-            result = _runOne(model, constants, inputs, stats=stats, kaasCtx=kaasCtx, kaasHandle=kaasHandle, constKeys=constKeys)
+            resultKeys = _runOne(model, constKeys, inpKeys, kv, mode=mode, stats=stats)
         cuda.stop_profiler()
 
-        results.append(result)
+        resultVals = [kv.get(k) for k in resultKeys]
+        results.append(resultVals)
 
         if loader.checkAvailable:
-            accuracies.append(loader.check(result, idx))
+            accuracies.append(loader.check(resultVals, idx))
 
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
@@ -238,9 +255,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         print("Dataset does not support accuracy calculation")
 
     # make sure kaasHandle stats are fully up to date
-    if modelSpec.modelType == "kaas":
-        kaasHandle.getStats()
-
     report = stats.report()
     print("Detailed Profile: ")
     util.analyzeStats(report)
@@ -276,78 +290,82 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
 class mlperfRunner():
 
-    def __init__(self, loader, constants, models, benchConfig):
+    def __init__(self, loader, constKeys, model, kv, benchConfig):
         self.loader = loader
-        self.models = models
-        self.queue = queue.SimpleQueue()
-        self.constants = constants
+        self.kv = kv
+        self.model = model
+        self.constKeys = constKeys
         self.benchConfig = benchConfig
 
-    def start(self):
-        for model in self.models:
-            threading.Thread(target=self.runOneAsync, args=[model, self.queue]).start()
+    def runOne(self, batch):
+        responses = []
+        for query in batch:
+            inputs = self.loader.get(query.index)
+            inpKeys = getNextKey(len(inputs))
+            for k, v in zip(inpKeys, inputs):
+                self.kv.put(k, v)
 
-    def stop(self):
-        for i in range(len(self.models)):
-            self.queue.put(None)
+            outKeys = _runOne(self.model, self.constKeys, inpKeys, self.kv)
 
-    def runOne(self, queries):
-        self.queue.put(queries)
+            # Some models have big objects, best to clear out so we don't
+            # run out of memory
+            self.kv.delete(inpKeys + outKeys)
 
-    def runOneAsync(self, model, queue):
-        batch = queue.get()
-        self.firstTime = time.time()
-        while batch is not None:
-            self.lastTime = time.time()
-            responses = []
-            for query in batch:
-                inputs = self.loader.get(query.index)
-                _runOne(model, self.constants, inputs)
+            # The last two args are supposed to be for the result data
+            # (it's a C pointer and length). These are then logged by
+            # loadgen in certain configurations (for accuracy checking
+            # mostly). We don't need that feature so we just skip it.
+            responses.append(mlperf_loadgen.QuerySampleResponse(query.id, 0, 0))
 
-                # The last two args are supposed to be for the result data
-                # (it's a C pointer and length). These are then logged by
-                # loadgen in certain configurations (for accuracy checking
-                # mostly). We don't need that feature so we just skip it.
-                responses.append(mlperf_loadgen.QuerySampleResponse(query.id, 0, 0))
-
-            mlperf_loadgen.QuerySamplesComplete(responses)
-
-            batch = queue.get()
+        mlperf_loadgen.QuerySamplesComplete(responses)
 
     def processLatencies(self, latencies):
-        infbench.model.processLatencies(self.benchConfig, latencies)
+        self.latMetrics = infbench.processLatencies(self.benchConfig, latencies)
 
 
 def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
+    if modelSpec.modelType == 'kaas':
+        kaas.local.init()
+
+    kv = kaas.local.LocalKV(serialize=False)
+    loader = modelSpec.loader(modelSpec.dataDir)
+
+    constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
+    if constants is not None:
+        constKeys = getNextKey(len(constants))
+        for k, v in zip(constKeys, constants):
+            kv.put(k, v)
+    else:
+        constKeys = []
+
+    runConstKeys = []
+    if modelSpec.modelClass.runMap.const is not None:
+        for idx in modelSpec.modelClass.runMap.const:
+            runConstKeys.append(constKeys[idx])
+
+    model = modelSpec.getModelInstance(constRefs=runConstKeys, backend='local')
+
     gpuType = infbench.getGpuType()
 
-    loader, models = _getHandlers(modelSpec)
-    constants = models[0].getConstants(modelSpec.modelPath.parent)
+    runner = mlperfRunner(loader, constKeys, model, kv, benchConfig)
 
-    settings = models[0].getMlPerfCfg(gpuType, benchConfig)
+    sut = mlperf_loadgen.ConstructSUT(
+        runner.runOne, infbench.model.flushQueries, runner.processLatencies)
 
-    runner = mlperfRunner(loader, constants, models, benchConfig)
-    runner.start()
+    qsl = mlperf_loadgen.ConstructQSL(
+        loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
-    try:
-        sut = mlperf_loadgen.ConstructSUT(
-            runner.runOne, infbench.model.flushQueries, runner.processLatencies)
+    settings = model.getMlPerfCfg(gpuType, benchConfig)
+    mlperf_loadgen.StartTest(sut, qsl, settings)
 
-        qsl = mlperf_loadgen.ConstructQSL(
-            loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
+    mlperf_loadgen.DestroyQSL(qsl)
+    mlperf_loadgen.DestroySUT(sut)
 
-        mlperf_loadgen.StartTest(sut, qsl, settings)
-
-        mlperf_loadgen.DestroyQSL(qsl)
-        mlperf_loadgen.DestroySUT(sut)
-    finally:
-        runner.stop()
-
-    print("Submission time range: ", runner.lastTime - runner.firstTime)
-    # print("\nResults:")
-    # mlPerfMetrics = infbench.model.parseMlPerf('mlperf_log_')
+    print("\nResults:")
+    mlPerfMetrics, valid = infbench.parseMlPerf('mlperf_log_')
+    print(mlPerfMetrics.report())
 
     # print("\nStats:")
     # report = warmStats.report()
