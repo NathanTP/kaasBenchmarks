@@ -63,8 +63,7 @@ def runServerMode(model, modelType='kaas', experiment='nshot', n=1, scale=1.0, r
 
 
 def serverModeQuick():
-    # models = ['resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
-    models = ['complexCutlassGemm']
+    models = ['testModel', 'resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
     types = ['kaas', 'tvm']
     configs = itertools.product(models, types)
     for model, modelType in configs:

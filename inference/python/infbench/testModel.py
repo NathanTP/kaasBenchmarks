@@ -200,6 +200,9 @@ class testLoader(dataset.loader):
 
     def check(self, result, idx):
         result = result[0]
+        if isinstance(result, bytes):
+            result = np.frombuffer(result, dtype=np.float32)
+            result.shape = (matSize, matSize)
 
         expect = np.frombuffer(self.data[idx], dtype=np.float32)
         expect.shape = (matSize, matSize)
