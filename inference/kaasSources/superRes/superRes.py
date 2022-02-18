@@ -1,15 +1,13 @@
 import pathlib
 import pickle
-import libff.kaas as kaas
-import numpy as np
+import kaas
 
 testPath = pathlib.Path(__file__).resolve().parent
 
 
 # Adds the given array to the kv with name node_num.
-def addToKV(node_num, arr, const=True, ephemeral=False):
-    nByte = arr.nbytes
-    buff = kaas.bufferSpec(str(node_num), nByte, const=const, ephemeral=ephemeral)
+def addToKV(node_num, nBytes, const=True, ephemeral=False):
+    buff = kaas.bufferSpec(str(node_num), nBytes, const=const, ephemeral=ephemeral)
     return buff
 
 
@@ -26,13 +24,12 @@ def createReq(params, cubinPath, mode='direct'):
     nodes = []
     kerns = []
     path = cubinPath
-    inp = np.zeros((1, 1, 224, 224))
-    nodes.append(addToKV(0, inp, const=False, ephemeral=False))
+    nodes.append(addToKV(0, 224*224*4, const=False, ephemeral=False))
     # 1. p0
-    nodes.append(addToKV(1, params['p0']))
+    nodes.append(addToKV(1, params['p0'].nbytes))
 
     # 2. p1
-    nodes.append(addToKV(2, params['p1']))
+    nodes.append(addToKV(2, params['p1'].nbytes))
 
     # 3. fused_nn_conv2d_add_nn_relu_13
     # kernel 0
@@ -43,10 +40,10 @@ def createReq(params, cubinPath, mode='direct'):
     kerns.append(makeKern('fused_nn_conv2d_add_nn_relu_13_kernel0', path, shapes, arguments))
 
     # 4. p2
-    nodes.append(addToKV(4, params['p2']))
+    nodes.append(addToKV(4, params['p2'].nbytes))
 
     # 5. p3
-    nodes.append(addToKV(5, params['p3']))
+    nodes.append(addToKV(5, params['p3'].nbytes))
 
     # 6. fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_4
     imm = []
@@ -69,10 +66,10 @@ def createReq(params, cubinPath, mode='direct'):
     kerns.append(makeKern('fused_nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_4_kernel2', path, shapes, arguments))
 
     # 7. p4
-    nodes.append(addToKV(7, params['p4']))
+    nodes.append(addToKV(7, params['p4'].nbytes))
 
     # 8. p5
-    nodes.append(addToKV(8, params['p5']))
+    nodes.append(addToKV(8, params['p5'].nbytes))
 
     # 9. fused_nn_conv2d_add_nn_relu_12
     # kernel 0
@@ -83,10 +80,10 @@ def createReq(params, cubinPath, mode='direct'):
     kerns.append(makeKern('fused_nn_conv2d_add_nn_relu_12_kernel0', path, shapes, arguments))
 
     # 10. p6
-    nodes.append(addToKV(10, params['p6']))
+    nodes.append(addToKV(10, params['p6'].nbytes))
 
     # 11. p7
-    nodes.append(addToKV(11, params['p7']))
+    nodes.append(addToKV(11, params['p7'].nbytes))
 
     # 12. fused_nn_conv2d_add_4
     # kernel 0

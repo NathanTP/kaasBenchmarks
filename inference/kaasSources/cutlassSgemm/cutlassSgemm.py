@@ -1,9 +1,4 @@
-from libff import kaas
-import libff.kaas.kaasFF
-import libff as ff
-import libff.kv
-import libff.invoke
-import numpy as np
+import kaas
 import ctypes as ct
 
 redDim = 2
@@ -81,47 +76,3 @@ def createReq(M, N, K, alpha, beta):
 
     req = kaas.kaasReq([firstKern, redKern])
     return req
-
-
-def runManual():
-    req = kaas.kaasReqDense.fromDict(createReq(M, N, K, alpha, beta).toDict())
-
-    rng = np.random.default_rng()
-    aTile = np.arange(1, 101, dtype=np.float32) / 100
-    a = np.asfortranarray(np.tile(aTile, (M, int(K / 100))))
-    b = np.asfortranarray(rng.random((K, N), dtype=np.float32))
-
-    c = np.zeros(shape=(M, N), dtype=np.float32, order='F')
-
-    d = np.asfortranarray(rng.random((N, redDim), dtype=np.float32))
-    e = np.zeros(shape=(M, redDim), dtype=np.float32, order='F')
-
-    objStore = ff.kv.Local(serialize=False, copyObjs=False)
-    libffCtx = ff.invoke.RemoteCtx(None, objStore)
-
-    libffCtx.kv.put('a', a)
-    libffCtx.kv.put('b', b)
-    libffCtx.kv.put('c', c)
-
-    libffCtx.kv.put('d', d)
-    libffCtx.kv.put('e', e)
-
-    kaasHandle = kaas.kaasFF.getHandle("direct", libffCtx)
-    kaasHandle.Invoke(req)
-
-    res = np.frombuffer(libffCtx.kv.get('e'), dtype=np.float32).reshape(e.shape, order="F")
-
-    expect = np.matmul(a, b)
-    expect = np.matmul(expect, d)
-
-    print("Expect:")
-    print(expect)
-
-    print("\nGot:")
-    print(res)
-
-    print("\nClose?: ", np.allclose(expect, res, rtol=0.05))
-
-
-if __name__ == '__main__':
-    runManual()

@@ -10,6 +10,7 @@ import time
 import mlperf_loadgen
 
 import infbench
+from kaas import profiling
 import util
 
 sutSockUrl = "inproc://sut"
@@ -58,7 +59,7 @@ def _nShotSync(n, loader, serverSocket, stats=None, cacheInputs=False):
     results = []
     stats['n_req'].increment(n)
 
-    with infbench.timer("t_all", stats):
+    with profiling.timer("t_all", stats):
         for i in range(n):
             idx = i % loader.ndata
             if cacheInputs:
@@ -66,7 +67,7 @@ def _nShotSync(n, loader, serverSocket, stats=None, cacheInputs=False):
             else:
                 inp = loader.get(idx)
 
-            with infbench.timer('t_e2e', stats):
+            with profiling.timer('t_e2e', stats):
                 sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
 
                 resp = serverSocket.recv_multipart()
@@ -81,7 +82,7 @@ def _nShotSync(n, loader, serverSocket, stats=None, cacheInputs=False):
 def _nShotASync(n, loader, serverSocket, stats=None):
     results = []
     starts = []
-    with infbench.timer('t_all', stats):
+    with profiling.timer('t_all', stats):
         for i in range(n):
             idx = i % loader.ndata
             inp = loader.get(idx)
@@ -106,7 +107,7 @@ def nShot(modelSpec, n, benchConfig):
     responses. The raw results are returned."""
     clientID = benchConfig['name'].encode('utf-8')
 
-    stats = infbench.profCollection()
+    stats = profiling.profCollection()
 
     nWarmStep = infbench.getNGpu()*2
 
@@ -241,7 +242,7 @@ class throughputLoop():
             self.loop.add_callback(self.submitReqs)
 
     def reportMetrics(self):
-        metrics = infbench.profCollection()
+        metrics = profiling.profCollection()
 
         # useful for debugging mostly. Ideally t_total ~= targetTime
         metrics['n_completed'].increment(self.nCompleted)
@@ -295,7 +296,7 @@ class mlperfRunner(threading.Thread):
         self.zmqContext = zmqContext
         self.benchConfig = benchConfig
         self.modelSpec = modelSpec
-        self.metrics = infbench.profCollection()
+        self.metrics = profiling.profCollection()
         self.nQuery = 0
 
         threading.Thread.__init__(self)
@@ -411,7 +412,7 @@ def mlperfBench(modelSpec, benchConfig):
     mlPerfMetrics, valid = infbench.parseMlPerf(benchConfig['name'] + '_')
     benchConfig['valid'] = valid
 
-    metrics = infbench.profCollection()
+    metrics = profiling.profCollection()
     metrics.merge(testRunner.metrics)
     metrics.merge(mlPerfMetrics)
 

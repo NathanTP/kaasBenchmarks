@@ -25,7 +25,7 @@ pushd tvm
     popd
 popd
 
-pushd fakefaas/python
+pushd kaas/python
     python3 setup.py develop
 popd
 

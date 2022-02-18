@@ -12,7 +12,7 @@ import ray
 
 import mlperf_loadgen
 
-import libff.kaas as kaas
+import kaas
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -452,7 +452,8 @@ class kaasModel(Model):
                 renameMap[inp['name']] = inputs[idx]
 
         if outKeys is not None:
-            for name, key in outKeys:
+            outNames = [out['name'] for out in self.meta['outputs']]
+            for name, key in zip(outNames, outKeys):
                 renameMap[name] = key
 
         return (self.reqRef, renameMap)

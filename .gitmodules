@@ -1,9 +1,9 @@
-[submodule "dependencies/fakefaas"]
-	path = dependencies/fakefaas
-	url = git@github.com:NathanTP/fakefaas.git
 [submodule "dependencies/inference"]
 	path = dependencies/mlperf
 	url = git@github.com:mlcommons/inference.git
 [submodule "dependencies/tvm"]
 	path = dependencies/tvm
 	url = git@github.com:NathanTP/tvm.git 
+[submodule "dependencies/kaas"]
+	path = dependencies/kaas
+	url = git@github.com:NathanTP/kaas.git
