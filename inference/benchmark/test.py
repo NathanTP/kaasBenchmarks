@@ -67,7 +67,7 @@ def serverModeQuick():
     types = ['kaas', 'tvm']
     configs = itertools.product(models, types)
     for model, modelType in configs:
-        if not runServerMode(model, modelType=modelType, n=32):
+        if not runServerMode(model, modelType=modelType, n=8):
             print(f"Test Failed: {model}{modelType}")
             return False
         else:
@@ -75,17 +75,64 @@ def serverModeQuick():
     return True
 
 
+def runMlperf(model, modelType, mode, runTime=30, scale=0.5):
+    if mode == 'direct':
+        cmd = ["./benchmark.py", "-m", model + modelType.capitalize(), '-b', 'ray',
+               '-e', 'mlperf', '--runTime', str(runTime), '--scale', str(scale)]
+    elif mode == 'server':
+        cmd = ["./experiment.py", "-m", model, '-t', modelType,
+               '-e', 'mlperfOne', '--runTime', str(runTime), '--scale', str(scale)]
+    else:
+        print("UNRECOGNIZED MODE")
+        return False
+
+    proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
+    if proc.returncode != 0:
+        print("Command Failed: " + " ".join(cmd))
+        print(proc.stdout)
+        return False
+
+    return True
+
+
+def mlperfQuick():
+    models = ['testModel']
+    types = ['kaas', 'tvm']
+    modes = ['server', 'direct']
+
+    configs = itertools.product(models, types, modes)
+    for model, modelType, mode in configs:
+        if not runMlperf(model, modelType, mode):
+            print(f"Test Failed: {mode} {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: {mode} {model}{modelType}")
+
+    return True
+
+
 if __name__ == "__main__":
+    availableTests = ['quick', 'serverQuick', 'mlperfQuick']
     parser = argparse.ArgumentParser("Regression/Correctness Testing for kaasBenchmarks")
-    parser.add_argument("-t", "--test", choices=['quick', 'serverQuick'])
+    parser.add_argument("-t", "--test", action='append', choices=availableTests + ['all'])
     args = parser.parse_args()
 
-    if args.test == 'quick':
-        success = quick()
-    elif args.test == 'serverQuick':
-        success = serverModeQuick()
+    if 'all' in args.test:
+        args.test = availableTests
 
-    if success:
-        print("Success")
-    else:
-        print("Failure")
+    for test in args.test:
+        print("Running: ", test)
+        if test == 'quick':
+            success = quick()
+        elif test == 'serverQuick':
+            success = serverModeQuick()
+        elif test == 'mlperfQuick':
+            success = mlperfQuick()
+        else:
+            raise RuntimeError("Unrecognized Test: ", test)
+
+        print(f"{test} Test Results:")
+        if success:
+            print("Success\n")
+        else:
+            print("Failure\n")
