@@ -1,7 +1,6 @@
 import pathlib
 import pickle
 import kaas
-import numpy as np
 
 testPath = pathlib.Path(__file__).resolve().parent
 
