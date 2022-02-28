@@ -103,19 +103,6 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
 
                 return False
 
-    if test == 'nshot':
-        modelThroughputs = {name: 0 for name in modelNames}
-        for i in range(nCpy):
-            for j, modelName in enumerate(modelNames):
-                instanceName = f"{prefix}_{modelName}_{j}_{i}"
-
-                with open(resultsDir / (instanceName + "_results.json"), 'r') as f:
-                    instanceMetrics = json.load(f)
-
-                modelThroughputs[modelName] += instanceMetrics[0]['metrics']['throughput']
-
-        print("Total throughput: ", modelThroughputs)
-
     return True
 
 
@@ -217,8 +204,8 @@ def nShotMulti(n, modelType, prefix="nshot_multi", outDir="results"):
     linkLatest(expResultsDir)
 
     models = [
-        "resnet50",
-        "resnet50"
+        "bert",
+        "bert"
     ]
 
     prefix = f"{prefix}_{modelType}"
