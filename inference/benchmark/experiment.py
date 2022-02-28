@@ -205,7 +205,7 @@ def nShotMulti(n, modelType, prefix="nshot_multi", outDir="results"):
 
     models = [
         "bert",
-        "bert"
+        "resnet50"
     ]
 
     prefix = f"{prefix}_{modelType}"

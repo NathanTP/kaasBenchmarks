@@ -335,7 +335,7 @@ class runActor():
             self.stats[clientID] = profiling.profCollection()
 
         with profiling.timer('t_model_run', self.stats[clientID]):
-            results = kaas.ray.invoke(req, stats=self.stats[clientID].mod('kaas'))
+            results = kaas.ray.invoke(req, stats=self.stats[clientID].mod('kaas'), clientID=clientID)
 
         if completionQ is not None:
             completionQ.put((results, queryId))
