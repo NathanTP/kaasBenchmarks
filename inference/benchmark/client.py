@@ -145,7 +145,7 @@ def nShot(modelSpec, n, benchConfig):
     # Send all requests
     print("Sending Requests:")
     results = _nShotAsync(inpIds[:n], loader, serverSocket,
-                         stats=stats, cacheInputs=modelSpec.cacheInputs)
+                          stats=stats, cacheInputs=modelSpec.cacheInputs)
     print("Test complete")
 
     if loader.checkAvailable:
