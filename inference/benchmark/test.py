@@ -14,7 +14,8 @@ expectedAccuracies = {
 }
 
 
-def runBench(model, modelType='Kaas', backend='local', experiment='nshot', nRun=1):
+def runBench(model, modelType='kaas', backend='local', experiment='nshot', nRun=1):
+    modelType = modelType.capitalize()
     cmd = ["./benchmark.py", "-m", model + modelType, '-b', backend, '-e', experiment, '--numRun', str(nRun)]
     proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
     if proc.returncode != 0:
@@ -36,7 +37,7 @@ def runBench(model, modelType='Kaas', backend='local', experiment='nshot', nRun=
 
 def quick():
     models = ['testModel', 'resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
-    types = ['Kaas', 'Tvm']
+    types = ['kaas', 'tvm']
     backends = ['local', 'ray']
     configs = itertools.product(models, types, backends)
     for model, modelType, backend in configs:
@@ -111,10 +112,51 @@ def mlperfQuick():
     return True
 
 
+def smoke():
+    models = ['testModel']
+    types = ['kaas', 'tvm']
+    configs = itertools.product(models, types)
+    for model, modelType in configs:
+        print(f"\nRunning nshot tests ({modelType}:")
+        if not runBench(model, modelType=modelType, experiment='nshot', nRun=32, backend='local'):
+            print(f"Test Failed: local {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: local {model}{modelType}")
+
+        if not runBench(model, modelType=modelType, experiment='nshot', nRun=32, backend='ray'):
+            print(f"Test Failed: ray {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: ray {model}{modelType}")
+
+        print(f"\nRunning server mode test ({modelType}):")
+        if not runServerMode(model, modelType=modelType, n=8):
+            print(f"Test Failed: {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: {model}{modelType}")
+
+        print(f"\nRunning mlperf test ({modelType})")
+        if not runMlperf(model, modelType, 'direct'):
+            print(f"Test Failed: direct {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: direct {model}{modelType}")
+
+        if not runMlperf(model, modelType, 'server'):
+            print(f"Test Failed: server {model}{modelType}")
+            return False
+        else:
+            print(f"Test Success: server {model}{modelType}")
+
+    return True
+
+
 if __name__ == "__main__":
     availableTests = ['quick', 'serverQuick', 'mlperfQuick']
     parser = argparse.ArgumentParser("Regression/Correctness Testing for kaasBenchmarks")
-    parser.add_argument("-t", "--test", action='append', choices=availableTests + ['all'])
+    parser.add_argument("-t", "--test", action='append', choices=availableTests + ['smoke', 'all'])
     args = parser.parse_args()
 
     if 'all' in args.test:
@@ -122,7 +164,9 @@ if __name__ == "__main__":
 
     for test in args.test:
         print("Running: ", test)
-        if test == 'quick':
+        if test == 'smoke':
+            success = smoke()
+        elif test == 'quick':
             success = quick()
         elif test == 'serverQuick':
             success = serverModeQuick()
