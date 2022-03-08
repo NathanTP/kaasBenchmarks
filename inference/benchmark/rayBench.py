@@ -415,11 +415,11 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [(reqRef,)],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [reqRef],
                            {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
             else:
                 runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [(reqRef,)],
+                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [reqRef],
                            {"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:

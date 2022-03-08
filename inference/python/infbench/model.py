@@ -13,6 +13,7 @@ import ray
 import mlperf_loadgen
 
 import kaas
+import kaas.ray
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -407,12 +408,12 @@ class kaasModel(Model):
             if kern['library'] is None:
                 kern['library'] = self.cubin
 
-        req = kaas.kaasReqDense.fromDict(reqDict)
+        req = kaas.kaasReq.fromDict(reqDict)
 
         renameMap = {}
         if self.backend == 'ray':
             for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = ray.cloudpickle.dumps(constRefs[idx])
+                renameMap[const['name']] = kaas.ray.putObj(constRefs[idx])
         else:
             for idx, const in enumerate(self.meta['constants']):
                 renameMap[const['name']] = constRefs[idx]
@@ -446,7 +447,7 @@ class kaasModel(Model):
 
         if self.backend == 'ray':
             for idx, inp in enumerate(self.meta['inputs']):
-                renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])
+                renameMap[inp['name']] = kaas.ray.putObj(inputs[idx])
         else:
             for idx, inp in enumerate(self.meta['inputs']):
                 renameMap[inp['name']] = inputs[idx]
