@@ -262,41 +262,33 @@ def getDummy(force=False):
     getKaasModel("dummy", force=force)
 
 
+modelBuilders = {
+    "testModel": getTestModel,
+    "bert": getBert,
+    "resnet50": getResnet50,
+    "cutlassSgemm": getCutlassSgemm,
+    "complexCutlassGemm": getCutlassComplexGemm,
+    "jacobi": getJacobi
+}
+
 def main():
     parser = argparse.ArgumentParser("Download and compile models")
     parser.add_argument("-f", "--force", action="store_true", help="Recompile all models, even if they are already compiled. Does not re-download")
+    parser.add_argument("-m", "--model", action='append', choices=list(modelBuilders.keys()), help="Specific models to build. Defaults to building all models")
 
     args = parser.parse_args()
 
     if not modelDir.exists():
         modelDir.mkdir(mode=0o700)
 
-    print("Getting testModel (sgemm)")
-    getTestModel(force=args.force)
+    if args.model is None:
+        models = modelBuilders.keys()
+    else:
+        models = args.model
 
-    print("Getting BERT")
-    getBert(force=args.force)
-
-    print("\nGetting Resnet")
-    getResnet50(force=args.force)
-
-    print("\nGetting SuperRes")
-    getSuperRes(force=args.force)
-
-    print("\nGetting cutlassSgemm")
-    getCutlassSgemm(force=args.force)
-
-    print("\nGetting complex cutlassSgemm")
-    getCutlassComplexGemm(force=args.force)
-
-    print("\nGetting Jacobi")
-    getJacobi(force=args.force)
-
-    print("\nGetting Dummy")
-    getDummy(force=args.force)
-
-    # print("\nGetting SSD-Mobilenet")
-    # getSsdMobilenet()
+    for model in models:
+        print("Getting ", model)
+        modelBuilders[model](force=args.force)
 
 
 main()
