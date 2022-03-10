@@ -128,9 +128,18 @@ class testModelNative(testModel, model.Model):
         return constants
 
     def run(self, data, stats=None):
-        constants = data[:self.nConst]
+        packedConstants = data[:self.nConst]
         hInp = data[self.nConst]
         inpSize = hInp.nbytes
+
+        constants = []
+        nElem = matSize ** 2
+        for i in range(depth):
+            start = i * nElem
+            end = (i+1) * nElem
+            constArr = packedConstants[0][start:end]
+            constArr.shape = (matSize, matSize)
+            constants.append(constArr)
 
         if self.dConsts is None:
             self.dConsts = []
