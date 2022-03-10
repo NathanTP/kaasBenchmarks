@@ -23,13 +23,13 @@ postTime = 20
 
 class testModel():
     # Standard Parameters
-    nConst = depth
+    nConst = 1
 
     nOutPre = 1
     preMap = model.inputMap(inp=(0,))
 
     nOutRun = 1
-    runMap = model.inputMap(const=range(depth), pre=(0,))
+    runMap = model.inputMap(const=(0,), pre=(0,))
 
     nOutPost = 1
     postMap = model.inputMap(run=(0,))
@@ -158,7 +158,6 @@ class testModelNative(testModel, model.Model):
                                     shared_size=self.sharedSize)
 
         hRes = np.empty(inpSize, dtype=np.int8)
-        # hRes = np.empty((matSize, matSize), dtype=np.float32)
         cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
         return (hRes,)
@@ -176,13 +175,7 @@ class testLoader(dataset.loader):
 
     def __init__(self, dataDir):
         with open(dataDir / "sgemm_params.pkl", 'rb') as f:
-            constants = pickle.load(f)
-
-        self.constants = []
-        for c in constants:
-            cNP = np.frombuffer(c, dtype=np.float32)
-            cNP.shape = (matSize, matSize)
-            self.constants.append(cNP)
+            self.constants = pickle.load(f)
 
         self.data = {}
 
@@ -211,8 +204,17 @@ class testLoader(dataset.loader):
         expect += 1
 
         # run
+        constants = []
+        nElem = matSize ** 2
+        for i in range(depth):
+            start = i * nElem
+            end = (i+1) * nElem
+            constArr = self.constants[0][start:end]
+            constArr.shape = (matSize, matSize)
+            constants.append(constArr)
+
         for i in range(1, depth):
-            expect = np.matmul(expect, self.constants[i])
+            expect = np.matmul(expect, constants[i])
 
         # post
         expect -= 1

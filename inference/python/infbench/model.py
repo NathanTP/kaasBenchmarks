@@ -398,25 +398,29 @@ class kaasModel(Model):
 
             baseName = modelDir.stem
             self.cubin = modelDir / (baseName + ".cubin")
-            with open(modelDir / (baseName + "_model" + ".yaml"), 'r') as f:
-                reqDict = yaml.safe_load(f)
+
+            with open(modelDir / (baseName + "_model" + ".pkl"), 'rb') as f:
+                req = pickle.load(f)
 
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
-        for kern in reqDict['kernels']:
-            if kern['library'] is None:
-                kern['library'] = self.cubin
-
-        req = kaas.kaasReq.fromDict(reqDict)
+        for i in range(len(req.kernels)):
+            kern = req.kernels[i]
+            if kern.library is None:
+                req.kernels[i] = kaas.denseKern(kern.name, self.cubin,
+                                                kern.kernel, kern.gridDim,
+                                                kern.blockDim, kern.sharedSize,
+                                                kern.literals, kern.arguments,
+                                                kern.ioTypes)
 
         renameMap = {}
         if self.backend == 'ray':
-            for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = kaas.ray.putObj(constRefs[idx])
+            for const in self.meta['constants']:
+                renameMap[const['name']] = kaas.ray.putObj(constRefs[const['dataIdx']])
         else:
-            for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = constRefs[idx]
+            for const in self.meta['constants']:
+                renameMap[const['name']] = constRefs[const['dataIdx']]
 
         req.reKey(renameMap)
 
