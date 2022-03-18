@@ -154,7 +154,7 @@ def getResnet50(force=False):
     if not tvmLibPath.exists() or force:
         getOnnx(modelPath, resnetDir, "resnet50", inputShapeMap={"input_tensor:0": (1, 3, 224, 224)})
 
-    getKaasModel('resnet50')
+    getKaasModel('resnet50', force=force)
 
 
 def getSuperRes(force=False):

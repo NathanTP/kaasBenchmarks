@@ -14,8 +14,8 @@ cutlassDir = modelDir / "complexCutlassGemm"
 
 
 def getMeta(M, N, K):
-    constants = [{"name": "b", "type": "csingle", "shape": [K, N]},
-                 {"name": "d", "type": "csingle", "shape": [N, 1]}]
+    constants = [{"name": "b", "type": "csingle", "shape": [K, N], "dataIdx": 0},
+                 {"name": "d", "type": "csingle", "shape": [N, 1], "dataIdx": 1}]
     outputs = [{"name": "e", "type": "csingle", "shape": [M, 1]}]
     inputs = [{"name": "a", "type": "csingle", "shape": [M, K]}]
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
@@ -45,8 +45,8 @@ if __name__ == "__main__":
 
     req = createReq(M, N, K, redDim, alpha, beta)
     meta_data = getMeta(M, N, K)
-    with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
-        yaml.safe_dump(req.toDict(), f)
+    with open(targetDir / (args.name + "_model.pkl"), 'wb') as f:
+        pickle.dump(req, f)
 
     with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta_data, f)
