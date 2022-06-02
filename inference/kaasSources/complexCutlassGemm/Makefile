@@ -1,4 +1,4 @@
-CUTLASS_PATH ?= ../../../dependencies/fakefaas/examples/cutlass/cutlass-src
+CUTLASS_PATH ?= ../../../dependencies/cutlass
 
 70FOUND:=$(shell lspci | grep "V100")
 

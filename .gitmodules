@@ -7,3 +7,6 @@
 [submodule "dependencies/kaas"]
 	path = dependencies/kaas
 	url = git@github.com:NathanTP/kaas.git
+[submodule "dependencies/cutlass"]
+	path = dependencies/cutlass
+	url = git@github.com:NathanTP/cutlass.git
