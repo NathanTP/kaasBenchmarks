@@ -31,7 +31,7 @@ maxOutstanding = 32
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
 # PROF_LEVEL = 1  # minimal performance impact
-PROF_LEVEL = 1  # serializes a lot of stuff, really slows down e2e
+PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -71,13 +71,15 @@ def _unMarshalArgs(argMap, args):
         return (constants, inputs)
 
 
-def flattenRayRefs(res):
-    if isinstance(res, ray._raylet.ObjectRef):
-        return flattenRayRefs(ray.get(res))
-    elif isinstance(res, list):
-        return [flattenRayRefs(val) for val in res]
+# Recursively fetch all ray references in refs. refs may be a regular value,
+# Ray reference, or list of regular values and/or Ray references.
+def flattenRayRefs(refs):
+    if isinstance(refs, ray._raylet.ObjectRef):
+        return flattenRayRefs(ray.get(refs))
+    elif isinstance(refs, list):
+        return [flattenRayRefs(ref) for ref in refs]
     else:
-        return res
+        return refs
 
 
 def maybeDereference(res):
@@ -120,12 +122,12 @@ def pre(modelSpec, *inputs):
 modelCache = {}
 
 
-def _run(model, inputs, completionQ, queryId, stats=None):
+def _run(model, inputs, completionQ, queryId, profs=None):
     """Internal run function"""
     constants, data = _unMarshalArgs(model.runMap, inputs)
 
-    with profiling.timer('t_model_run', stats):
-        results = model.run(constants + list(data), stats=stats)
+    with profiling.timer('t_model_run', profs):
+        results = model.run(constants + list(data), stats=profs)
 
     if completionQ is not None:
         completionQ.put((results, queryId))
@@ -173,14 +175,7 @@ def post(modelSpec, *inputs, completionQ=None, queryId=None):
     mClass = modelSpec.modelClass
     constants, rawData = _unMarshalArgs(mClass.postMap, inputs)
 
-    # The router actor wraps data in an additional reference
-    data = maybeDereference(rawData)
-
-    # Some outputs get stored explicitly into the plasma store rather than
-    # passed directly. This might cause performance issues depending on if/when
-    # we hit weird ray performance issues (it doesn't like reading/writing
-    # certain data types).
-    data = maybeDereference(data)
+    data = flattenRayRefs(rawData)
 
     results = modelSpec.modelClass.post(constants + list(data))
 
@@ -223,24 +218,19 @@ def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
 
 
 @ray.remote(num_gpus=1)
-class runActor():
+class runActor(kaas.pool.PoolWorker):
     """A persistent actor for running model requests. Actors will cache models
     as needed and run them natively. It is possible to run out of GPU memory
     with actors since they cache every model they are passed."""
     def __init__(self):
+        super().__init__()
         self.modelCache = {}
-        # {clientID -> profiling.profCollection}
-        self.stats = {}
         kaas.ray.init()
-
-    def ensureWarm(self):
-        return True
 
     def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
 
-        if clientID not in self.stats:
-            self.stats[clientID] = profiling.profCollection()
+        profs = self.profs.mod(clientID)
 
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
@@ -253,8 +243,8 @@ class runActor():
             else:
                 nConst = len(model.runMap.const)
         else:
-            with profiling.timer("t_model_init", self.stats[clientID]):
-                with profiling.timer('t_loadInput', self.stats[clientID], final=False):
+            with profiling.timer("t_model_init", profs):
+                with profiling.timer('t_loadInput', profs, final=False):
                     modelSpec = ray.get(modelInfo[0])
                     modelArg = ray.get(modelInfo[1])
 
@@ -265,17 +255,17 @@ class runActor():
             else:
                 nConst = len(modelSpec.modelClass.runMap.const)
 
-            with profiling.timer('t_loadInput', self.stats[clientID], final=False):
+            with profiling.timer('t_loadInput', profs, final=False):
                 consts = ray.get(inputRefs[:nConst])
 
             self.modelCache[clientID] = (model, consts)
 
-        with profiling.timer('t_loadInput', self.stats[clientID]):
+        with profiling.timer('t_loadInput', profs):
             inputs = ray.get(inputRefs[nConst:])
 
-        result = _run(model, consts + inputs, completionQ, queryId, stats=self.stats[clientID])
+        result = _run(model, consts + inputs, completionQ, queryId, profs=profs)
 
-        with profiling.timer('t_writeOutput', self.stats[clientID]):
+        with profiling.timer('t_writeOutput', profs):
             if isinstance(result, list):
                 resRefs = [ray.put(res) for res in result]
             else:
@@ -286,8 +276,7 @@ class runActor():
 
     def runInline(self, modelInfo, constRefs, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
-        if clientID not in self.stats:
-            self.stats[clientID] = profiling.profCollection()
+        profs = self.profs.mod(clientID)
 
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
@@ -295,14 +284,14 @@ class runActor():
         if clientID in self.modelCache:
             model = self.modelCache[clientID]
         else:
-            with profiling.timer("t_model_init", self.stats[clientID]):
-                with profiling.timer('t_loadInput', self.stats[clientID], final=False):
+            with profiling.timer("t_model_init", profs):
+                with profiling.timer('t_loadInput', profs, final=False):
                     modelSpec = ray.get(modelInfo[0])
                     modelArg = ray.get(modelInfo[1])
                 model = modelSpec.modelClass(modelArg)
                 self.modelCache[clientID] = model
 
-        with profiling.timer('t_loadInput', self.stats[clientID]):
+        with profiling.timer('t_loadInput', profs):
             inputs = ray.get(inputRefs)
 
         inputs = ray.get(inputRefs)
@@ -331,32 +320,18 @@ class runActor():
             return result
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
-        if clientID not in self.stats:
-            self.stats[clientID] = profiling.profCollection()
+        profs = self.profs.mod(clientID)
 
-        with profiling.timer('t_model_run', self.stats[clientID]):
-            results = kaas.ray.invoke(req, stats=self.stats[clientID].mod('kaas'), clientID=clientID)
+        with profiling.timer('t_model_run', profs):
+            results = kaas.ray.invoke(req, stats=profs.mod('kaas'), clientID=clientID)
 
         if completionQ is not None:
             completionQ.put((results, queryId))
 
-        # This is a ray weirdness. If you return multiple values in a tuple, it's
-        # returned as multiple independent references, if you return a tuple of length
-        # one, it's passed as a reference to a tuple. We can't have an extra layer
-        # of indirection for references.
-        if len(results) == 1:
-            return results[0]
-        else:
-            return results
+        return results
 
     def terminate(self):
         ray.actor.exit_actor()
-
-    def getStats(self):
-        """Returns any stats collected so far and resets them internally"""
-        stats = self.stats
-        self.stats = {}
-        return stats
 
 
 def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
@@ -414,31 +389,35 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
-                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [reqRef],
-                           {"queryId": queryId, "completionQ": completionQ, "clientID": clientID})
+                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                                     args=[reqRef],
+                                     kwargs={"queryId": queryId,
+                                             "completionQ": completionQ,
+                                             "clientID": clientID})
             else:
-                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runKaas', mClass.nOutRun, clientID, dynInp, [reqRef],
-                           {"clientID": clientID})
+                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                                     args=[reqRef],
+                                     kwargs={"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
-                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runNative', mClass.nOutRun, clientID, dynInp,
-                           [(specRef, modelArg), runInp],
-                           {"completionQ": completionQ, "queryId": queryId,
-                            "cacheModel": cacheModel, "clientID": clientID})
+                runOut = runPool.run(clientID, 'runNative', num_returns=mClass.nOutRun,
+                                     args=[(specRef, modelArg), runInp],
+                                     kwargs={"completionQ": completionQ,
+                                             "queryId": queryId,
+                                             "cacheModel": cacheModel,
+                                             "clientID": clientID})
             else:
-                runOut = runPool.run.options(num_returns=mClass.nOutRun). \
-                    remote('runNative', mClass.nOutRun, clientID, dynInp,
-                           [(specRef, modelArg), runInp], {"cacheModel": cacheModel})
+                runOut = runPool.run(clientID, 'runNative', num_returns=mClass.nOutRun,
+                                     args=[(specRef, modelArg), runInp],
+                                     kwargs={"cacheModel": cacheModel})
 
         if mClass.nOutRun == 1:
             runOut = [runOut]
 
         if PROF_LEVEL > 1:
             with profiling.timer("t_run", stats):
-                ray.wait(runOut, fetch_local=False)
+                resRefs = ray.get(runOut)
+                ray.wait(resRefs, fetch_local=False)
 
         # Post
         if mClass.noPost:
@@ -470,7 +449,7 @@ def warmKaas(pool):
     res = ray.get(_runOne(modelSpec, specRef, modelArg, [], inpRefs, runPool=pool))
 
     # clear stats after dummy
-    ray.get(pool.getStats.remote())
+    pool.getProfile()
 
     assert loader.check(res, 0)
 
@@ -578,17 +557,18 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(max(n, infbench.getNGpu()*2), loader.ndata)))
 
+    groupID = "nShotGroup"
     nGpu = infbench.getNGpu()
-    pool = kaas.pool.Pool.remote(nGpu, benchConfig['policy'], runActor)
+    pool = kaas.pool.Pool(nGpu, policy=benchConfig['policy'])
+    pool.registerGroup(groupID, runActor)
 
-    ray.get(pool.ensureReady.remote())
     if modelSpec.modelType == 'kaas':
         warmKaas(pool)
 
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
-    coldPoolStats = ray.get(pool.getStats.remote())
-    coldStats.merge(coldPoolStats[None])
+    coldPoolStats = pool.getProfile()
+    coldStats.merge(coldPoolStats.mod(None))
 
     # Make sure we're done with cold starts by running a large number of
     # requests. Done async to maximize the chances of everything getting warm
@@ -596,16 +576,17 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     print(f"Running {2*infbench.getNGpu()} warmup passes")
     results = _nShotAsync(infbench.getNGpu()*2, loader, modelSpec, specRef,
                           modelArg, constRefs, pool, benchConfig, None)
+
     # getting stats resets them for the warm runs
-    ray.get(pool.getStats.remote())
+    pool.getProfile()
 
     # Warm Runs
     print("Beginning warm runs")
     # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
-    warmPoolStats = ray.get(pool.getStats.remote())
+    warmPoolStats = pool.getProfile()
 
-    warmStats.merge(warmPoolStats[None])
+    warmStats.merge(warmPoolStats.mod(None))
 
     coldReport = coldStats.report(includeEvents=False)
     warmReport = warmStats.report(includeEvents=False)

@@ -2,6 +2,7 @@
 import util
 import argparse
 import datetime
+from kaas.pool import policies
 
 
 def sanityCheck(backend):
@@ -59,6 +60,13 @@ def main():
     else:
         raise ValueError("Unrecognized backend: " + args.backend)
 
+    if args.policy == 'balance':
+        policy = policies.BALANCE
+    elif args.policy == 'exclusive':
+        policy = policies.EXCLUSIVE
+    else:
+        raise ValueError("Unsupported policy: ", args.policy)
+
     benchConfig = {
         "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
         "gitHash": util.currentGitHash(),
@@ -67,7 +75,7 @@ def main():
         "experiment": args.experiment,
         "backend": args.backend,
         "testing": args.testing,
-        "policy": args.policy,
+        "policy": policy,
         "forceCold": args.forceCold,
         "inline": args.inline,
         "scale": args.scale,
