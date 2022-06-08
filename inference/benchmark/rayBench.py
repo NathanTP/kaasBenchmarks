@@ -271,9 +271,8 @@ class runActor(kaas.pool.PoolWorker):
                 resRefs = [ray.put(res) for res in result]
             else:
                 resRefs = ray.put(result)
-        return resRefs
 
-        # return result
+        return tuple(resRefs)
 
     def runInline(self, modelInfo, constRefs, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
@@ -315,10 +314,7 @@ class runActor(kaas.pool.PoolWorker):
         if completionQ is not None:
             completionQ.put((result, queryId))
 
-        if len(result) == 1:
-            return result[0]
-        else:
-            return result
+        return tuple(result)
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
         profs = self.profs.mod(clientID)
