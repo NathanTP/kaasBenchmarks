@@ -4,7 +4,6 @@ import re
 import subprocess as sp
 import os
 import pathlib
-from pprint import pprint
 from kaas import profiling
 
 
@@ -108,14 +107,3 @@ def saveReport(warmMetrics, coldMetrics, benchConfig, outPath):
     print("Saving metrics to: ", outPath)
     with open(outPath, 'w') as f:
         json.dump(record, f)
-
-
-def printReport(report, metrics=None):
-    cleanReport = {}
-    for statName, statValues in report.items():
-        if metrics is None:
-            metrics = statValues.keys()
-
-        cleanReport[statName] = {metric: value for metric, value in statValues.items() if metric in metrics}
-
-    pprint(cleanReport)

@@ -6,6 +6,7 @@ import os
 import sys
 import signal
 import math
+from pprint import pprint
 
 import time
 import asyncio
@@ -349,11 +350,11 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         else:
             nOut = mClass.nOutPost
 
-        postOut = runPool.run.options(num_returns=nOut).remote(
-                'runInline', mClass.nOutPost, clientID, inputRefs,
-                [(specRef, modelArg), constRefs, inputRefs],
-                {"completionQ": completionQ, "queryId": queryId, "cacheModel": cacheModel, "clientID": clientID}
-             )
+        postOut = runPool.run(clientID, 'runInline', num_returns=mClass.nOutRun,
+                              refDeps=inputRefs,
+                              args=[(specRef, modelArg), constRefs, inputRefs],
+                              kwargs={"completionQ": completionQ, "queryId": queryId,
+                                      "cacheModel": cacheModel, "clientID": clientID})
 
         if nOut == 1:
             postOut = [postOut]
@@ -519,7 +520,7 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
             # detailed metrics than e2e. Details within the remote functions
             # should match localBench results anyway.
             res = _runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
-                          inline=benchConfig['inline'], runPool=pool,
+                          clientID=benchConfig['name'], inline=benchConfig['inline'], runPool=pool,
                           cacheModel=benchConfig['forceCold'], stats=stats)
 
             res = flattenRayRefs(res)
@@ -561,10 +562,9 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(max(n, infbench.getNGpu()*2), loader.ndata)))
 
-    groupID = "nShotGroup"
     nGpu = infbench.getNGpu()
     pool = kaas.pool.Pool(nGpu, policy=benchConfig['policy'])
-    pool.registerGroup(groupID, runActor)
+    pool.registerGroup(benchConfig['name'], runActor)
 
     if modelSpec.modelType == 'kaas':
         warmKaas(pool)
@@ -572,7 +572,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
     coldPoolStats = pool.getProfile()
-    coldStats.merge(coldPoolStats.mod(None))
+    coldStats.merge(coldPoolStats)
 
     # Make sure we're done with cold starts by running a large number of
     # requests. Done async to maximize the chances of everything getting warm
@@ -590,16 +590,16 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     warmPoolStats = pool.getProfile()
 
-    warmStats.merge(warmPoolStats.mod(None))
+    warmStats.merge(warmPoolStats)
 
-    coldReport = coldStats.report(includeEvents=False)
-    warmReport = warmStats.report(includeEvents=False)
+    coldReport = coldStats.report(includeEvents=False, metrics=['mean'])
+    warmReport = warmStats.report(includeEvents=False, metrics=['mean'])
 
     print("Warm Results: ")
-    infbench.printReport(warmReport, metrics=['mean'])
+    pprint(warmReport)
 
     print("Cold Results: ")
-    infbench.printReport(coldReport, metrics=['mean'])
+    pprint(coldReport)
 
     print("Saving results to ", reportPath)
     infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
@@ -661,7 +661,8 @@ class throughputLoop():
         self.loader.preLoad(range(self.loader.ndata))
 
         self.nGpu = infbench.getNGpu()
-        self.pool = kaas.pool.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
+        self.pool = kaas.pool.Pool(self.nGpu, policy=benchConfig['policy'])
+        self.pool.registerGroup("throughputGroup", runActor)
 
         # This info is only used to get performance estimates
         gpuType = infbench.getGpuType()
@@ -707,8 +708,8 @@ class throughputLoop():
         for res in results:
             ray.get(res)
 
-        coldPoolStats = ray.get(self.pool.getStats.remote())
-        self.coldStats.merge(coldPoolStats[None])
+        coldPoolStats = self.pool.getProfile()
+        self.coldStats.merge(coldPoolStats.mod("throughputGroup"))
 
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
@@ -727,7 +728,7 @@ class throughputLoop():
                     self.constRefs, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=self.nextIdx,
                     cacheModel=self.benchConfig['forceCold'], runPool=self.pool,
-                    stats=self.warmStats)
+                    stats=self.warmStats, clientID='throughputGroup')
 
             self.nextIdx += 1
             self.nOutstanding += 1
@@ -750,14 +751,14 @@ class throughputLoop():
         self.loop.add_callback(self.handleResponses)
 
     def reportMetrics(self):
-        metrics = profiling.profCollection()
+        # metrics = profiling.profCollection()
 
         # useful for debugging mostly. Ideally t_total ~= targetTime
-        metrics['n_completed'].increment(self.nCompleted)
-        metrics['t_total'].increment(self.runTime * 1000)  # we always report time in ms
+        self.warmStats['n_completed'].increment(self.nCompleted)
+        self.warmStats['t_total'].increment(self.runTime * 1000)  # we always report time in ms
 
         # completions/second
-        metrics['throughput'].increment(self.nCompleted / self.runTime)
+        self.warmStats['throughput'].increment(self.nCompleted / self.runTime)
 
         if self.nCompleted < self.targetOutstanding:
             print("\n*********************************************************")
@@ -775,10 +776,13 @@ class throughputLoop():
         else:
             valid = True
 
-        warmPoolStats = ray.get(self.pool.getStats.remote())
-        self.warmStats.merge(warmPoolStats[None])
+        warmPoolStats = self.pool.getProfile()
+        self.warmStats.merge(warmPoolStats)
 
-        return metrics, valid
+        currentStats = self.warmStats
+        self.warmStats = profiling.profCollection()
+
+        return currentStats, valid
 
 
 def throughput(modelSpec, benchConfig):
@@ -795,17 +799,14 @@ def throughput(modelSpec, benchConfig):
     # reporting...
     time.sleep(2)
 
-    metrics, valid = testLoop.reportMetrics()
-    report = testLoop.warmStats.report(includeEvents=False)
-    util.analyzeStats(report)
-
-    warmReport = {**metrics.report(), **report}
+    profs, valid = testLoop.reportMetrics()
+    report = profs.report(includeEvents=False)
 
     print("Saving results to ", benchConfig['name'] + '_results.json')
-    infbench.saveReport(warmReport, None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
 
     print("Results")
-    infbench.printReport(warmReport, metrics=['mean'])
+    pprint(report)
 
 
 # =============================================================================
