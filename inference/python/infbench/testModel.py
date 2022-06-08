@@ -65,7 +65,7 @@ class testModel():
         return (result,)
 
     @staticmethod
-    def getPerfEstimates(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
             maxQps = 18
             medianLatency = 0.100
