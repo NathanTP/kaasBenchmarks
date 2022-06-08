@@ -390,17 +390,20 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                                     refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"queryId": queryId,
                                              "completionQ": completionQ,
                                              "clientID": clientID})
             else:
                 runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                                     refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"clientID": clientID})
         else:  # Non-KaaS
             if completionQ is not None and mClass.noPost:
                 runOut = runPool.run(clientID, 'runNative', num_returns=mClass.nOutRun,
+                                     refDeps=dynInp,
                                      args=[(specRef, modelArg), runInp],
                                      kwargs={"completionQ": completionQ,
                                              "queryId": queryId,
@@ -408,6 +411,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                                              "clientID": clientID})
             else:
                 runOut = runPool.run(clientID, 'runNative', num_returns=mClass.nOutRun,
+                                     refDeps=dynInp,
                                      args=[(specRef, modelArg), runInp],
                                      kwargs={"cacheModel": cacheModel})
 
