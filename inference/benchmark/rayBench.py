@@ -133,12 +133,7 @@ def _run(model, inputs, completionQ, queryId, profs=None):
     if completionQ is not None:
         completionQ.put((results, queryId))
 
-    # Ray will interpret the return value as tuple if there are multiple
-    # returns, but if there is one return, it will treat it as a scalar.
-    if len(results) == 1:
-        return results[0]
-    else:
-        return results
+    return results
 
 
 @ray.remote(num_gpus=1)
@@ -265,12 +260,10 @@ class runActor(kaas.pool.PoolWorker):
             inputs = ray.get(inputRefs[nConst:])
 
         result = _run(model, consts + inputs, completionQ, queryId, profs=profs)
+        assert isinstance(result, tuple)
 
         with profiling.timer('t_writeOutput', profs):
-            if isinstance(result, list):
-                resRefs = [ray.put(res) for res in result]
-            else:
-                resRefs = ray.put(result)
+            resRefs = [ray.put(res) for res in result]
 
         return tuple(resRefs)
 

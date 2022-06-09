@@ -155,31 +155,29 @@ def smoke():
 
 
 if __name__ == "__main__":
-    #XXX
-    print(runServerMode('testModel', modelType='tvm', n=8))
-    # availableTests = ['quick', 'serverQuick', 'mlperfQuick']
-    # parser = argparse.ArgumentParser("Regression/Correctness Testing for kaasBenchmarks")
-    # parser.add_argument("-t", "--test", action='append', choices=availableTests + ['smoke', 'all'])
-    # args = parser.parse_args()
-    #
-    # if 'all' in args.test:
-    #     args.test = availableTests
-    #
-    # for test in args.test:
-    #     print("Running: ", test)
-    #     if test == 'smoke':
-    #         success = smoke()
-    #     elif test == 'quick':
-    #         success = quick()
-    #     elif test == 'serverQuick':
-    #         success = serverModeQuick()
-    #     elif test == 'mlperfQuick':
-    #         success = mlperfQuick()
-    #     else:
-    #         raise RuntimeError("Unrecognized Test: ", test)
-    #
-    #     print(f"{test} Test Results:")
-    #     if success:
-    #         print("Success\n")
-    #     else:
-    #         print("Failure\n")
+    availableTests = ['quick', 'serverQuick', 'mlperfQuick']
+    parser = argparse.ArgumentParser("Regression/Correctness Testing for kaasBenchmarks")
+    parser.add_argument("-t", "--test", action='append', choices=availableTests + ['smoke', 'all'])
+    args = parser.parse_args()
+
+    if 'all' in args.test:
+        args.test = availableTests
+
+    for test in args.test:
+        print("Running: ", test)
+        if test == 'smoke':
+            success = smoke()
+        elif test == 'quick':
+            success = quick()
+        elif test == 'serverQuick':
+            success = serverModeQuick()
+        elif test == 'mlperfQuick':
+            success = mlperfQuick()
+        else:
+            raise RuntimeError("Unrecognized Test: ", test)
+
+        print(f"{test} Test Results:")
+        if success:
+            print("Success\n")
+        else:
+            print("Failure\n")

@@ -374,7 +374,7 @@ class tvmModel(Model):
         for i, outMeta in enumerate(self.meta['outputs']):
             outputs.append(self.model.get_output(i).numpy().tobytes())
 
-        return outputs
+        return tuple(outputs)
 
 
 class kaasModel(Model):
