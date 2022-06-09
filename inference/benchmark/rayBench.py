@@ -223,8 +223,8 @@ class runActor(kaas.pool.PoolWorker):
     """A persistent actor for running model requests. Actors will cache models
     as needed and run them natively. It is possible to run out of GPU memory
     with actors since they cache every model they are passed."""
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.modelCache = {}
         kaas.ray.init()
 
@@ -597,6 +597,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     print("Cold Results: ")
     pprint(coldReport)
 
+    #XXX
+    pprint(warmStats.report())
     print("Saving results to ", reportPath)
     infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
 
@@ -859,8 +861,8 @@ class mlperfRunner():
         self.constants = constantRefs
         self.benchConfig = benchConfig
 
-        self.coldStats = profiling.profCollection()
-        self.warmStats = profiling.profCollection()
+        self.coldStats = profiling.profCollection(detail=True)
+        self.warmStats = profiling.profCollection(detail=True)
 
         if self.modelSpec.cacheInputs:
             self.inputRefs = {}
@@ -881,8 +883,8 @@ class mlperfRunner():
         self.specRef = ray.put(self.modelSpec)
 
         self.nGpu = infbench.getNGpu()
-
-        self.pool = kaas.pool.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
+        self.pool = kaas.pool.Pool(self.nGpu, policy=benchConfig['policy'], profLevel=1)
+        self.pool.registerGroup(benchConfig['name'], runActor)
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
@@ -904,12 +906,13 @@ class mlperfRunner():
             for i in range(self.nGpu*2):
                 results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
                                self.constants, inpRefs, inline=self.benchConfig['inline'],
-                               runPool=self.pool, stats=self.coldStats))
+                               runPool=self.pool,
+                               stats=self.coldStats, clientID=self.benchConfig['name']))
             for res in results:
                 ray.get(res)
 
-            coldPoolStats = ray.get(self.pool.getStats.remote())
-            self.coldStats.merge(coldPoolStats[None])
+            coldPoolStats = self.pool.getProfile()
+            self.coldStats.merge(coldPoolStats)
 
     def runBatch(self, queryBatch):
         for q in queryBatch:
@@ -927,7 +930,8 @@ class mlperfRunner():
             _runOne(self.modelSpec, self.specRef, self.modelArg,
                     self.constants, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
-                    cacheModel=self.benchConfig['forceCold'], runPool=self.pool, stats=self.warmStats)
+                    cacheModel=self.benchConfig['forceCold'], runPool=self.pool,
+                    stats=self.warmStats, clientID=self.benchConfig['name'])
 
         self.nIssued += len(queryBatch)
 
@@ -939,8 +943,8 @@ class mlperfRunner():
         print("Waiting for completion handler to finish")
         self.completionHandler.join()
 
-        warmPoolStats = ray.get(self.pool.getStats.remote())
-        self.warmStats.merge(warmPoolStats[None])
+        warmPoolStats = self.pool.getProfile()
+        self.warmStats.merge(warmPoolStats)
 
         return (self.coldStats, self.warmStats)
 
@@ -986,14 +990,12 @@ def mlperfBench(modelSpec, benchConfig):
         print("*********************************************************\n")
 
     print("\nStats:")
-    warmReport = warmStats.report()
-    fullReport = {**warmReport, **mlPerfMetrics.report()}
-    fullReport['t_response'] = runner.latMetrics.report()
+    warmStats['t_response'] = runner.latMetrics
+    warmStats.merge(mlPerfMetrics)
 
-    infbench.printReport(fullReport, metrics=['p50'])
-    # util.analyzeStats(warmReport)
+    pprint(warmStats.report(metrics=['p50']))
 
-    infbench.saveReport(fullReport, None, benchConfig, 'results.json')
+    infbench.saveReport(warmStats.report(includeEvents=True), None, benchConfig, 'results.json')
 
 
 # =============================================================================

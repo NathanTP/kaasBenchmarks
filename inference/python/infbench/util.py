@@ -39,7 +39,7 @@ def parseMlPerf(prefix):
     with open(prefix + "summary.txt", 'r') as f:
         mlLog = f.readlines()
 
-    metrics = profiling.profCollection()
+    metrics = profiling.profCollection(detail=True)
 
     scheduledPattern = re.compile("Scheduled samples per second : (.*)$")
     completedPattern = re.compile("Completed samples per second    : (.*)$")
@@ -83,7 +83,7 @@ def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerf
 
     lats = np.divide(lats, 1E9)
 
-    metrics = profiling.prof(fromDict={'events': lats.tolist(), 'total': float(lats.sum()), 'nevent': len(lats)})
+    metrics = profiling.prof(fromDict={'events': lats.tolist(), 'total': float(lats.sum()), 'nevent': len(lats)}, detail=True)
 
     return metrics
 
