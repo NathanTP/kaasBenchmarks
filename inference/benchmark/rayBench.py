@@ -597,8 +597,6 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     print("Cold Results: ")
     pprint(coldReport)
 
-    #XXX
-    pprint(warmStats.report())
     print("Saving results to ", reportPath)
     infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
 
@@ -1073,9 +1071,9 @@ class serverLoop():
 
         self.nGpu = infbench.getNGpu()
 
-        self.clientStats = {}
+        self.clientStats = profiling.profCollection()
 
-        self.pool = kaas.pool.Pool.remote(self.nGpu, benchConfig['policy'], runActor)
+        self.pool = kaas.pool.Pool(self.nGpu, policy=benchConfig['policy'])
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -1089,10 +1087,10 @@ class serverLoop():
         self.readyClients.append(clientID)
         if len(self.readyClients) == self.benchConfig['numClient']:
             # Get cold-start stats (if any) and reset for main warm passes
-            poolStats = ray.get(self.pool.getStats.remote())
+            poolStats = self.pool.getProfile()
             self.coldStats = self.clientStats
-            kaas.pool.mergePerClientStats(self.coldStats, poolStats)
-            self.clientStats = {}
+            self.coldStats.merge(poolStats)
+            self.clientStats = profiling.profCollection()
 
             print("Releasing Barrier")
             for cID in self.readyClients:
@@ -1140,15 +1138,13 @@ class serverLoop():
 
         cState = clients.get(clientID, None)
 
-        if clientID not in self.clientStats:
-            self.clientStats[clientID] = profiling.profCollection()
-
         if cState is None:
             # Registration
             print("Registering ", clientID)
             modelName = reqID.decode('utf-8')
             cState = clientState(modelName)
             clients[clientID] = cState
+            self.pool.registerGroup(clientID, runActor)
         else:
             self.nOutstanding += 1
             # Too many outstanding queries can overwhelm Ray and hurt
@@ -1171,16 +1167,16 @@ class serverLoop():
                     queryId=(clientID, reqID), clientID=clientID,
                     cacheModel=self.benchConfig['forceCold'],
                     inline=self.benchConfig['inline'], runPool=self.pool,
-                    stats=self.clientStats[clientID])
+                    stats=self.clientStats.mod(clientID))
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
         IOLoop.instance().stop()
 
-        poolStats = ray.get(self.pool.getStats.remote())
+        poolStats = self.pool.getProfile()
         self.warmStats = self.clientStats
-        kaas.pool.mergePerClientStats(self.warmStats, poolStats)
-        self.clientStats = {}
+        self.warmStats.merge(poolStats)
+        self.clientStats = profiling.profCollection()
 
 
 def serveRequests(benchConfig):

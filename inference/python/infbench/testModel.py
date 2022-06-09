@@ -79,7 +79,7 @@ class testModel():
 
     @classmethod
     def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType, benchConfig)
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
