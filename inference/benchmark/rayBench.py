@@ -73,12 +73,14 @@ def _unMarshalArgs(argMap, args):
 
 
 # Recursively fetch all ray references in refs. refs may be a regular value,
-# Ray reference, or list of regular values and/or Ray references.
+# Ray reference, or list or tuple of regular values and/or Ray references.
 def flattenRayRefs(refs):
     if isinstance(refs, ray._raylet.ObjectRef):
         return flattenRayRefs(ray.get(refs))
     elif isinstance(refs, list):
         return [flattenRayRefs(ref) for ref in refs]
+    elif isinstance(refs, tuple):
+        return tuple([flattenRayRefs(ref) for ref in refs])
     else:
         return refs
 
@@ -1088,12 +1090,7 @@ class serverLoop():
         clientID = reqData[0]
         reqID = reqData[1]
 
-        # Ideally, ray would handle this in their Queue implementation but they
-        # can't recurse into datastructures so we have to fetch the result
-        # here. It's guaranteed to be ready (since any references come from
-        # KaaS which already put them into the kv store) but we do have to wait
-        # for the data transfer.
-        result = maybeDereference(result)
+        result = flattenRayRefs(result)
 
         outBufs = [clientID, reqID]
         outBufs.extend(result)
