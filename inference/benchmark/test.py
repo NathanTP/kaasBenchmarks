@@ -17,6 +17,7 @@ expectedAccuracies = {
 def runBench(model, modelType='kaas', backend='local', experiment='nshot', nRun=1):
     modelType = modelType.capitalize()
     cmd = ["./benchmark.py", "-m", model + modelType, '-b', backend, '-e', experiment, '--numRun', str(nRun)]
+    print("Running Command: ", " ".join(cmd))
     proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
     if proc.returncode != 0:
         print("Command Failed: " + " ".join(cmd))
@@ -42,6 +43,7 @@ def quick():
     backends = ['ray']
     configs = itertools.product(models, types, backends)
     for model, modelType, backend in configs:
+        print(f"Running: {model}:{modelType} {backend}")
         if not runBench(model, modelType=modelType, nRun=32, backend=backend):
             print(f"Test Failed: {backend} {model}{modelType}")
             return False
@@ -55,6 +57,7 @@ def runServerMode(model, modelType='kaas', experiment='nshot', n=1, scale=1.0, r
     if runTime is not None:
         cmd += ['--runTime', str(runTime)]
 
+    print("Running Command: ", " ".join(cmd))
     proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
     if proc.returncode != 0:
         print("Command Failed: " + " ".join(cmd))
@@ -69,6 +72,7 @@ def serverModeQuick():
     types = ['kaas', 'tvm']
     configs = itertools.product(models, types)
     for model, modelType in configs:
+        print(f"Running: {model}:{modelType}")
         if not runServerMode(model, modelType=modelType, n=8):
             print(f"Test Failed: {model}{modelType}")
             return False

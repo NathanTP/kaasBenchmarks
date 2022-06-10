@@ -411,7 +411,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         if PROF_LEVEL > 1:
             with profiling.timer("t_run", stats):
                 resRefs = ray.get(runOut)
-                ray.wait(resRefs, fetch_local=False)
+                ray.wait(list(resRefs), fetch_local=False)
 
         # Post
         if mClass.noPost:
@@ -466,7 +466,7 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
         # detailed metrics than e2e. Details within the remote functions
         # should match localBench results anyway.
         refs.append(_runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
-                    inline=benchConfig['inline'], runPool=pool,
+                    inline=benchConfig['inline'], runPool=pool, clientID=benchConfig['name'],
                     cacheModel=benchConfig['forceCold'], stats=stats))
 
     # This isn't super accurate, but _runOne should return instantly and the
@@ -477,13 +477,7 @@ def _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchC
             idx = i % loader.ndata
 
             # Dereference answer from post or the router's reference from run
-            res = ray.get(ref)
-            if modelSpec.modelClass.noPost:
-                # Dereference the answer from run itself
-                res = ray.get(res)
-
-                if modelSpec.modelType == 'kaas':
-                    res = maybeDereference(res)
+            res = flattenRayRefs(ref)
 
             results.append((idx, res))
 
@@ -508,11 +502,11 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
             # Ray is lazy and asynchronous so it's difficult to collect more
             # detailed metrics than e2e. Details within the remote functions
             # should match localBench results anyway.
-            res = _runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
-                          clientID=benchConfig['name'], inline=benchConfig['inline'], runPool=pool,
-                          cacheModel=benchConfig['forceCold'], stats=stats)
+            resRefs = _runOne(modelSpec, specRef, modelArg, constRefs, inpRefs,
+                              clientID=benchConfig['name'], inline=benchConfig['inline'], runPool=pool,
+                              cacheModel=benchConfig['forceCold'], stats=stats)
 
-            res = flattenRayRefs(res)
+            res = flattenRayRefs(resRefs)
 
         results.append((idx, res))
 
@@ -575,8 +569,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     # Warm Runs
     print("Beginning warm runs")
-    # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
-    results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    # results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     warmPoolStats = pool.getProfile()
 
     warmStats.merge(warmPoolStats)
