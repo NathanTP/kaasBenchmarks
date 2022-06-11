@@ -46,20 +46,20 @@ def getCachePath(name):
 # I don't know of a nice way to get this, I manually extracted this from the onnx protobuf definition:
 # https://github.com/onnx/onnx/blob/master/onnx/onnx.in.proto#L483-L485
 onnxTypes = {
-        1:  "float32",
-        2:  "uint8",
-        3:  "int8",
-        4:  "uint16",
-        5:  "int16",
-        6:  "int32",
-        7:  "int64",
-        8:  "string",
-        9:  "bool",
-        10: "float16",
-        11: "float64",
-        12: "uint32",
-        13: "uint64",
-        # 14 and 15 are complex numbers, hopefully we don't need those
+    1:  "float32",
+    2:  "uint8",
+    3:  "int8",
+    4:  "uint16",
+    5:  "int16",
+    6:  "int32",
+    7:  "int64",
+    8:  "string",
+    9:  "bool",
+    10: "float16",
+    11: "float64",
+    12: "uint32",
+    13: "uint64",
+    # 14 and 15 are complex numbers, hopefully we don't need those
 }
 
 

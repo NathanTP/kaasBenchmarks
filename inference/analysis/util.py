@@ -246,26 +246,6 @@ def loadMicroKaas(raw):
 
     return pd.Series(metrics)
 
-    # XXX kept in case I need to compare with old version
-    # builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
-    #
-    # metrics = {}
-    # metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
-    # metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
-    # metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
-    #
-    # metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
-    # metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
-    #
-    # metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
-    # metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
-    # metrics['t_data_layer'] += builtinMetrics['kaas:t_load_request']
-    #
-    # metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
-    # metrics['t_e2e'] = builtinMetrics['t_run']
-    #
-    # return pd.Series(metrics)
-
 
 def loadNvProf(resPath):
     with open(resPath, 'r') as f:

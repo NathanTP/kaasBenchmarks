@@ -1,6 +1,5 @@
 import infbench
 import util
-from pprint import pprint
 
 import mlperf_loadgen
 from gpuinfo import GPUInfo

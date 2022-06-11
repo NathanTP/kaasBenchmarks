@@ -875,8 +875,8 @@ class mlperfRunner():
 
     def start(self, preWarm=True):
         self.completionQueue = ray.util.queue.Queue()
-        self.completionHandler = threading.Thread(
-                target=handleCompletion, args=[self.modelSpec, self.completionQueue])
+        self.completionHandler = threading.Thread(target=handleCompletion,
+                                                  args=[self.modelSpec, self.completionQueue])
         self.completionHandler.start()
 
         # This is very important for Ray because the cold start is multiple
