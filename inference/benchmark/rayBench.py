@@ -228,7 +228,7 @@ class runActor(kaas.pool.PoolWorker):
     def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
 
-        profs = self.profs.mod(clientID)
+        profs = self.profs
 
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with

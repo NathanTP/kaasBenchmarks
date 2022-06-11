@@ -195,8 +195,6 @@ def loadOneNShot(resPath):
 
 
 def loadMicroNative(builtinMetrics, nvMetrics):
-    builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
-
     metrics = {}
 
     kernelMetrics = nvMetrics.reset_index()
@@ -220,34 +218,53 @@ def loadMicroNative(builtinMetrics, nvMetrics):
     metrics['t_cuda_copy'] += nvTimes.get('cuMemcpyHtoD', 0.0)
     metrics['t_cuda_copy'] += nvTimes.get('cudaMemcpy', 0.0)
 
-    metrics['t_data_layer'] = builtinMetrics['t_loadInput']
-    metrics['t_data_layer'] += builtinMetrics['t_writeOutput']
+    metrics['t_data_layer'] = builtinMetrics['test']['t_loadInput']['mean']
+    metrics['t_data_layer'] += builtinMetrics['test']['t_writeOutput']['mean']
 
-    metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
-    metrics['t_e2e'] = builtinMetrics['t_run']
+    metrics['t_other'] = builtinMetrics['t_run']['mean'] - sum(metrics.values())
+    metrics['t_e2e'] = builtinMetrics['t_run']['mean']
 
     return pd.Series(metrics)
 
 
-def loadMicroKaas(builtinMetrics):
-    builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
+def loadMicroKaas(raw):
+    kaasRaw = raw['test']['kaas']
 
     metrics = {}
-    metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
-    metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
-    metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
+    metrics['t_kernel'] = kaasRaw['t_invoke']['mean']
+    metrics['t_cudaMM'] = kaasRaw['t_cudaMM']['mean']
+    metrics['t_kernel_init'] = kaasRaw['t_kernelLoad']['mean']
 
-    metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
-    metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
+    metrics['t_cuda_copy'] = kaasRaw['t_dtoh']['mean']
+    metrics['t_cuda_copy'] += kaasRaw['t_htod']['mean']
 
-    metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
-    metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
-    metrics['t_data_layer'] += builtinMetrics['kaas:t_load_request']
+    metrics['t_data_layer'] = kaasRaw['t_hostDLoad']['mean']
+    metrics['t_data_layer'] += kaasRaw['t_hostDWriteBack']['mean']
 
-    metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
-    metrics['t_e2e'] = builtinMetrics['t_run']
+    metrics['t_other'] = raw['t_run']['mean'] - sum(metrics.values())
+    metrics['t_e2e'] = raw['t_run']['mean']
 
     return pd.Series(metrics)
+
+    # XXX kept in case I need to compare with old version
+    # builtinMetrics = {metric: val['mean'] for metric, val in builtinMetrics.items()}
+    #
+    # metrics = {}
+    # metrics['t_kernel'] = builtinMetrics['kaas:t_invoke']
+    # metrics['t_cudaMM'] = builtinMetrics['kaas:t_cudaMM']
+    # metrics['t_kernel_init'] = builtinMetrics['kaas:t_kernelLoad']
+    #
+    # metrics['t_cuda_copy'] = builtinMetrics['kaas:t_dtoh']
+    # metrics['t_cuda_copy'] += builtinMetrics['kaas:t_htod']
+    #
+    # metrics['t_data_layer'] = builtinMetrics['kaas:t_hostDLoad']
+    # metrics['t_data_layer'] += builtinMetrics['kaas:t_hostDWriteBack']
+    # metrics['t_data_layer'] += builtinMetrics['kaas:t_load_request']
+    #
+    # metrics['t_other'] = builtinMetrics['t_run'] - sum(metrics.values())
+    # metrics['t_e2e'] = builtinMetrics['t_run']
+    #
+    # return pd.Series(metrics)
 
 
 def loadNvProf(resPath):
@@ -294,8 +311,8 @@ def loadMicroSuiteKaas(resDir):
         kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
         kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
 
-        coldAgg = coldAgg.append(kaasCold, ignore_index=True)
-        warmAgg = warmAgg.append(kaasWarm, ignore_index=True)
+        coldAgg = pd.concat((coldAgg, kaasCold), ignore_index=True)
+        warmAgg = pd.concat((warmAgg, kaasWarm), ignore_index=True)
 
     meanDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.mean(), "kaasCold": coldAgg.mean()})
     stdDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.std(), "kaasCold": coldAgg.std()})
@@ -327,10 +344,10 @@ def loadMicroSuiteNative(resDir):
         builtinWarms.append(actPipeNative['metrics_warm'])
 
     for nv, builtin in zip(nvColds, builtinColds):
-        coldAgg = coldAgg.append(loadMicroNative(builtin, nv), ignore_index=True)
+        coldAgg = pd.concat((coldAgg, loadMicroNative(builtin, nv)), ignore_index=True)
 
     for nv, builtin in zip(nvWarms, builtinWarms):
-        warmAgg = warmAgg.append(loadMicroNative(builtin, nv), ignore_index=True)
+        warmAgg = pd.concat((warmAgg, loadMicroNative(builtin, nv)), ignore_index=True)
 
     meanDf = pd.DataFrame.from_dict({"actWarm": warmAgg.mean(), "actCold": coldAgg.mean()})
     stdDf = pd.DataFrame.from_dict({"actWarm": warmAgg.std(), "actCold": coldAgg.std()})
@@ -353,8 +370,11 @@ if __name__ == "__main__":
 
     # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
 
-    # means, stds = loadMicroSuite(resPath)
-    # print(means)
+    means, stds = loadMicroSuite(resPath)
+    print("Means:")
+    print(means)
+    print("STDs:")
+    print(stds)
 
     # print(loadMicro(resPath))
     # loadOneNShot(resPath)
@@ -371,7 +391,7 @@ if __name__ == "__main__":
 
     # dirs = getRunDirs(resPath, expNames=['resnet50_tvm_5'])
     # res, _ = loadOneMlPerf(dirs['resnet50_tvm_5'])
-    res, _ = loadOneMlPerf([resPath])
-    print(res['p90'])
+    # res, _ = loadOneMlPerf([resPath])
+    # print(res['p90'])
     # print(res['submission_rate'])
     # print(res['mean'])
