@@ -381,14 +381,14 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
-                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"queryId": queryId,
                                              "completionQ": completionQ,
                                              "clientID": clientID})
             else:
-                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"clientID": clientID})
