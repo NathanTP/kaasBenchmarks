@@ -2,6 +2,7 @@
 import util
 import argparse
 import datetime
+from kaas.pool import policies
 
 
 def sanityCheck(backend):
@@ -31,7 +32,7 @@ def main():
                         help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("-p", "--policy",
-                        choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default='rr',
+                        choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default='balance',
                         help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--force-cold", action="store_true", dest='forceCold',
                         help="Force cold starts if possible (this is only valid in some configurations)")
@@ -59,6 +60,13 @@ def main():
     else:
         raise ValueError("Unrecognized backend: " + args.backend)
 
+    if args.policy == 'balance':
+        policy = policies.BALANCE
+    elif args.policy == 'exclusive':
+        policy = policies.EXCLUSIVE
+    else:
+        raise ValueError("Unsupported policy: ", args.policy)
+
     benchConfig = {
         "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
         "gitHash": util.currentGitHash(),
@@ -67,7 +75,7 @@ def main():
         "experiment": args.experiment,
         "backend": args.backend,
         "testing": args.testing,
-        "policy": args.policy,
+        "policy": policy,
         "forceCold": args.forceCold,
         "inline": args.inline,
         "scale": args.scale,

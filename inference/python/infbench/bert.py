@@ -45,10 +45,7 @@ class InputFeatures(object):
     """A single set of features of data. inputMask, segmentIds, and inputIds
     are passed separately because they must be passed directly to run()"""
 
-    def __init__(self,
-                 tokens,
-                 token_to_orig_map,
-                 token_is_max_context):
+    def __init__(self, tokens, token_to_orig_map, token_is_max_context):
         self.tokens = tokens
         self.token_to_orig_map = token_to_orig_map
         self.token_is_max_context = token_is_max_context
@@ -489,7 +486,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         # To deal with this we do a sliding window approach, where we take chunks
         # of the up to our max length with a stride of `doc_stride`.
         _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
-                "DocSpan", ["start", "length"])
+            "DocSpan", ["start", "length"])
         doc_spans = []
         start_offset = 0
         # XXX Technically, for long documents we need multiple features per
@@ -549,9 +546,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             assert len(segment_ids) == max_seq_length
 
             feature = InputFeatures(
-                    tokens=tokens,
-                    token_to_orig_map=token_to_orig_map,
-                    token_is_max_context=token_is_max_context)
+                tokens=tokens,
+                token_to_orig_map=token_to_orig_map,
+                token_is_max_context=token_is_max_context)
 
             # Run callback
             exampleFeatures.append((input_ids, input_mask, segment_ids, feature))

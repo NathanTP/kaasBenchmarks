@@ -122,7 +122,7 @@ class jacobi(jacobiBase):
         x_new_d.free()
         d_d.free()
 
-        return [x_new, d]
+        return (x_new, d)
 
     def __del__(self):
         self.cudaCtx.detach()

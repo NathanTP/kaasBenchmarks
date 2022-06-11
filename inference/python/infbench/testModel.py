@@ -65,7 +65,7 @@ class testModel():
         return (result,)
 
     @staticmethod
-    def getPerfEstimates(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
             maxQps = 18
             medianLatency = 0.100
@@ -79,7 +79,7 @@ class testModel():
 
     @classmethod
     def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType, benchConfig)
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings

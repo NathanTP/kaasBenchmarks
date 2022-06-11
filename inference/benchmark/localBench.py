@@ -258,7 +258,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # make sure kaasHandle stats are fully up to date
     report = stats.report()
     print("Detailed Profile: ")
-    util.analyzeStats(report)
+    pprint(report)
 
     print("E2E Results:")
     pprint({(k, v) for (k, v) in report['t_e2e'].items() if k != "events"})
@@ -291,12 +291,13 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
 class mlperfRunner():
 
-    def __init__(self, loader, constKeys, model, kv, benchConfig):
+    def __init__(self, loader, constKeys, model, kv, benchConfig, mode):
         self.loader = loader
         self.kv = kv
         self.model = model
         self.constKeys = constKeys
         self.benchConfig = benchConfig
+        self.mode = mode
 
     def runOne(self, batch):
         responses = []
@@ -306,7 +307,7 @@ class mlperfRunner():
             for k, v in zip(inpKeys, inputs):
                 self.kv.put(k, v)
 
-            outKeys = _runOne(self.model, self.constKeys, inpKeys, self.kv)
+            outKeys = _runOne(self.model, self.constKeys, inpKeys, self.kv, mode=self.mode)
 
             # Some models have big objects, best to clear out so we don't
             # run out of memory
@@ -328,7 +329,10 @@ def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
 
     if modelSpec.modelType == 'kaas':
+        mode = 'kaas'
         kaas.local.init()
+    else:
+        mode = 'direct'
 
     kv = kaas.local.LocalKV(serialize=False)
     loader = modelSpec.loader(modelSpec.dataDir)
@@ -350,7 +354,7 @@ def mlperfBench(modelSpec, benchConfig):
 
     gpuType = infbench.getGpuType()
 
-    runner = mlperfRunner(loader, constKeys, model, kv, benchConfig)
+    runner = mlperfRunner(loader, constKeys, model, kv, benchConfig, mode)
 
     sut = mlperf_loadgen.ConstructSUT(
         runner.runOne, infbench.model.flushQueries, runner.processLatencies)

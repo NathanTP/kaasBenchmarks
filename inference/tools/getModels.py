@@ -268,8 +268,10 @@ modelBuilders = {
     "resnet50": getResnet50,
     "cutlassSgemm": getCutlassSgemm,
     "complexCutlassGemm": getCutlassComplexGemm,
-    "jacobi": getJacobi
+    "jacobi": getJacobi,
+    "dummy": getDummy
 }
+
 
 def main():
     parser = argparse.ArgumentParser("Download and compile models")

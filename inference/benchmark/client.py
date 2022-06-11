@@ -7,6 +7,7 @@ import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 import time
 import random
+from pprint import pprint
 
 import mlperf_loadgen
 
@@ -158,10 +159,10 @@ def nShot(modelSpec, n, benchConfig):
     else:
         print("Accuracy checking not supported for this model")
 
-    report = stats.report()
+    report = stats.report(metrics=['mean'])
 
     print("Stats: ")
-    infbench.printReport(report, metrics=['mean'])
+    pprint(report)
 
     print("Writing full report to: ", benchConfig['name'] + '_results.json')
     infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
