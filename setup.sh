@@ -13,7 +13,7 @@ fi
 set -e
 
 pushd dependencies/tvm
-    mkdir build
+    mkdir -p build
     cp ../tvm_config.cmake build/config.cmake
     pushd build
         cmake ..
