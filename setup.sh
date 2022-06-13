@@ -12,7 +12,7 @@ if [ $subsInitialized == 0 ]; then
 fi
 set -e
 
-pushd tvm
+pushd dependencies/tvm
     mkdir build
     cp ../tvm_config.cmake build/config.cmake
     pushd build
@@ -25,17 +25,17 @@ pushd tvm
     popd
 popd
 
-pushd kaas/python
+pushd dependencies/kaas/python
     python3 setup.py develop
 popd
 
-pushd mlperf/loadgen
+pushd dependencies/mlperf/loadgen
     pip install absl-py numpy
     CFLAGS="-std=c++14 -O3" python setup.py bdist_wheel
     pip install --force-reinstall dist/mlperf_loadgen-1.1-cp39-cp39-linux_x86_64.whl
 popd
 
-pushd ../inference/
+pushd inference
     pip install -r requirements.txt
 
     pushd python
