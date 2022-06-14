@@ -1070,9 +1070,9 @@ class serverLoop():
         self.overwhelmed = False
 
     def handleBarrier(self, msg):
-        clientID = msg[0]
+        clientID = msg[0].decode('utf-8')
 
-        print("Recieved Ready from: ", clientID.decode("utf-8"))
+        print("Recieved Ready from: ", clientID)
         self.readyClients.append(clientID)
         if len(self.readyClients) == self.benchConfig['numClient']:
             # Get cold-start stats (if any) and reset for main warm passes
@@ -1083,7 +1083,7 @@ class serverLoop():
 
             print("Releasing Barrier")
             for cID in self.readyClients:
-                self.barrierStream.send_multipart([cID, b'', b'GO'])
+                self.barrierStream.send_multipart([cID.encode('utf-8'), b'', b'GO'])
 
     async def handleWorker(self):
         result, reqData = await self.rayQ.get_async()
@@ -1092,7 +1092,7 @@ class serverLoop():
 
         result = flattenRayRefs(result)
 
-        outBufs = [clientID, reqID]
+        outBufs = [clientID.encode('utf-8'), reqID]
         outBufs.extend(result)
         self.clientStream.send_multipart(outBufs)
         IOLoop.current().add_callback(self.handleWorker)
@@ -1103,22 +1103,10 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
-    async def fakeModel(self, clientID, reqID, startTime=None):
-        startTime = time.time()
-        await self.sem.acquire()
-        self.profs['t_queue'].increment(time.time() - startTime)
-
-        await asyncio.sleep(0.070)
-        self.sem.release()
-
-        self.profs['t_e2e'].increment(time.time() - startTime)
-        self.clientStream.send_multipart([clientID, reqID, b''])
-
     def handleClients(self, msg):
-        clientID = msg[0]
+        clientID = msg[0].decode('utf-8')
         reqID = msg[1]
         data = msg[2:]
-        # clientID, reqID, data = msg
 
         cState = clients.get(clientID, None)
 
@@ -1184,12 +1172,12 @@ def serveRequests(benchConfig):
     print("Server Exiting")
 
     print("Reporting server stats:")
-    for cID, stats in looper.warmStats.items():
+    for cID, profs in looper.warmStats.getMods():
         if cID is None:
             strCID = "None"
         else:
-            strCID = cID.decode("utf-8")
+            strCID = cID
 
         resPath = f"server_stats_{strCID}.json"
         print(f"Saving client {strCID} report to {resPath}")
-        infbench.saveReport(stats.report(), None, benchConfig, resPath)
+        infbench.saveReport(profs.report(), None, benchConfig, resPath)
