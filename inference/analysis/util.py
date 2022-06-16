@@ -218,17 +218,19 @@ def loadMicroNative(builtinMetrics, nvMetrics):
     metrics['t_cuda_copy'] += nvTimes.get('cuMemcpyHtoD', 0.0)
     metrics['t_cuda_copy'] += nvTimes.get('cudaMemcpy', 0.0)
 
-    metrics['t_data_layer'] = builtinMetrics['test']['t_loadInput']['mean']
-    metrics['t_data_layer'] += builtinMetrics['test']['t_writeOutput']['mean']
+    workerMetrics = builtinMetrics['workers']['groups']['test']
+    metrics['t_data_layer'] = workerMetrics['t_loadInput']['mean']
+    metrics['t_data_layer'] += workerMetrics['t_writeOutput']['mean']
 
-    metrics['t_other'] = builtinMetrics['t_run']['mean'] - sum(metrics.values())
-    metrics['t_e2e'] = builtinMetrics['t_run']['mean']
+    tRun = builtinMetrics['server']['t_run']['mean']
+    metrics['t_other'] = tRun - sum(metrics.values())
+    metrics['t_e2e'] = tRun
 
     return pd.Series(metrics)
 
 
 def loadMicroKaas(raw):
-    kaasRaw = raw['test']['kaas']
+    kaasRaw = raw['workers']['groups']['test']['kaas']
 
     metrics = {}
     metrics['t_kernel'] = kaasRaw['t_invoke']['mean']
@@ -241,8 +243,9 @@ def loadMicroKaas(raw):
     metrics['t_data_layer'] = kaasRaw['t_hostDLoad']['mean']
     metrics['t_data_layer'] += kaasRaw['t_hostDWriteBack']['mean']
 
-    metrics['t_other'] = raw['t_run']['mean'] - sum(metrics.values())
-    metrics['t_e2e'] = raw['t_run']['mean']
+    tRun = raw['server']['t_run']['mean']
+    metrics['t_other'] = tRun - sum(metrics.values())
+    metrics['t_e2e'] = tRun
 
     return pd.Series(metrics)
 
@@ -291,11 +294,11 @@ def loadMicroSuiteKaas(resDir):
         kaasCold = loadMicroKaas(kaasNative['metrics_cold'])
         kaasWarm = loadMicroKaas(kaasNative['metrics_warm'])
 
-        coldAgg = pd.concat((coldAgg, kaasCold), ignore_index=True)
-        warmAgg = pd.concat((warmAgg, kaasWarm), ignore_index=True)
+        coldAgg = pd.concat((coldAgg, kaasCold), ignore_index=True, axis=1)
+        warmAgg = pd.concat((warmAgg, kaasWarm), ignore_index=True, axis=1)
 
-    meanDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.mean(), "kaasCold": coldAgg.mean()})
-    stdDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.std(), "kaasCold": coldAgg.std()})
+    meanDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.mean(axis=1), "kaasCold": coldAgg.mean(axis=1)})
+    stdDf = pd.DataFrame.from_dict({"kaasWarm": warmAgg.std(axis=1), "kaasCold": coldAgg.std(axis=1)})
 
     return (meanDf, stdDf)
 
@@ -324,13 +327,13 @@ def loadMicroSuiteNative(resDir):
         builtinWarms.append(actPipeNative['metrics_warm'])
 
     for nv, builtin in zip(nvColds, builtinColds):
-        coldAgg = pd.concat((coldAgg, loadMicroNative(builtin, nv)), ignore_index=True)
+        coldAgg = pd.concat((coldAgg, loadMicroNative(builtin, nv)), ignore_index=True, axis=1)
 
     for nv, builtin in zip(nvWarms, builtinWarms):
-        warmAgg = pd.concat((warmAgg, loadMicroNative(builtin, nv)), ignore_index=True)
+        warmAgg = pd.concat((warmAgg, loadMicroNative(builtin, nv)), ignore_index=True, axis=1)
 
-    meanDf = pd.DataFrame.from_dict({"actWarm": warmAgg.mean(), "actCold": coldAgg.mean()})
-    stdDf = pd.DataFrame.from_dict({"actWarm": warmAgg.std(), "actCold": coldAgg.std()})
+    meanDf = pd.DataFrame.from_dict({"actWarm": warmAgg.mean(axis=1), "actCold": coldAgg.mean(axis=1)})
+    stdDf = pd.DataFrame.from_dict({"actWarm": warmAgg.std(axis=1), "actCold": coldAgg.std(axis=1)})
 
     return (meanDf, stdDf)
 
@@ -348,6 +351,7 @@ def loadMicroSuite(resDir):
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
+    # loadMicroSuiteKaas(resPath)
     # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
 
     means, stds = loadMicroSuite(resPath)
@@ -356,7 +360,6 @@ if __name__ == "__main__":
     print("STDs:")
     print(stds)
 
-    # print(loadMicro(resPath))
     # loadOneNShot(resPath)
     # model = 'resnet50'
 
