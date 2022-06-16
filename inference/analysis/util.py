@@ -415,19 +415,16 @@ def loadMicroSuite(resDir):
 
 
 if __name__ == "__main__":
-    # resPath = pathlib.Path(sys.argv[1])
+    resPath = pathlib.Path(sys.argv[1])
 
     # loadMicroSuiteKaas(resPath)
     # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
 
-    with open("../benchmark/results/throughput_Kaas_160622-182032/throughput_Kaas_resnet50_0_0_results.json", 'r') as f:
-        pprint(json.load(f))
-
-    # means, stds = loadMicroSuite(resPath)
-    # print("Means:")
-    # print(means)
-    # print("STDs:")
-    # print(stds)
+    means, stds = loadMicroSuite(resPath)
+    print("Means:")
+    print(means)
+    print("STDs:")
+    print(stds)
 
     # loadOneNShot(resPath)
     # model = 'resnet50'
@@ -441,7 +438,7 @@ if __name__ == "__main__":
     # res, _ = loadOneMlPerf([resPath])
 
     # print(loadAllThroughput(resPath))
-    full, agg = loadAllMlPerf(resPath, metric="p50")
-    print(agg['resnet50'])
+    # full, agg = loadAllMlPerf(resPath, metric="p50")
+    # print(agg['resnet50'])
     # # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='throughput')
     # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='mlperf')
