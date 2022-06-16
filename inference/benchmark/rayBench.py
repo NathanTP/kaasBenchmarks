@@ -593,7 +593,7 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     pprint(coldReport)
 
     print("Saving results to ", reportPath)
-    infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
+    infbench.saveReport(finalWarm, finalCold, benchConfig, reportPath)
 
     if loader.checkAvailable:
         accuracies = [loader.check(res, idx) for idx, res in results]
