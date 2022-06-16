@@ -23,18 +23,22 @@ def getTargetRuntime(nReplica, model, mode):
         elif model == 'jacobi':
             runTime = 800
         elif model == 'resnet50':
-            runTime = 600
+            #XXX
+            # runTime = 600
+            runTime = 120
         elif model == 'complexCutlassGemm':
             runTime = 800
         else:
             raise RuntimeError("Please configure a target runtime for model: ", model)
     else:
-        runTime = 300
+        #XXX
+        # runTime = 300
+        runTime = 30
 
     return runTime
 
 
-def mlperfMulti(nReplicas, models, modes):
+def mlperfMulti(configs):
     if len(sys.argv) == 1:
         suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
         suiteOutDir = pathlib.Path('results') / f"mlperfSuite_{suffix}"
@@ -45,20 +49,19 @@ def mlperfMulti(nReplicas, models, modes):
 
     resultsDir = pathlib.Path("./results")
 
-    for model in models:
-        for nReplica in nReplicas:
-            for mode in modes:
-                runTime = getTargetRuntime(nReplica, model, mode)
+    for model, mode, nReplica in configs:
+        runTime = getTargetRuntime(nReplica, model, mode)
 
-                time.sleep(20)
-                name = f"{model}_{mode}_{nReplica}"
-                print("\nStarting test: ", name)
-                sp.run(['./experiment.py', '-e', 'mlperfMulti',
-                        '-n', str(nReplica), f'--runTime={runTime}',
-                        '-t', mode, '-m', model])
+        time.sleep(20)
+        name = f"{model}_{mode}_{nReplica}"
+        print("\nStarting test: ", name)
+        #XXX remove scale option
+        sp.run(['./experiment.py', '-e', 'mlperfMulti', '-s', '0.5',
+                '-n', str(nReplica), f'--runTime={runTime}',
+                '-t', mode, '-m', model])
 
-                runOutDir = suiteOutDir / name
-                shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
+        runOutDir = suiteOutDir / name
+        shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
 
     print("Final Results in: ", suiteOutDir)
 
@@ -228,12 +231,15 @@ def latDistribution(configs, independent=False):
 # nReplicas = [1, 4, 5, 16]
 # nReplicas = [1, 2, 5]
 # nReplicas = [1, 3, 5, 16]
-nReplicas = [4]
 # nReplicas = [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 # models = ['bert', 'jacobi']
-models = ['complexCutlassGemm']
-modes = ['tvm', 'kaas']
+# modes = ['tvm', 'kaas']
+
+nReplicas = [2]
+models = ['resnet50']
+modes = ['kaas']
 configs = itertools.product(models, modes, nReplicas)
 
 latDistribution(configs, independent=False)
 # throughput(configs)
+# mlperfMulti(configs)

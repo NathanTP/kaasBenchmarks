@@ -35,7 +35,7 @@ def getNGpu():
     return nGpu
 
 
-def parseMlPerf(prefix):
+def parseMlPerf(prefix) -> profiling.profCollection:
     with open(prefix + "summary.txt", 'r') as f:
         mlLog = f.readlines()
 
@@ -74,9 +74,8 @@ def parseMlPerf(prefix):
     return metrics, valid
 
 
-def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerfPrefix="mlperf_log_"):
-    """Reads latencies from mlperf and generates both human and machine
-    readable reports."""
+def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerfPrefix="mlperf_log_") -> profiling.prof:
+    """Reads latencies from mlperf and generates a profiling.prof for them."""
 
     # latencies is a list of latencies for each query issued (in ns).
     lats = np.array(rawLatencies, dtype=np.float32)
@@ -88,20 +87,31 @@ def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerf
     return metrics
 
 
-def saveReport(warmMetrics, coldMetrics, benchConfig, outPath):
+def saveReport(warmMetrics: profiling.profCollection, coldMetrics: profiling.profCollection,
+               benchConfig, outPath):
     if not isinstance(outPath, pathlib.Path):
         outPath = pathlib.Path(outPath).resolve()
 
     if warmMetrics is None and coldMetrics is None:
         raise ValueError("warmMetrics and coldMetrics cannot both be None")
 
+    if warmMetrics is None:
+        warmReport = None
+    else:
+        warmReport = warmMetrics.report()
+
+    if coldMetrics is None:
+        coldReport = None
+    else:
+        coldReport = coldMetrics.report()
+
     if outPath.exists():
         outPath.unlink()
 
     record = {
         "config": benchConfig,
-        "metrics_warm": warmMetrics,
-        "metrics_cold": coldMetrics
+        "metrics_warm": warmReport,
+        "metrics_cold": coldReport
     }
 
     print("Saving metrics to: ", outPath)

@@ -346,15 +346,18 @@ def loadMicroSuite(resDir):
 
 
 if __name__ == "__main__":
-    resPath = pathlib.Path(sys.argv[1])
+    # resPath = pathlib.Path(sys.argv[1])
 
     # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
 
-    means, stds = loadMicroSuite(resPath)
-    print("Means:")
-    print(means)
-    print("STDs:")
-    print(stds)
+    with open("../benchmark/results/throughput_Kaas_160622-182032/throughput_Kaas_resnet50_0_0_results.json", 'r') as f:
+        pprint(json.load(f))
+
+    # means, stds = loadMicroSuite(resPath)
+    # print("Means:")
+    # print(means)
+    # print("STDs:")
+    # print(stds)
 
     # print(loadMicro(resPath))
     # loadOneNShot(resPath)

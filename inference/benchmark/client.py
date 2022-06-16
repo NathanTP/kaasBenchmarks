@@ -299,7 +299,7 @@ def throughput(modelSpec, benchConfig):
     metrics, valid = testLoop.reportMetrics()
     benchConfig['valid'] = valid
 
-    infbench.saveReport(metrics.report(), None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(metrics, None, benchConfig, benchConfig['name'] + '_results.json')
 
 
 # =============================================================================
@@ -431,4 +431,4 @@ def mlperfBench(modelSpec, benchConfig):
     metrics.merge(testRunner.metrics)
     metrics.merge(mlPerfMetrics)
 
-    infbench.saveReport(metrics.report(), None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(metrics, None, benchConfig, benchConfig['name'] + '_results.json')
