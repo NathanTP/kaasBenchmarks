@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import subprocess as sp
 import shutil
-import libff.kaas as kaas
+import kaas
 import argparse
 import pathlib
 import yaml
+import pickle
 
 
 srcDir = pathlib.Path(__file__).parent.resolve()
@@ -46,8 +47,8 @@ if __name__ == "__main__":
         args.output.mkdir(mode=0o700, parents=True)
 
     req = generateModel(libraryPath)
-    with open(args.output / (args.name + "_model.yaml"), 'w') as f:
-        yaml.safe_dump(req.toDict(), f)
+    with open(args.output / (args.name + "_model.pkl"), 'wb') as f:
+        pickle.dump(req, f)
 
     with open(args.output / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta, f)

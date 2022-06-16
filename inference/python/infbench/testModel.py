@@ -1,7 +1,9 @@
 from . import model
 from . import dataset
-from . import util
 
+from kaas import profiling
+
+import math
 import time
 import numpy as np
 import pickle
@@ -21,13 +23,13 @@ postTime = 20
 
 class testModel():
     # Standard Parameters
-    nConst = depth
+    nConst = 1
 
     nOutPre = 1
     preMap = model.inputMap(inp=(0,))
 
     nOutRun = 1
-    runMap = model.inputMap(const=range(depth), pre=(0,))
+    runMap = model.inputMap(const=(0,), pre=(0,))
 
     nOutPost = 1
     postMap = model.inputMap(run=(0,))
@@ -53,9 +55,8 @@ class testModel():
     @staticmethod
     def post(data):
         inputArr = data[0]
-        if isinstance(inputArr, bytes):
-            inputArr = np.frombuffer(data[0], dtype=np.float32)
-            inputArr.shape = (matSize, matSize)
+        inputArr.dtype = np.float32
+        inputArr.shape = (matSize, matSize)
 
         result = inputArr - 1
 
@@ -64,7 +65,7 @@ class testModel():
         return (result,)
 
     @staticmethod
-    def getPerfEstimates(gpuType, benchConfig):
+    def getPerfEstimates(gpuType):
         if gpuType == "Tesla K20c":
             maxQps = 18
             medianLatency = 0.100
@@ -78,7 +79,7 @@ class testModel():
 
     @classmethod
     def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType, benchConfig)
+        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
         settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
         return settings
@@ -93,21 +94,21 @@ class testModelNative(testModel, model.Model):
         self.dConsts = None
         self.dIOs = None
 
-        tile_tb_height = 8
-        tileN = 16
-        tileM = (tileN * tile_tb_height)
-
-        self.gridDim = (matSize // tileM, matSize // tileN, 1)
-        self.blockDim = (tileN, tile_tb_height, 1)
-        self.sharedSize = tile_tb_height * tileN * 4
-
         cuda.init()
         self.cudaCtx = pycuda.tools.make_default_context()
-        util.cudaProfilerResetCtx()
+        profiling.cudaProfilerResetCtx()
+
+        gpuHandle = cuda.Device(0)
+        maxThreads = gpuHandle.get_attribute(cuda.device_attribute.MAX_THREADS_PER_BLOCK)
+
+        tileSize = int(math.sqrt(maxThreads))
+        self.gridDim = (matSize // tileSize, matSize // tileSize, 1)
+        self.blockDim = (tileSize, tileSize, 1)
+        self.sharedSize = 0
 
         mod = cuda.module_from_file(str(self.modelPath.parent / "sgemm.cubin"))
         self.kern = mod.get_function("sgemm")
-        self.kern.prepare(["P", "P", "P"])
+        self.kern.prepare(["i", "P", "P", "P"])
 
     def __del__(self):
         if self.dConsts is not None:
@@ -127,9 +128,18 @@ class testModelNative(testModel, model.Model):
         return constants
 
     def run(self, data, stats=None):
-        constants = data[:self.nConst]
+        packedConstants = data[:self.nConst]
         hInp = data[self.nConst]
         inpSize = hInp.nbytes
+
+        constants = []
+        nElem = matSize ** 2
+        for i in range(depth):
+            start = i * nElem
+            end = (i+1) * nElem
+            constArr = packedConstants[0][start:end]
+            constArr.shape = (matSize, matSize)
+            constants.append(constArr)
 
         if self.dConsts is None:
             self.dConsts = []
@@ -152,6 +162,7 @@ class testModelNative(testModel, model.Model):
 
         for i in range(depth):
             self.kern.prepared_call(self.gridDim, self.blockDim,
+                                    matSize,
                                     self.dIOs[i], self.dConsts[i], self.dIOs[i+1],
                                     shared_size=self.sharedSize)
 
@@ -173,19 +184,14 @@ class testLoader(dataset.loader):
 
     def __init__(self, dataDir):
         with open(dataDir / "sgemm_params.pkl", 'rb') as f:
-            constants = pickle.load(f)
-
-        self.constants = []
-        for c in constants:
-            cNP = np.frombuffer(c, dtype=np.float32)
-            cNP.shape = (matSize, matSize)
-            self.constants.append(cNP)
+            self.constants = pickle.load(f)
 
         self.data = {}
 
     def preLoad(self, idxs):
+        rng = np.random.default_rng(1)
         for i in idxs:
-            self.data[i] = np.full((matSize, matSize), (i+1)*10, dtype=np.float32)
+            self.data[i] = rng.standard_normal((matSize, matSize), dtype=np.float32)
 
     def unLoad(self, idxs):
         for i in idxs:
@@ -198,7 +204,7 @@ class testLoader(dataset.loader):
         result = result[0]
         if isinstance(result, bytes):
             result = np.frombuffer(result, dtype=np.float32)
-        result.shape = (matSize, matSize)
+            result.shape = (matSize, matSize)
 
         expect = np.frombuffer(self.data[idx], dtype=np.float32)
         expect.shape = (matSize, matSize)
@@ -207,8 +213,17 @@ class testLoader(dataset.loader):
         expect += 1
 
         # run
+        constants = []
+        nElem = matSize ** 2
+        for i in range(depth):
+            start = i * nElem
+            end = (i+1) * nElem
+            constArr = self.constants[0][start:end]
+            constArr.shape = (matSize, matSize)
+            constants.append(constArr)
+
         for i in range(1, depth):
-            expect = np.matmul(expect, self.constants[i])
+            expect = np.matmul(expect, constants[i])
 
         # post
         expect -= 1

@@ -8,38 +8,38 @@ import shutil
 import pathlib
 import numpy as np
 import pickle
+import math
 
-import libff.kaas as kaas
+import kaas
 
+import pycuda.driver as cuda
+import pycuda.autoinit  # NOQA
 
 srcDir = pathlib.Path(__file__).parent.resolve()
 
 libraryName = "sgemm.cubin"
 mmKern = "sgemm"
 
-tile_tb_height = 8
-tileN = 16
-tileM = (tileN * tile_tb_height)
+sideLen = 1024
 
-# This has to match the DIM constant in gemm.cu
-sideLength = 1024
+maxThreads = cuda.Device(0).get_attribute(cuda.device_attribute.MAX_THREADS_PER_BLOCK)
+tileSize = int(math.sqrt(maxThreads))
+gridDim = (sideLen // tileSize, sideLen // tileSize, 1)
+blockDim = (tileSize, tileSize, 1)
+sharedSize = 0
 
 # Size of one element in bytes, e.g. float32=4
 elemSize = 4
 
 
-def generateLayer(namePrefix, inputName, libraryPath, outputLayer=False, inputLayer=False):
-    matSize = (sideLength**2) * elemSize
+def generateLayer(namePrefix, inputName, libraryPath, layerIdx, outputLayer=False, inputLayer=False):
+    matSize = (sideLen**2) * elemSize
 
     aBuf = kaas.bufferSpec(inputName, matSize, ephemeral=(not inputLayer), const=False)
-    bBuf = kaas.bufferSpec(namePrefix + "B", matSize, ephemeral=False, const=True)
+    bBuf = kaas.bufferSpec(namePrefix + "B", matSize, offset=layerIdx * matSize, ephemeral=False, const=True)
 
     outputName = namePrefix + "C"
     cBuf = kaas.bufferSpec(namePrefix + "C", matSize, ephemeral=(not outputLayer), const=False)
-
-    gridDim = (sideLength // tileM, sideLength // tileN, 1)
-    blockDim = (tileN, tile_tb_height, 1)
-    sharedSize = tile_tb_height * tileN * 4
 
     arguments = [(aBuf, 'i'),
                  (bBuf, 'i'),
@@ -49,7 +49,7 @@ def generateLayer(namePrefix, inputName, libraryPath, outputLayer=False, inputLa
     # the model, as will the buffer keys
     kern = kaas.kernelSpec(libraryPath, mmKern,
                            gridDim, blockDim, sharedSize,
-                           literals=[],
+                           literals=[kaas.literalSpec('i', sideLen)],
                            arguments=arguments)
 
     return (kern, outputName)
@@ -57,16 +57,16 @@ def generateLayer(namePrefix, inputName, libraryPath, outputLayer=False, inputLa
 
 def generateModel(depth, libraryPath):
     layers = []
-    layer, previousOut = generateLayer("input", "inputA", libraryPath,
+    layer, previousOut = generateLayer("input", "inputA", libraryPath, 0,
                                        outputLayer=False, inputLayer=True)
     layers.append(layer)
 
     for i in range(depth - 2):
-        layer, previousOut = generateLayer("intermediate" + str(i), previousOut, libraryPath,
+        layer, previousOut = generateLayer("intermediate" + str(i), previousOut, libraryPath, i + 1,
                                            outputLayer=False, inputLayer=False)
         layers.append(layer)
 
-    layer, _ = generateLayer("output", previousOut, libraryPath,
+    layer, _ = generateLayer("output", previousOut, libraryPath, depth - 1,
                              outputLayer=True, inputLayer=False)
     layers.append(layer)
 
@@ -74,22 +74,25 @@ def generateModel(depth, libraryPath):
 
 
 def metaFromReq(req):
-    shape = (sideLength, sideLength)
+    shape = (sideLen, sideLen)
     dtype = "float32"
 
     constants = []
     inputs = []
     outputs = []
     for kern in req.kernels:
-        for buf in kern.inputs:
+        for bufName, ioType in zip(kern.arguments, kern.ioTypes):
+            buf = req.bufferMap[bufName]
             if not buf.ephemeral:
                 if buf.const:
-                    constants.append({"name": buf.name, "type": dtype, "shape": shape})
-                else:
+                    #XXX Shape is wrong here, gotta think about why it's really here and what to do with it...
+                    constants.append({"name": buf.name, "type": dtype, "shape": shape, "dataIdx": 0})
+                elif ioType == 'i':
                     inputs.append({"name": buf.name, "type": dtype, "shape": shape})
-        for buf in kern.outputs:
-            if not buf.ephemeral:
-                outputs.append({"name": buf.name, "type": dtype, "shape": shape})
+                elif ioType == 'o':
+                    outputs.append({"name": buf.name, "type": dtype, "shape": shape})
+                else:
+                    raise RuntimeError("Did not expect an io buffer: ", bufName)
 
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
 
@@ -101,12 +104,15 @@ def generateCubin(outputPath):
 
 def generateConstants(depth):
     consts = []
+    # rng = np.random.default_rng(1)
     for i in range(depth):
-        const = np.zeros((sideLength, sideLength), dtype=np.float32)
+        const = np.zeros((sideLen, sideLen), dtype=np.float32)
         np.fill_diagonal(const, i+1)
-        consts.append(const)
+        consts.append(const.flatten())
+        # consts.append(rng.standard_normal((sideLen**2), dtype=np.float32))
 
-    return consts
+    combinedConst = np.concatenate(consts)
+    return [combinedConst]
 
 
 if __name__ == "__main__":
@@ -127,8 +133,8 @@ if __name__ == "__main__":
         args.output.mkdir(mode=0o700, parents=True)
 
     req = generateModel(args.depth, libraryPath)
-    with open(args.output / (args.name + "_model.yaml"), 'w') as f:
-        yaml.safe_dump(req.toDict(), f)
+    with open(args.output / (args.name + "_model.pkl"), 'wb') as f:
+        pickle.dump(req, f)
 
     meta = metaFromReq(req)
     with open(args.output / (args.name + "_meta.yaml"), 'w') as f:

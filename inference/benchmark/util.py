@@ -41,6 +41,17 @@ class ModelSpec():
         else:
             raise ValueError("Unrecognized model type: ", self.modelType)
 
+    def getModelInstance(self, constRefs=None, backend='ray'):
+        if self.modelType == 'tvm':
+            arg = infbench.model.readModelBuf(self.modelPath)
+            return self.modelClass(arg)
+        elif self.modelType == 'kaas':
+            return self.modelClass(self.modelPath, constRefs, backend=backend)
+        elif self.modelType == "direct":
+            return self.modelClass(self.modelPath)
+        else:
+            raise ValueError("Unrecognized model type: ", self.modelType)
+
 
 # This is implemented this way to ensure that models are only imported if
 # necessary. Imports have a large impact on performance, and some models have a
@@ -203,9 +214,9 @@ def analyzeStats(stats):
     otherStats = {}
     for m, v in stats.items():
         if pat.match(m):
-            timeStats[m] = v['p50']
+            timeStats[m] = v['mean']
         else:
-            otherStats[m] = v['p50']
+            otherStats[m] = v['mean']
 
     print("Time Stats:")
     pprint(timeStats)
@@ -215,14 +226,6 @@ def analyzeStats(stats):
     #
     # print("Other Stats:")
     # pprint(otherStats)
-
-
-def mergePerClientStats(base, delta):
-    for cID, deltaClient in delta.items():
-        if cID in base:
-            base[cID].merge(deltaClient)
-        else:
-            base[cID] = deltaClient
 
 
 def currentGitHash():

@@ -1,4 +1,4 @@
-from libff import kaas
+import kaas
 import ctypes as ct
 import numpy as np
 

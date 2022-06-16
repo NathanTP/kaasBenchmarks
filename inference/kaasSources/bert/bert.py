@@ -1,8 +1,7 @@
 import pathlib
 import pickle
 import numpy as np
-# import kaasServer as kaas
-import libff.kaas as kaas
+import kaas
 
 redisPwd = "Cd+OBWBEAXV0o2fg5yDrMjD9JUkW7J6MATWuGlRtkQXk/CBvf2HYEjKDYw4FC+eWPeVR8cQKWr7IztZy"
 testPath = pathlib.Path(__file__).resolve().parent

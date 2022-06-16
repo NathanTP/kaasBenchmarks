@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import yaml
+import pickle
 import pathlib
 from jacobi import createReq
 import argparse
@@ -33,8 +34,8 @@ if __name__ == "__main__":
 
     req = createReq()
     meta_data = getMeta(N)
-    with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
-        yaml.safe_dump(req.toDict(), f)
+    with open(targetDir / (args.name + "_model.pkl"), 'wb') as f:
+        pickle.dump(req, f)
 
     with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:
         yaml.safe_dump(meta_data, f)

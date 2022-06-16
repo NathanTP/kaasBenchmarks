@@ -1,7 +1,7 @@
 import pathlib
 import pickle
 
-import libff.kaas as kaas
+import kaas
 import numpy as np
 
 redisPwd = "Cd+OBWBEAXV0o2fg5yDrMjD9JUkW7J6MATWuGlRtkQXk/CBvf2HYEjKDYw4FC+eWPeVR8cQKWr7IztZy"

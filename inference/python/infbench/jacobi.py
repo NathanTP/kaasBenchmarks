@@ -46,8 +46,12 @@ class jacobiBase(model.Model):
             maxQps = 0
             medianLatency = 0.07
         elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 0
-            medianLatency = 0.09  # 0.07 for native
+            # XXX These numbers are really bad, there are some serious
+            # performance issues with jacobi that I swear didn't used to be
+            # there. Anyway, we really need to figure this out before doing
+            # more experiments with it.
+            maxQps = 3
+            medianLatency = 0.5
         else:
             raise ValueError("Unrecoginzied GPU Type" + gpuType)
 
@@ -118,7 +122,7 @@ class jacobi(jacobiBase):
         x_new_d.free()
         d_d.free()
 
-        return [x_new, d]
+        return (x_new, d)
 
     def __del__(self):
         self.cudaCtx.detach()

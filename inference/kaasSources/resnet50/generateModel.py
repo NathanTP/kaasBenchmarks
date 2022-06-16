@@ -34,31 +34,38 @@ def loadParams():
 
 
 def metaFromReq(req, graph):
-    c = 0
     constants = []
     inputs = []
     outputs = []
     constMap = dict()
+    inputMap = dict()
+
     for kern in req.kernels:
-        for buf in kern.inputs:
+        for bufName, ioType in zip(kern.arguments, kern.ioTypes):
+            buf = req.bufferMap[bufName]
             if not buf.ephemeral:
                 dtype, shape = getInfo(buf, graph)
                 if buf.const:
-                    c += 1
-                    constMap[int(buf.name)] = buf
-                else:
-                    inputs.append({"name": buf.name, "type": dtype, "shape": shape})
-        for buf in kern.outputs:
-            if not buf.ephemeral:
-                dtype, shape = getInfo(buf, graph)
-                outputs.append({"name": buf.name, "type": dtype, "shape": shape})
-    print(c)
+                    constMap[int(bufName)] = buf
+                elif ioType == 'i':
+                    inputMap[int(bufName)] = buf
+                elif ioType == 'o':
+                    outputs.append({"name": buf.name, "type": dtype, "shape": shape})
+
     constant_list = list(constMap.keys())
     constant_list.sort()
-    for i in constant_list:
+    for idx, i in enumerate(constant_list):
         buf = constMap[i]
         dtype, shape = getInfo(buf, graph)
-        constants.append({"name": buf.name, "type": dtype, "shape": shape})
+        constants.append({"name": buf.name, "type": dtype, "shape": shape, "dataIdx": idx})
+
+    input_list = list(inputMap.keys())
+    input_list.sort()
+    for i in input_list:
+        buf = inputMap[i]
+        dtype, shape = getInfo(buf, graph)
+        inputs.append({"name": buf.name, "type": dtype, "shape": shape})
+
     return {"constants": constants, "inputs": inputs, "outputs": outputs}
 
 
@@ -87,8 +94,8 @@ if __name__ == "__main__":
     sp.run(['make'], cwd=cwd, check=True)
 
     req = createReq(params_dict, resnet50Dir / (args.name + ".cubin"))
-    with open(targetDir / (args.name + "_model.yaml"), 'w') as f:
-        yaml.safe_dump(req.toDict(), f)
+    with open(targetDir / (args.name + "_model.pkl"), 'wb') as f:
+        pickle.dump(req, f)
 
     meta_data = metaFromReq(req, graph)
     with open(targetDir / (args.name + "_meta.yaml"), 'w') as f:

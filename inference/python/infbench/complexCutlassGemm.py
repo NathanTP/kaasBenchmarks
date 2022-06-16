@@ -1,11 +1,12 @@
 from . import model
 from . import dataset
-from . import util
 import numpy as np
 import ctypes as ct
 import pycuda.driver as cuda
 import pycuda.tools
 import pickle
+
+from kaas import profiling
 
 
 # define complex ctype as a python class
@@ -134,7 +135,7 @@ class sgemm(sgemmBase):
 
         cuda.init()
         self.cudaCtx = pycuda.tools.make_default_context()
-        util.cudaProfilerResetCtx()
+        profiling.cudaProfilerResetCtx()
         self.getArg, self.getDims = loadAdapter(self.modelDir.parent)
         self.refKern, self.cutlassKern = loadKerns(self.modelDir.parent)
 

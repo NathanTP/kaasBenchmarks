@@ -25,14 +25,14 @@ pushd tvm
     popd
 popd
 
-pushd fakefaas/python
+pushd kaas/python
     python3 setup.py develop
 popd
 
 pushd mlperf/loadgen
     pip install absl-py numpy
     CFLAGS="-std=c++14 -O3" python setup.py bdist_wheel
-    pip install --force-reinstall dist/mlperf_loadgen-1.1-cp38-cp38-linux_x86_64.whl
+    pip install --force-reinstall dist/mlperf_loadgen-1.1-cp39-cp39-linux_x86_64.whl
 popd
 
 pushd ../inference/

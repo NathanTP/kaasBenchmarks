@@ -6,10 +6,13 @@ from tornado.ioloop import IOLoop
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 import time
+import random
+from pprint import pprint
 
 import mlperf_loadgen
 
 import infbench
+from kaas import profiling
 import util
 
 sutSockUrl = "inproc://sut"
@@ -54,49 +57,59 @@ def preWarm(serverSock, barrierSock, inputs):
 # nShot
 # =============================================================================
 
-def _nShotSync(n, loader, serverSocket, stats=None, cacheInputs=False):
+def _nShotSync(inpIds, loader, serverSocket, stats=None, cacheInputs=False):
     results = []
-    stats['n_req'].increment(n)
+    stats['n_req'].increment(len(inpIds))
 
-    with infbench.timer("t_all", stats):
-        for i in range(n):
-            idx = i % loader.ndata
+    with profiling.timer("t_all", stats):
+        for reqId, idx in zip(range(len(inpIds)), inpIds):
             if cacheInputs:
                 inp = [idx.to_bytes(8, sys.byteorder)]
             else:
                 inp = loader.get(idx)
 
-            with infbench.timer('t_e2e', stats):
-                sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
+            with profiling.timer('t_e2e', stats):
+                sendReq(serverSocket, reqId.to_bytes(4, sys.byteorder), inp)
 
                 resp = serverSocket.recv_multipart()
-                respIdx = int.from_bytes(resp[0], sys.byteorder)
+                respId = int.from_bytes(resp[0], sys.byteorder)
 
-                assert (respIdx == idx)
-                results.append((respIdx, resp[1:]))
+                assert (respId == reqId)
+                results.append((idx, resp[1:]))
 
     return results
 
 
-def _nShotASync(n, loader, serverSocket, stats=None):
+def _nShotAsync(inpIds, loader, serverSocket, stats=None, cacheInputs=False):
     results = []
-    starts = []
-    with infbench.timer('t_all', stats):
-        for i in range(n):
-            idx = i % loader.ndata
-            inp = loader.get(idx)
 
-            starts.append(time.time())
-            sendReq(serverSocket, idx.to_bytes(4, sys.byteorder), inp)
+    # reqId -> (startTime, inpId)
+    requests = {}
+    with profiling.timer('t_all', stats):
+        # for i in range(n):
+        for reqId, idx in zip(range(len(inpIds)), inpIds):
+            if cacheInputs:
+                inp = [idx.to_bytes(8, sys.byteorder)]
+            else:
+                inp = loader.get(idx)
 
-        stats['n_req'].increment(n)
+            requests[reqId] = (time.time(), idx)
+            sendReq(serverSocket, reqId.to_bytes(4, sys.byteorder), inp)
 
-        for i in range(n):
+        stats['n_req'].increment(len(inpIds))
+
+        for i in range(len(inpIds)):
             resp = serverSocket.recv_multipart()
 
             respIdx = int.from_bytes(resp[0], sys.byteorder)
-            stats['t_e2e'].increment(time.time() - starts[respIdx])
-            results.append((respIdx, resp[1:]))
+
+            respStartTime, respInpId = requests[respIdx]
+            stats['t_e2e'].increment(time.time() - respStartTime)
+
+            # Server is permitted to return requests out of order
+            assert (respInpId in inpIds)
+
+            results.append((respInpId, resp[1:]))
 
     return results
 
@@ -106,10 +119,15 @@ def nShot(modelSpec, n, benchConfig):
     responses. The raw results are returned."""
     clientID = benchConfig['name'].encode('utf-8')
 
-    stats = infbench.profCollection()
+    stats = profiling.profCollection()
 
+    nWarmStep = infbench.getNGpu()*2
+
+    nLoad = max(n, nWarmStep)
     loader = modelSpec.loader(modelSpec.dataDir)
-    loader.preLoad(range(min(n, loader.ndata)))
+    # inpIds = [i % loader.ndata for i in range(nLoad)]
+    inpIds = [random.randrange(0, loader.ndata) for i in range(nLoad)]
+    loader.preLoad(inpIds)
 
     zmqContext = zmq.Context()
     serverSocket, barrierSocket = setupZmq(clientID, context=zmqContext)
@@ -119,7 +137,7 @@ def nShot(modelSpec, n, benchConfig):
     sendReq(serverSocket, benchConfig['model'].encode('utf-8'), b'')
 
     # Cold starts
-    _nShotSync(infbench.getNGpu()*2, loader, serverSocket,
+    _nShotSync(inpIds[:nWarmStep], loader, serverSocket,
                stats=stats, cacheInputs=modelSpec.cacheInputs)
 
     print("Waiting for other clients:")
@@ -127,8 +145,8 @@ def nShot(modelSpec, n, benchConfig):
 
     # Send all requests
     print("Sending Requests:")
-    results = _nShotSync(n, loader, serverSocket,
-                         stats=stats, cacheInputs=modelSpec.cacheInputs)
+    results = _nShotAsync(inpIds[:n], loader, serverSocket,
+                          stats=stats, cacheInputs=modelSpec.cacheInputs)
     print("Test complete")
 
     if loader.checkAvailable:
@@ -141,10 +159,10 @@ def nShot(modelSpec, n, benchConfig):
     else:
         print("Accuracy checking not supported for this model")
 
-    report = stats.report()
+    report = stats.report(metrics=['mean'])
 
     print("Stats: ")
-    infbench.printReport(report, metrics=['mean'])
+    pprint(report)
 
     print("Writing full report to: ", benchConfig['name'] + '_results.json')
     infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
@@ -239,7 +257,7 @@ class throughputLoop():
             self.loop.add_callback(self.submitReqs)
 
     def reportMetrics(self):
-        metrics = infbench.profCollection()
+        metrics = profiling.profCollection()
 
         # useful for debugging mostly. Ideally t_total ~= targetTime
         metrics['n_completed'].increment(self.nCompleted)
@@ -293,7 +311,7 @@ class mlperfRunner(threading.Thread):
         self.zmqContext = zmqContext
         self.benchConfig = benchConfig
         self.modelSpec = modelSpec
-        self.metrics = infbench.profCollection()
+        self.metrics = profiling.profCollection()
         self.nQuery = 0
 
         threading.Thread.__init__(self)
@@ -409,7 +427,7 @@ def mlperfBench(modelSpec, benchConfig):
     mlPerfMetrics, valid = infbench.parseMlPerf(benchConfig['name'] + '_')
     benchConfig['valid'] = valid
 
-    metrics = infbench.profCollection()
+    metrics = profiling.profCollection()
     metrics.merge(testRunner.metrics)
     metrics.merge(mlPerfMetrics)
 

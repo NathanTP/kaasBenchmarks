@@ -12,7 +12,8 @@ import ray
 
 import mlperf_loadgen
 
-import libff.kaas as kaas
+import kaas
+import kaas.ray
 
 # Defaults to home dir which I don't want. Have to set the env before loading
 # the module because of python weirdness.
@@ -45,20 +46,20 @@ def getCachePath(name):
 # I don't know of a nice way to get this, I manually extracted this from the onnx protobuf definition:
 # https://github.com/onnx/onnx/blob/master/onnx/onnx.in.proto#L483-L485
 onnxTypes = {
-        1:  "float32",
-        2:  "uint8",
-        3:  "int8",
-        4:  "uint16",
-        5:  "int16",
-        6:  "int32",
-        7:  "int64",
-        8:  "string",
-        9:  "bool",
-        10: "float16",
-        11: "float64",
-        12: "uint32",
-        13: "uint64",
-        # 14 and 15 are complex numbers, hopefully we don't need those
+    1:  "float32",
+    2:  "uint8",
+    3:  "int8",
+    4:  "uint16",
+    5:  "int16",
+    6:  "int32",
+    7:  "int64",
+    8:  "string",
+    9:  "bool",
+    10: "float16",
+    11: "float64",
+    12: "uint32",
+    13: "uint64",
+    # 14 and 15 are complex numbers, hopefully we don't need those
 }
 
 
@@ -373,7 +374,7 @@ class tvmModel(Model):
         for i, outMeta in enumerate(self.meta['outputs']):
             outputs.append(self.model.get_output(i).numpy().tobytes())
 
-        return outputs
+        return tuple(outputs)
 
 
 class kaasModel(Model):
@@ -397,25 +398,29 @@ class kaasModel(Model):
 
             baseName = modelDir.stem
             self.cubin = modelDir / (baseName + ".cubin")
-            with open(modelDir / (baseName + "_model" + ".yaml"), 'r') as f:
-                reqDict = yaml.safe_load(f)
+
+            with open(modelDir / (baseName + "_model" + ".pkl"), 'rb') as f:
+                req = pickle.load(f)
 
             with open(modelDir / (baseName + "_meta" + ".yaml"), 'r') as f:
                 self.meta = yaml.safe_load(f)
 
-        for kern in reqDict['kernels']:
-            if kern['library'] is None:
-                kern['library'] = self.cubin
-
-        req = kaas.kaasReqDense.fromDict(reqDict)
+        for i in range(len(req.kernels)):
+            kern = req.kernels[i]
+            if kern.library is None:
+                req.kernels[i] = kaas.denseKern(kern.name, self.cubin,
+                                                kern.kernel, kern.gridDim,
+                                                kern.blockDim, kern.sharedSize,
+                                                kern.literals, kern.arguments,
+                                                kern.ioTypes)
 
         renameMap = {}
         if self.backend == 'ray':
-            for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = ray.cloudpickle.dumps(constRefs[idx])
+            for const in self.meta['constants']:
+                renameMap[const['name']] = kaas.ray.putObj(constRefs[const['dataIdx']])
         else:
-            for idx, const in enumerate(self.meta['constants']):
-                renameMap[const['name']] = constRefs[idx]
+            for const in self.meta['constants']:
+                renameMap[const['name']] = constRefs[const['dataIdx']]
 
         req.reKey(renameMap)
 
@@ -446,13 +451,14 @@ class kaasModel(Model):
 
         if self.backend == 'ray':
             for idx, inp in enumerate(self.meta['inputs']):
-                renameMap[inp['name']] = ray.cloudpickle.dumps(inputs[idx])
+                renameMap[inp['name']] = kaas.ray.putObj(inputs[idx])
         else:
             for idx, inp in enumerate(self.meta['inputs']):
                 renameMap[inp['name']] = inputs[idx]
 
         if outKeys is not None:
-            for name, key in outKeys:
+            outNames = [out['name'] for out in self.meta['outputs']]
+            for name, key in zip(outNames, outKeys):
                 renameMap[name] = key
 
         return (self.reqRef, renameMap)

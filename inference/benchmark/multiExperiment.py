@@ -63,7 +63,6 @@ def mlperfMulti(nReplicas, models, modes):
     print("Final Results in: ", suiteOutDir)
 
 
-# def throughput(nReplicas, models, modes):
 def throughput(configs):
     if len(sys.argv) == 1:
         suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
