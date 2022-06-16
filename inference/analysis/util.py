@@ -7,7 +7,67 @@ import sys
 import pandas as pd
 import numpy as np
 import collections
+import shutil
 from pprint import pprint
+
+
+modelRenames = {"complexCutlassGemm": "cGEMM"}
+
+baselineName = "eTask"
+kaasName = "kTask"
+
+
+def updateThroughputRes(resDict):
+    newDict = resDict[0]
+
+    newDict['metrics_warm'] = newDict['metrics']
+    del newDict['metrics']
+
+    for metric in list(newDict['metrics_warm'].keys()):
+        origValue = newDict['metrics_warm'][metric]
+        newDict['metrics_warm'][metric] = {'mean': origValue}
+
+    return newDict
+
+
+def updateMlPerfRes(resDict):
+    resDict = resDict[0]
+    newDict = {}
+
+    newDict['config'] = copy.deepcopy(resDict['config'])
+    newDict['metrics_warm'] = copy.deepcopy(resDict['metrics'])
+
+    for mName, mVal in resDict['metrics'].items():
+        newDict['metrics_warm'][mName] = {"mean": mVal}
+
+    newDict['metrics_warm']['t_response'] = {}
+    newDict['metrics_warm']['t_response']['events'] = resDict['metrics']['latencies']
+    return newDict
+
+
+def updateFormat(suitePath, outPath, suiteType):
+    if not outPath.exists():
+        outPath.mkdir(0o700, parents=True)
+
+    for expDir in suitePath.glob("*"):
+        outExpDir = outPath / expDir.name
+        outExpDir.mkdir(0o700)
+        for resFile in expDir.glob("*_results.json"):
+            with open(resFile, 'r') as f:
+                resDict = json.load(f)
+
+            if isinstance(resDict, dict):
+                shutil.copy(resFile, outExpDir / resFile.name)
+            else:
+                if suiteType == 'throughput':
+                    newDict = updateThroughputRes(resDict)
+                elif suiteType == 'mlperf':
+                    newDict = updateMlPerfRes(resDict)
+                else:
+                    raise RuntimeError("I don't know how to convert that yet")
+
+                with open(outExpDir / resFile.name, 'w') as f:
+                    json.dump(newDict, f)
 
 
 def aggregateModels(fullResults, metric):
@@ -26,14 +86,20 @@ def aggregateModels(fullResults, metric):
         tvmSer = pd.Series([res[metric] for res in tvmRes], index=[res['config']['n_replica'] for res in tvmRes])
         # tvmSer = pd.Series([res['config']['t_total'] for res in tvmRes], index=[res['config']['n_replica'] for res in tvmRes])
         tvmSer = tvmSer.reindex(fullIndex)
-        df['Actor'] = tvmSer
+        df[baselineName] = tvmSer
 
         kaasRes = [res for res in modelRes if res['config']['model_type'] == "kaas"]
-        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes], dtype=np.float64)
+        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes])
+        # kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes], dtype=np.float64)
         kaasSer = kaasSer.reindex(fullIndex)
-        df['KaaS'] = kaasSer
+        df[kaasName] = kaasSer
 
         resDfs[model] = df
+
+    for oldName, newName in modelRenames.items():
+        if oldName in resDfs:
+            resDfs[newName] = resDfs[oldName]
+            del resDfs[oldName]
 
     return resDfs
 
@@ -80,7 +146,6 @@ def loadOneMlPerf(resDirs):
     for resDir in resDirs:
         for resFile in resDir.glob("*_results.json"):
             with open(resFile, 'r') as f:
-                # expRuns[resFile.name].append(json.load(f)[0])
                 expRuns[resFile.name].append(json.load(f))
 
     resDicts = []
@@ -103,6 +168,7 @@ def loadOneMlPerf(resDirs):
     aggDict['max'] = np.max(aggDict['latencies'])
     aggDict['min'] = np.min(aggDict['latencies'])
     aggDict['mean'] = np.mean(aggDict['latencies'])
+    aggDict['p10'] = np.quantile(aggDict['latencies'], 0.10)
     aggDict['p50'] = np.quantile(aggDict['latencies'], 0.50)
     aggDict['p90'] = np.quantile(aggDict['latencies'], 0.90)
     aggDict['p99'] = np.quantile(aggDict['latencies'], 0.99)
@@ -164,7 +230,7 @@ def loadAllMlPerf(resPath, metric='p90', expNames=None):
         aggRes, _ = loadOneMlPerf(dirs)
         fullResults[name] = aggRes
 
-    return aggregateModels(fullResults, metric)
+    return fullResults, aggregateModels(fullResults, metric)
 
 
 def minMaxThroughput(thrReport):
@@ -179,8 +245,8 @@ def getMaxThroughputs(thrReport):
     maxThr = {}
     for name, df in thrReport.items():
         maxThr[name] = {}
-        maxThr[name]['Actor'] = list(df.Actor)
-        maxThr[name]['KaaS'] = list(df.KaaS)
+        maxThr[name][baselineName] = list(df.Actor)
+        maxThr[name][kaasName] = list(df.KaaS)
 
     return maxThr
 
@@ -349,32 +415,33 @@ def loadMicroSuite(resDir):
 
 
 if __name__ == "__main__":
-    resPath = pathlib.Path(sys.argv[1])
+    # resPath = pathlib.Path(sys.argv[1])
 
     # loadMicroSuiteKaas(resPath)
     # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
 
-    means, stds = loadMicroSuite(resPath)
-    print("Means:")
-    print(means)
-    print("STDs:")
-    print(stds)
+    with open("../benchmark/results/throughput_Kaas_160622-182032/throughput_Kaas_resnet50_0_0_results.json", 'r') as f:
+        pprint(json.load(f))
+
+    # means, stds = loadMicroSuite(resPath)
+    # print("Means:")
+    # print(means)
+    # print("STDs:")
+    # print(stds)
 
     # loadOneNShot(resPath)
     # model = 'resnet50'
 
-    # print(model)
-    # print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
-    # print(loadAllMlPerf(resPath, metric="p90"))
-    # print(loadAllMlPerf(resPath, metric="submission_rate"))
-
     # print(getMaxThroughputs(loadAllThroughput(resPath)))
     # print(loadAllThroughput(resPath)[model])
-    # print(loadAllMlPerf(resPath, metric='completion_rate')['resnet50'])
+    # print(loadAllMlPerf(resPath, metric='n_sample_total')['cGEMM'])
 
     # dirs = getRunDirs(resPath, expNames=['resnet50_tvm_5'])
     # res, _ = loadOneMlPerf(dirs['resnet50_tvm_5'])
     # res, _ = loadOneMlPerf([resPath])
-    # print(res['p90'])
-    # print(res['submission_rate'])
-    # print(res['mean'])
+
+    # print(loadAllThroughput(resPath))
+    full, agg = loadAllMlPerf(resPath, metric="p50")
+    print(agg['resnet50'])
+    # # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='throughput')
+    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='mlperf')
