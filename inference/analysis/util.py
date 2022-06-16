@@ -11,6 +11,12 @@ import shutil
 from pprint import pprint
 
 
+modelRenames = {"complexCutlassGemm": "cGEMM"}
+
+baselineName = "eTask"
+kaasName = "kTask"
+
+
 def updateThroughputRes(resDict):
     newDict = resDict[0]
 
@@ -80,14 +86,20 @@ def aggregateModels(fullResults, metric):
         tvmSer = pd.Series([res[metric] for res in tvmRes], index=[res['config']['n_replica'] for res in tvmRes])
         # tvmSer = pd.Series([res['config']['t_total'] for res in tvmRes], index=[res['config']['n_replica'] for res in tvmRes])
         tvmSer = tvmSer.reindex(fullIndex)
-        df['Actor'] = tvmSer
+        df[baselineName] = tvmSer
 
         kaasRes = [res for res in modelRes if res['config']['model_type'] == "kaas"]
-        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes], dtype=np.float64)
+        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes])
+        # kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes], dtype=np.float64)
         kaasSer = kaasSer.reindex(fullIndex)
-        df['KaaS'] = kaasSer
+        df[kaasName] = kaasSer
 
         resDfs[model] = df
+
+    for oldName, newName in modelRenames.items():
+        if oldName in resDfs:
+            resDfs[newName] = resDfs[oldName]
+            del resDfs[oldName]
 
     return resDfs
 
@@ -134,7 +146,6 @@ def loadOneMlPerf(resDirs):
     for resDir in resDirs:
         for resFile in resDir.glob("*_results.json"):
             with open(resFile, 'r') as f:
-                # expRuns[resFile.name].append(json.load(f)[0])
                 expRuns[resFile.name].append(json.load(f))
 
     resDicts = []
@@ -157,6 +168,7 @@ def loadOneMlPerf(resDirs):
     aggDict['max'] = np.max(aggDict['latencies'])
     aggDict['min'] = np.min(aggDict['latencies'])
     aggDict['mean'] = np.mean(aggDict['latencies'])
+    aggDict['p10'] = np.quantile(aggDict['latencies'], 0.10)
     aggDict['p50'] = np.quantile(aggDict['latencies'], 0.50)
     aggDict['p90'] = np.quantile(aggDict['latencies'], 0.90)
     aggDict['p99'] = np.quantile(aggDict['latencies'], 0.99)
@@ -218,7 +230,7 @@ def loadAllMlPerf(resPath, metric='p90', expNames=None):
         aggRes, _ = loadOneMlPerf(dirs)
         fullResults[name] = aggRes
 
-    return aggregateModels(fullResults, metric)
+    return fullResults, aggregateModels(fullResults, metric)
 
 
 def minMaxThroughput(thrReport):
@@ -233,8 +245,8 @@ def getMaxThroughputs(thrReport):
     maxThr = {}
     for name, df in thrReport.items():
         maxThr[name] = {}
-        maxThr[name]['Actor'] = list(df.Actor)
-        maxThr[name]['KaaS'] = list(df.KaaS)
+        maxThr[name][baselineName] = list(df.Actor)
+        maxThr[name][kaasName] = list(df.KaaS)
 
     return maxThr
 
@@ -414,23 +426,16 @@ if __name__ == "__main__":
     # loadOneNShot(resPath)
     # model = 'resnet50'
 
-    # print(model)
-    # print(loadAllMlPerf(resPath, metric="n_sample_total")[model])
-    # print(loadAllMlPerf(resPath, metric="p90"))
-    # print(loadAllMlPerf(resPath, metric="submission_rate"))
-
     # print(getMaxThroughputs(loadAllThroughput(resPath)))
     # print(loadAllThroughput(resPath)[model])
-    # print(loadAllMlPerf(resPath, metric='completion_rate')['resnet50'])
+    # print(loadAllMlPerf(resPath, metric='n_sample_total')['cGEMM'])
 
     # dirs = getRunDirs(resPath, expNames=['resnet50_tvm_5'])
     # res, _ = loadOneMlPerf(dirs['resnet50_tvm_5'])
     # res, _ = loadOneMlPerf([resPath])
-    # print(res['p90'])
-    # print(res['submission_rate'])
-    # print(res['mean'])
 
-    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='throughput')
-    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='mlperf')
     # print(loadAllThroughput(resPath))
-    print(loadAllMlPerf(resPath, metric="p90"))
+    full, agg = loadAllMlPerf(resPath, metric="p50")
+    print(agg['resnet50'])
+    # # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='throughput')
+    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='mlperf')
