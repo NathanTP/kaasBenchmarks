@@ -80,7 +80,8 @@ def processLatencies(benchConfig, rawLatencies, outPath="./results.json", mlPerf
     # latencies is a list of latencies for each query issued (in ns).
     lats = np.array(rawLatencies, dtype=np.float32)
 
-    lats = np.divide(lats, 1E9)
+    # everything should be ms
+    lats = np.divide(lats, 1E6)
 
     metrics = profiling.prof(fromDict={'events': lats.tolist(), 'total': float(lats.sum()), 'nevent': len(lats)}, detail=True)
 
@@ -98,12 +99,12 @@ def saveReport(warmMetrics: profiling.profCollection, coldMetrics: profiling.pro
     if warmMetrics is None:
         warmReport = None
     else:
-        warmReport = warmMetrics.report()
+        warmReport = warmMetrics.report(includeEvents=True)
 
     if coldMetrics is None:
         coldReport = None
     else:
-        coldReport = coldMetrics.report()
+        coldReport = coldMetrics.report(includeEvents=True)
 
     if outPath.exists():
         outPath.unlink()

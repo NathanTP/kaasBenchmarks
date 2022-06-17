@@ -64,7 +64,6 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
     if modelType == 'Kaas':
         policy = 'balance'
     elif modelType == 'Tvm':
-        #XXX
         # policy = 'exclusive'
         policy = 'balance'
     else:
@@ -171,6 +170,7 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
 
     linkLatest(expResultsDir)
 
+    print("Final results at: ", expResultsDir)
     print("Max achievable scale: ", scale)
     return succeedScale
 

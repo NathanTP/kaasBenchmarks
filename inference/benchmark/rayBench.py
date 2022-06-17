@@ -992,9 +992,13 @@ def mlperfBench(modelSpec, benchConfig):
     warmStats.mod('server')['t_response'] = runner.latMetrics
     warmStats.mod('server').merge(mlPerfMetrics)
 
+    print("Performance Profilers")
     pprint(warmStats.report(metrics=['p50']))
 
-    infbench.saveReport(warmStats.report(includeEvents=True), None, benchConfig, 'results.json')
+    print("MLPerf Results:")
+    pprint(mlPerfMetrics.report())
+
+    infbench.saveReport(warmStats, None, benchConfig, 'results.json')
 
 
 # =============================================================================
