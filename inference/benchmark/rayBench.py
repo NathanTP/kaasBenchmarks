@@ -314,7 +314,7 @@ class runActor(kaas.pool.PoolWorker):
         profs = self.getProfs()
 
         with profiling.timer('t_model_run', profs):
-            results = kaas.ray.invoke(req, stats=profs.mod('kaas'), clientID=clientID)
+            results = kaas.ray.invoke(req, profs=profs.mod('kaas'), clientID=clientID)
 
         if completionQ is not None:
             completionQ.put((results, queryId))

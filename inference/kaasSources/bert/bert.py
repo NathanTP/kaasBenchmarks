@@ -50,7 +50,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[6] = kaas.bufferSpec('6', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[6], 'o'), (nodes[3], 'i'), (nodes[0], 'i'), (nodes[4], 'i'), (nodes[5], 'i'), (nodes[2], 'i')]
+    arguments = [(nodes[6], 't'), (nodes[3], 'i'), (nodes[0], 'i'), (nodes[4], 'i'), (nodes[5], 'i'), (nodes[2], 'i')]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_less_add_where_take_add_less_add_where_take_add_kernel0', path, shapes, arguments))
 
@@ -59,13 +59,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a0', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[6], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[6], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[7] = kaas.bufferSpec('7', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[7], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[7], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -73,7 +73,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[8] = kaas.bufferSpec('8', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[8], 'o'), (nodes[6], 'i'), (nodes[7], 'i'), ]
+    arguments = [(nodes[8], 't'), (nodes[6], 'i'), (nodes[7], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -82,13 +82,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a1', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[8], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[8], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[9] = kaas.bufferSpec('9', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[9], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[9], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -102,7 +102,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[12] = kaas.bufferSpec('12', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[12], 'o'), (nodes[9], 'i'), (nodes[8], 'i'), (nodes[10], 'i'), (nodes[11], 'i'), ]
+    arguments = [(nodes[12], 't'), (nodes[9], 'i'), (nodes[8], 'i'), (nodes[10], 'i'), (nodes[11], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -116,7 +116,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[15] = kaas.bufferSpec('15', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[12], 'i'), (nodes[14], 'i'), (nodes[15], 'o'), ]
+    arguments = [(nodes[12], 'i'), (nodes[14], 'i'), (nodes[15], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -127,7 +127,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[17] = kaas.bufferSpec('17', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[17], 'o'), (nodes[15], 'i'), (nodes[16], 'i'), ]
+    arguments = [(nodes[17], 't'), (nodes[15], 'i'), (nodes[16], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -138,7 +138,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[19] = kaas.bufferSpec('19', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[13], 'i'), (nodes[18], 'i'), (nodes[19], 'o'), ]
+    arguments = [(nodes[13], 'i'), (nodes[18], 'i'), (nodes[19], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -149,7 +149,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[21] = kaas.bufferSpec('21', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[21], 'o'), (nodes[19], 'i'), (nodes[20], 'i'), ]
+    arguments = [(nodes[21], 't'), (nodes[19], 'i'), (nodes[20], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -157,7 +157,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[22] = kaas.bufferSpec('22', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[17], 'i'), (nodes[21], 'i'), (nodes[22], 'o'), ]
+    arguments = [(nodes[17], 'i'), (nodes[21], 'i'), (nodes[22], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -165,7 +165,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1536
     nodes[23] = kaas.bufferSpec('23', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[23], 'o'), (nodes[1], 'i')]
+    arguments = [(nodes[23], 't'), (nodes[1], 'i')]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_expand_dims_expand_dims_cast_subtract_multiply_kernel0', path, shapes, arguments))
 
@@ -173,7 +173,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[24] = kaas.bufferSpec('24', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[24], 'o'), (nodes[22], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[24], 't'), (nodes[22], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -181,7 +181,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[25] = kaas.bufferSpec('25', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[24], 'i'), (nodes[25], 'o'), ]
+    arguments = [(nodes[24], 'i'), (nodes[25], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -189,7 +189,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[26] = kaas.bufferSpec('26', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[26], 'o'), (nodes[24], 'i'), (nodes[25], 'i'), ]
+    arguments = [(nodes[26], 't'), (nodes[24], 'i'), (nodes[25], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -197,7 +197,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[27] = kaas.bufferSpec('27', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[26], 'i'), (nodes[27], 'o'), ]
+    arguments = [(nodes[26], 'i'), (nodes[27], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -205,7 +205,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[28] = kaas.bufferSpec('28', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[28], 'o'), (nodes[26], 'i'), (nodes[27], 'i'), ]
+    arguments = [(nodes[28], 't'), (nodes[26], 'i'), (nodes[27], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -216,7 +216,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[30] = kaas.bufferSpec('30', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[13], 'i'), (nodes[29], 'i'), (nodes[30], 'o'), ]
+    arguments = [(nodes[13], 'i'), (nodes[29], 'i'), (nodes[30], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -227,7 +227,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[32] = kaas.bufferSpec('32', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[32], 'o'), (nodes[30], 'i'), (nodes[31], 'i'), ]
+    arguments = [(nodes[32], 't'), (nodes[30], 'i'), (nodes[31], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -235,7 +235,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[33] = kaas.bufferSpec('33', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[28], 'i'), (nodes[32], 'i'), (nodes[33], 'o'), ]
+    arguments = [(nodes[28], 'i'), (nodes[32], 'i'), (nodes[33], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -243,7 +243,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[34] = kaas.bufferSpec('34', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[34], 'o'), (nodes[33], 'i'), ]
+    arguments = [(nodes[34], 't'), (nodes[33], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -254,7 +254,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[36] = kaas.bufferSpec('36', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[34], 'i'), (nodes[35], 'i'), (nodes[36], 'o'), ]
+    arguments = [(nodes[34], 'i'), (nodes[35], 'i'), (nodes[36], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -265,7 +265,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[38] = kaas.bufferSpec('38', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[38], 'o'), (nodes[36], 'i'), (nodes[37], 'i'), (nodes[12], 'i'), ]
+    arguments = [(nodes[38], 't'), (nodes[36], 'i'), (nodes[37], 'i'), (nodes[12], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -274,13 +274,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a2', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[38], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[38], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[39] = kaas.bufferSpec('39', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[39], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[39], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -288,7 +288,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[40] = kaas.bufferSpec('40', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[40], 'o'), (nodes[38], 'i'), (nodes[39], 'i'), ]
+    arguments = [(nodes[40], 't'), (nodes[38], 'i'), (nodes[39], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -297,13 +297,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a3', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[40], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[40], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[41] = kaas.bufferSpec('41', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[41], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[41], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -317,7 +317,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[44] = kaas.bufferSpec('44', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[44], 'o'), (nodes[41], 'i'), (nodes[40], 'i'), (nodes[42], 'i'), (nodes[43], 'i'), ]
+    arguments = [(nodes[44], 't'), (nodes[41], 'i'), (nodes[40], 'i'), (nodes[42], 'i'), (nodes[43], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -331,7 +331,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[47] = kaas.bufferSpec('47', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[45], 'i'), (nodes[46], 'i'), (nodes[47], 'o'), ]
+    arguments = [(nodes[45], 'i'), (nodes[46], 'i'), (nodes[47], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -342,7 +342,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[49] = kaas.bufferSpec('49', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[49], 'o'), (nodes[47], 'i'), (nodes[48], 'i'), ]
+    arguments = [(nodes[49], 't'), (nodes[47], 'i'), (nodes[48], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -353,7 +353,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[51] = kaas.bufferSpec('51', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[49], 'i'), (nodes[50], 'i'), (nodes[51], 'o'), ]
+    arguments = [(nodes[49], 'i'), (nodes[50], 'i'), (nodes[51], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -364,7 +364,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[53] = kaas.bufferSpec('53', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[53], 'o'), (nodes[51], 'i'), (nodes[52], 'i'), (nodes[44], 'i'), ]
+    arguments = [(nodes[53], 't'), (nodes[51], 'i'), (nodes[52], 'i'), (nodes[44], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -373,13 +373,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a4', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[53], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[53], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[54] = kaas.bufferSpec('54', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[54], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[54], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -387,7 +387,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[55] = kaas.bufferSpec('55', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[55], 'o'), (nodes[53], 'i'), (nodes[54], 'i'), ]
+    arguments = [(nodes[55], 't'), (nodes[53], 'i'), (nodes[54], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -396,13 +396,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a5', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[55], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[55], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[56] = kaas.bufferSpec('56', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[56], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[56], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -416,7 +416,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[59] = kaas.bufferSpec('59', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[59], 'o'), (nodes[56], 'i'), (nodes[55], 'i'), (nodes[57], 'i'), (nodes[58], 'i'), ]
+    arguments = [(nodes[59], 't'), (nodes[56], 'i'), (nodes[55], 'i'), (nodes[57], 'i'), (nodes[58], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -430,7 +430,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[62] = kaas.bufferSpec('62', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[60], 'i'), (nodes[61], 'i'), (nodes[62], 'o'), ]
+    arguments = [(nodes[60], 'i'), (nodes[61], 'i'), (nodes[62], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -441,7 +441,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[64] = kaas.bufferSpec('64', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[64], 'o'), (nodes[62], 'i'), (nodes[63], 'i'), ]
+    arguments = [(nodes[64], 't'), (nodes[62], 'i'), (nodes[63], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -452,7 +452,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[66] = kaas.bufferSpec('66', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[60], 'i'), (nodes[65], 'i'), (nodes[66], 'o'), ]
+    arguments = [(nodes[60], 'i'), (nodes[65], 'i'), (nodes[66], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -463,7 +463,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[68] = kaas.bufferSpec('68', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[68], 'o'), (nodes[66], 'i'), (nodes[67], 'i'), ]
+    arguments = [(nodes[68], 't'), (nodes[66], 'i'), (nodes[67], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -471,7 +471,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[69] = kaas.bufferSpec('69', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[64], 'i'), (nodes[68], 'i'), (nodes[69], 'o'), ]
+    arguments = [(nodes[64], 'i'), (nodes[68], 'i'), (nodes[69], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -479,7 +479,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[70] = kaas.bufferSpec('70', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[70], 'o'), (nodes[69], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[70], 't'), (nodes[69], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -487,7 +487,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[71] = kaas.bufferSpec('71', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[70], 'i'), (nodes[71], 'o'), ]
+    arguments = [(nodes[70], 'i'), (nodes[71], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -495,7 +495,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[72] = kaas.bufferSpec('72', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[72], 'o'), (nodes[70], 'i'), (nodes[71], 'i'), ]
+    arguments = [(nodes[72], 't'), (nodes[70], 'i'), (nodes[71], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -503,7 +503,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[73] = kaas.bufferSpec('73', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[72], 'i'), (nodes[73], 'o'), ]
+    arguments = [(nodes[72], 'i'), (nodes[73], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -511,7 +511,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[74] = kaas.bufferSpec('74', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[74], 'o'), (nodes[72], 'i'), (nodes[73], 'i'), ]
+    arguments = [(nodes[74], 't'), (nodes[72], 'i'), (nodes[73], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -522,7 +522,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[76] = kaas.bufferSpec('76', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[60], 'i'), (nodes[75], 'i'), (nodes[76], 'o'), ]
+    arguments = [(nodes[60], 'i'), (nodes[75], 'i'), (nodes[76], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -533,7 +533,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[78] = kaas.bufferSpec('78', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[78], 'o'), (nodes[76], 'i'), (nodes[77], 'i'), ]
+    arguments = [(nodes[78], 't'), (nodes[76], 'i'), (nodes[77], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -541,7 +541,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[79] = kaas.bufferSpec('79', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[74], 'i'), (nodes[78], 'i'), (nodes[79], 'o'), ]
+    arguments = [(nodes[74], 'i'), (nodes[78], 'i'), (nodes[79], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -549,7 +549,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[80] = kaas.bufferSpec('80', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[80], 'o'), (nodes[79], 'i'), ]
+    arguments = [(nodes[80], 't'), (nodes[79], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -560,7 +560,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[82] = kaas.bufferSpec('82', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[80], 'i'), (nodes[81], 'i'), (nodes[82], 'o'), ]
+    arguments = [(nodes[80], 'i'), (nodes[81], 'i'), (nodes[82], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -571,7 +571,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[84] = kaas.bufferSpec('84', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[84], 'o'), (nodes[82], 'i'), (nodes[83], 'i'), (nodes[59], 'i'), ]
+    arguments = [(nodes[84], 't'), (nodes[82], 'i'), (nodes[83], 'i'), (nodes[59], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -580,13 +580,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a6', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[84], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[84], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[85] = kaas.bufferSpec('85', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[85], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[85], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -594,7 +594,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[86] = kaas.bufferSpec('86', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[86], 'o'), (nodes[84], 'i'), (nodes[85], 'i'), ]
+    arguments = [(nodes[86], 't'), (nodes[84], 'i'), (nodes[85], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -603,13 +603,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a7', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[86], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[86], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[87] = kaas.bufferSpec('87', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[87], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[87], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -623,7 +623,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[90] = kaas.bufferSpec('90', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[90], 'o'), (nodes[87], 'i'), (nodes[86], 'i'), (nodes[88], 'i'), (nodes[89], 'i'), ]
+    arguments = [(nodes[90], 't'), (nodes[87], 'i'), (nodes[86], 'i'), (nodes[88], 'i'), (nodes[89], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -637,7 +637,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[93] = kaas.bufferSpec('93', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[91], 'i'), (nodes[92], 'i'), (nodes[93], 'o'), ]
+    arguments = [(nodes[91], 'i'), (nodes[92], 'i'), (nodes[93], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -648,7 +648,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[95] = kaas.bufferSpec('95', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[95], 'o'), (nodes[93], 'i'), (nodes[94], 'i'), ]
+    arguments = [(nodes[95], 't'), (nodes[93], 'i'), (nodes[94], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -659,7 +659,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[97] = kaas.bufferSpec('97', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[95], 'i'), (nodes[96], 'i'), (nodes[97], 'o'), ]
+    arguments = [(nodes[95], 'i'), (nodes[96], 'i'), (nodes[97], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -670,7 +670,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[99] = kaas.bufferSpec('99', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[99], 'o'), (nodes[97], 'i'), (nodes[98], 'i'), (nodes[90], 'i'), ]
+    arguments = [(nodes[99], 't'), (nodes[97], 'i'), (nodes[98], 'i'), (nodes[90], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -679,13 +679,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a8', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[99], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[99], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[100] = kaas.bufferSpec('100', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[100], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[100], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -693,7 +693,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[101] = kaas.bufferSpec('101', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[101], 'o'), (nodes[99], 'i'), (nodes[100], 'i'), ]
+    arguments = [(nodes[101], 't'), (nodes[99], 'i'), (nodes[100], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -702,13 +702,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a9', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[101], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[101], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[102] = kaas.bufferSpec('102', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[102], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[102], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -722,7 +722,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[105] = kaas.bufferSpec('105', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[105], 'o'), (nodes[102], 'i'), (nodes[101], 'i'), (nodes[103], 'i'), (nodes[104], 'i'), ]
+    arguments = [(nodes[105], 't'), (nodes[102], 'i'), (nodes[101], 'i'), (nodes[103], 'i'), (nodes[104], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -736,7 +736,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[108] = kaas.bufferSpec('108', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[106], 'i'), (nodes[107], 'i'), (nodes[108], 'o'), ]
+    arguments = [(nodes[106], 'i'), (nodes[107], 'i'), (nodes[108], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -747,7 +747,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[110] = kaas.bufferSpec('110', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[110], 'o'), (nodes[108], 'i'), (nodes[109], 'i'), ]
+    arguments = [(nodes[110], 't'), (nodes[108], 'i'), (nodes[109], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -758,7 +758,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[112] = kaas.bufferSpec('112', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[106], 'i'), (nodes[111], 'i'), (nodes[112], 'o'), ]
+    arguments = [(nodes[106], 'i'), (nodes[111], 'i'), (nodes[112], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -769,7 +769,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[114] = kaas.bufferSpec('114', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[114], 'o'), (nodes[112], 'i'), (nodes[113], 'i'), ]
+    arguments = [(nodes[114], 't'), (nodes[112], 'i'), (nodes[113], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -777,7 +777,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[115] = kaas.bufferSpec('115', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[110], 'i'), (nodes[114], 'i'), (nodes[115], 'o'), ]
+    arguments = [(nodes[110], 'i'), (nodes[114], 'i'), (nodes[115], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -785,7 +785,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[116] = kaas.bufferSpec('116', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[116], 'o'), (nodes[115], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[116], 't'), (nodes[115], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -793,7 +793,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[117] = kaas.bufferSpec('117', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[116], 'i'), (nodes[117], 'o'), ]
+    arguments = [(nodes[116], 'i'), (nodes[117], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -801,7 +801,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[118] = kaas.bufferSpec('118', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[118], 'o'), (nodes[116], 'i'), (nodes[117], 'i'), ]
+    arguments = [(nodes[118], 't'), (nodes[116], 'i'), (nodes[117], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -809,7 +809,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[119] = kaas.bufferSpec('119', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[118], 'i'), (nodes[119], 'o'), ]
+    arguments = [(nodes[118], 'i'), (nodes[119], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -817,7 +817,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[120] = kaas.bufferSpec('120', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[120], 'o'), (nodes[118], 'i'), (nodes[119], 'i'), ]
+    arguments = [(nodes[120], 't'), (nodes[118], 'i'), (nodes[119], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -828,7 +828,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[122] = kaas.bufferSpec('122', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[106], 'i'), (nodes[121], 'i'), (nodes[122], 'o'), ]
+    arguments = [(nodes[106], 'i'), (nodes[121], 'i'), (nodes[122], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -839,7 +839,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[124] = kaas.bufferSpec('124', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[124], 'o'), (nodes[122], 'i'), (nodes[123], 'i'), ]
+    arguments = [(nodes[124], 't'), (nodes[122], 'i'), (nodes[123], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -847,7 +847,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[125] = kaas.bufferSpec('125', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[120], 'i'), (nodes[124], 'i'), (nodes[125], 'o'), ]
+    arguments = [(nodes[120], 'i'), (nodes[124], 'i'), (nodes[125], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -855,7 +855,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[126] = kaas.bufferSpec('126', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[126], 'o'), (nodes[125], 'i'), ]
+    arguments = [(nodes[126], 't'), (nodes[125], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -866,7 +866,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[128] = kaas.bufferSpec('128', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[126], 'i'), (nodes[127], 'i'), (nodes[128], 'o'), ]
+    arguments = [(nodes[126], 'i'), (nodes[127], 'i'), (nodes[128], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -877,7 +877,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[130] = kaas.bufferSpec('130', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[130], 'o'), (nodes[128], 'i'), (nodes[129], 'i'), (nodes[105], 'i'), ]
+    arguments = [(nodes[130], 't'), (nodes[128], 'i'), (nodes[129], 'i'), (nodes[105], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -886,13 +886,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a10', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[130], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[130], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[131] = kaas.bufferSpec('131', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[131], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[131], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -900,7 +900,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[132] = kaas.bufferSpec('132', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[132], 'o'), (nodes[130], 'i'), (nodes[131], 'i'), ]
+    arguments = [(nodes[132], 't'), (nodes[130], 'i'), (nodes[131], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -909,13 +909,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a11', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[132], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[132], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[133] = kaas.bufferSpec('133', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[133], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[133], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -929,7 +929,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[136] = kaas.bufferSpec('136', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[136], 'o'), (nodes[133], 'i'), (nodes[132], 'i'), (nodes[134], 'i'), (nodes[135], 'i'), ]
+    arguments = [(nodes[136], 't'), (nodes[133], 'i'), (nodes[132], 'i'), (nodes[134], 'i'), (nodes[135], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -943,7 +943,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[139] = kaas.bufferSpec('139', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[137], 'i'), (nodes[138], 'i'), (nodes[139], 'o'), ]
+    arguments = [(nodes[137], 'i'), (nodes[138], 'i'), (nodes[139], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -954,7 +954,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[141] = kaas.bufferSpec('141', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[141], 'o'), (nodes[139], 'i'), (nodes[140], 'i'), ]
+    arguments = [(nodes[141], 't'), (nodes[139], 'i'), (nodes[140], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -965,7 +965,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[143] = kaas.bufferSpec('143', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[141], 'i'), (nodes[142], 'i'), (nodes[143], 'o'), ]
+    arguments = [(nodes[141], 'i'), (nodes[142], 'i'), (nodes[143], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -976,7 +976,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[145] = kaas.bufferSpec('145', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[145], 'o'), (nodes[143], 'i'), (nodes[144], 'i'), (nodes[136], 'i'), ]
+    arguments = [(nodes[145], 't'), (nodes[143], 'i'), (nodes[144], 'i'), (nodes[136], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -985,13 +985,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a12', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[145], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[145], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[146] = kaas.bufferSpec('146', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[146], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[146], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -999,7 +999,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[147] = kaas.bufferSpec('147', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[147], 'o'), (nodes[145], 'i'), (nodes[146], 'i'), ]
+    arguments = [(nodes[147], 't'), (nodes[145], 'i'), (nodes[146], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1008,13 +1008,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a13', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[147], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[147], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[148] = kaas.bufferSpec('148', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[148], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[148], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1028,7 +1028,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[151] = kaas.bufferSpec('151', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[151], 'o'), (nodes[148], 'i'), (nodes[147], 'i'), (nodes[149], 'i'), (nodes[150], 'i'), ]
+    arguments = [(nodes[151], 't'), (nodes[148], 'i'), (nodes[147], 'i'), (nodes[149], 'i'), (nodes[150], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1042,7 +1042,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[154] = kaas.bufferSpec('154', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[152], 'i'), (nodes[153], 'i'), (nodes[154], 'o'), ]
+    arguments = [(nodes[152], 'i'), (nodes[153], 'i'), (nodes[154], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1053,7 +1053,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[156] = kaas.bufferSpec('156', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[156], 'o'), (nodes[154], 'i'), (nodes[155], 'i'), ]
+    arguments = [(nodes[156], 't'), (nodes[154], 'i'), (nodes[155], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1064,7 +1064,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[158] = kaas.bufferSpec('158', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[152], 'i'), (nodes[157], 'i'), (nodes[158], 'o'), ]
+    arguments = [(nodes[152], 'i'), (nodes[157], 'i'), (nodes[158], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1075,7 +1075,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[160] = kaas.bufferSpec('160', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[160], 'o'), (nodes[158], 'i'), (nodes[159], 'i'), ]
+    arguments = [(nodes[160], 't'), (nodes[158], 'i'), (nodes[159], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -1083,7 +1083,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[161] = kaas.bufferSpec('161', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[156], 'i'), (nodes[160], 'i'), (nodes[161], 'o'), ]
+    arguments = [(nodes[156], 'i'), (nodes[160], 'i'), (nodes[161], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -1091,7 +1091,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[162] = kaas.bufferSpec('162', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[162], 'o'), (nodes[161], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[162], 't'), (nodes[161], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -1099,7 +1099,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[163] = kaas.bufferSpec('163', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[162], 'i'), (nodes[163], 'o'), ]
+    arguments = [(nodes[162], 'i'), (nodes[163], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -1107,7 +1107,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[164] = kaas.bufferSpec('164', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[164], 'o'), (nodes[162], 'i'), (nodes[163], 'i'), ]
+    arguments = [(nodes[164], 't'), (nodes[162], 'i'), (nodes[163], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -1115,7 +1115,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[165] = kaas.bufferSpec('165', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[164], 'i'), (nodes[165], 'o'), ]
+    arguments = [(nodes[164], 'i'), (nodes[165], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -1123,7 +1123,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[166] = kaas.bufferSpec('166', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[166], 'o'), (nodes[164], 'i'), (nodes[165], 'i'), ]
+    arguments = [(nodes[166], 't'), (nodes[164], 'i'), (nodes[165], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -1134,7 +1134,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[168] = kaas.bufferSpec('168', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[152], 'i'), (nodes[167], 'i'), (nodes[168], 'o'), ]
+    arguments = [(nodes[152], 'i'), (nodes[167], 'i'), (nodes[168], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1145,7 +1145,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[170] = kaas.bufferSpec('170', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[170], 'o'), (nodes[168], 'i'), (nodes[169], 'i'), ]
+    arguments = [(nodes[170], 't'), (nodes[168], 'i'), (nodes[169], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -1153,7 +1153,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[171] = kaas.bufferSpec('171', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[166], 'i'), (nodes[170], 'i'), (nodes[171], 'o'), ]
+    arguments = [(nodes[166], 'i'), (nodes[170], 'i'), (nodes[171], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -1161,7 +1161,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[172] = kaas.bufferSpec('172', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[172], 'o'), (nodes[171], 'i'), ]
+    arguments = [(nodes[172], 't'), (nodes[171], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1172,7 +1172,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[174] = kaas.bufferSpec('174', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[172], 'i'), (nodes[173], 'i'), (nodes[174], 'o'), ]
+    arguments = [(nodes[172], 'i'), (nodes[173], 'i'), (nodes[174], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1183,7 +1183,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[176] = kaas.bufferSpec('176', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[176], 'o'), (nodes[174], 'i'), (nodes[175], 'i'), (nodes[151], 'i'), ]
+    arguments = [(nodes[176], 't'), (nodes[174], 'i'), (nodes[175], 'i'), (nodes[151], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -1192,13 +1192,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a14', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[176], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[176], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[177] = kaas.bufferSpec('177', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[177], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[177], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -1206,7 +1206,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[178] = kaas.bufferSpec('178', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[178], 'o'), (nodes[176], 'i'), (nodes[177], 'i'), ]
+    arguments = [(nodes[178], 't'), (nodes[176], 'i'), (nodes[177], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1215,13 +1215,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a15', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[178], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[178], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[179] = kaas.bufferSpec('179', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[179], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[179], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1235,7 +1235,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[182] = kaas.bufferSpec('182', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[182], 'o'), (nodes[179], 'i'), (nodes[178], 'i'), (nodes[180], 'i'), (nodes[181], 'i'), ]
+    arguments = [(nodes[182], 't'), (nodes[179], 'i'), (nodes[178], 'i'), (nodes[180], 'i'), (nodes[181], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1249,7 +1249,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[185] = kaas.bufferSpec('185', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[183], 'i'), (nodes[184], 'i'), (nodes[185], 'o'), ]
+    arguments = [(nodes[183], 'i'), (nodes[184], 'i'), (nodes[185], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -1260,7 +1260,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[187] = kaas.bufferSpec('187', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[187], 'o'), (nodes[185], 'i'), (nodes[186], 'i'), ]
+    arguments = [(nodes[187], 't'), (nodes[185], 'i'), (nodes[186], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -1271,7 +1271,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[189] = kaas.bufferSpec('189', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[187], 'i'), (nodes[188], 'i'), (nodes[189], 'o'), ]
+    arguments = [(nodes[187], 'i'), (nodes[188], 'i'), (nodes[189], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -1282,7 +1282,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[191] = kaas.bufferSpec('191', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[191], 'o'), (nodes[189], 'i'), (nodes[190], 'i'), (nodes[182], 'i'), ]
+    arguments = [(nodes[191], 't'), (nodes[189], 'i'), (nodes[190], 'i'), (nodes[182], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -1291,13 +1291,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a16', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[191], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[191], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[192] = kaas.bufferSpec('192', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[192], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[192], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -1305,7 +1305,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[193] = kaas.bufferSpec('193', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[193], 'o'), (nodes[191], 'i'), (nodes[192], 'i'), ]
+    arguments = [(nodes[193], 't'), (nodes[191], 'i'), (nodes[192], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1314,13 +1314,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a17', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[193], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[193], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[194] = kaas.bufferSpec('194', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[194], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[194], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1334,7 +1334,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[197] = kaas.bufferSpec('197', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[197], 'o'), (nodes[194], 'i'), (nodes[193], 'i'), (nodes[195], 'i'), (nodes[196], 'i'), ]
+    arguments = [(nodes[197], 't'), (nodes[194], 'i'), (nodes[193], 'i'), (nodes[195], 'i'), (nodes[196], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1348,7 +1348,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[200] = kaas.bufferSpec('200', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[198], 'i'), (nodes[199], 'i'), (nodes[200], 'o'), ]
+    arguments = [(nodes[198], 'i'), (nodes[199], 'i'), (nodes[200], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1359,7 +1359,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[202] = kaas.bufferSpec('202', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[202], 'o'), (nodes[200], 'i'), (nodes[201], 'i'), ]
+    arguments = [(nodes[202], 't'), (nodes[200], 'i'), (nodes[201], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1370,7 +1370,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[204] = kaas.bufferSpec('204', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[198], 'i'), (nodes[203], 'i'), (nodes[204], 'o'), ]
+    arguments = [(nodes[198], 'i'), (nodes[203], 'i'), (nodes[204], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1381,7 +1381,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[206] = kaas.bufferSpec('206', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[206], 'o'), (nodes[204], 'i'), (nodes[205], 'i'), ]
+    arguments = [(nodes[206], 't'), (nodes[204], 'i'), (nodes[205], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -1389,7 +1389,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[207] = kaas.bufferSpec('207', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[202], 'i'), (nodes[206], 'i'), (nodes[207], 'o'), ]
+    arguments = [(nodes[202], 'i'), (nodes[206], 'i'), (nodes[207], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -1397,7 +1397,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[208] = kaas.bufferSpec('208', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[208], 'o'), (nodes[207], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[208], 't'), (nodes[207], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -1405,7 +1405,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[209] = kaas.bufferSpec('209', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[208], 'i'), (nodes[209], 'o'), ]
+    arguments = [(nodes[208], 'i'), (nodes[209], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -1413,7 +1413,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[210] = kaas.bufferSpec('210', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[210], 'o'), (nodes[208], 'i'), (nodes[209], 'i'), ]
+    arguments = [(nodes[210], 't'), (nodes[208], 'i'), (nodes[209], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -1421,7 +1421,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[211] = kaas.bufferSpec('211', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[210], 'i'), (nodes[211], 'o'), ]
+    arguments = [(nodes[210], 'i'), (nodes[211], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -1429,7 +1429,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[212] = kaas.bufferSpec('212', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[212], 'o'), (nodes[210], 'i'), (nodes[211], 'i'), ]
+    arguments = [(nodes[212], 't'), (nodes[210], 'i'), (nodes[211], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -1440,7 +1440,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[214] = kaas.bufferSpec('214', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[198], 'i'), (nodes[213], 'i'), (nodes[214], 'o'), ]
+    arguments = [(nodes[198], 'i'), (nodes[213], 'i'), (nodes[214], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1451,7 +1451,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[216] = kaas.bufferSpec('216', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[216], 'o'), (nodes[214], 'i'), (nodes[215], 'i'), ]
+    arguments = [(nodes[216], 't'), (nodes[214], 'i'), (nodes[215], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -1459,7 +1459,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[217] = kaas.bufferSpec('217', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[212], 'i'), (nodes[216], 'i'), (nodes[217], 'o'), ]
+    arguments = [(nodes[212], 'i'), (nodes[216], 'i'), (nodes[217], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -1467,7 +1467,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[218] = kaas.bufferSpec('218', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[218], 'o'), (nodes[217], 'i'), ]
+    arguments = [(nodes[218], 't'), (nodes[217], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1478,7 +1478,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[220] = kaas.bufferSpec('220', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[218], 'i'), (nodes[219], 'i'), (nodes[220], 'o'), ]
+    arguments = [(nodes[218], 'i'), (nodes[219], 'i'), (nodes[220], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1489,7 +1489,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[222] = kaas.bufferSpec('222', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[222], 'o'), (nodes[220], 'i'), (nodes[221], 'i'), (nodes[197], 'i'), ]
+    arguments = [(nodes[222], 't'), (nodes[220], 'i'), (nodes[221], 'i'), (nodes[197], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -1498,13 +1498,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a18', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[222], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[222], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[223] = kaas.bufferSpec('223', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[223], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[223], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -1512,7 +1512,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[224] = kaas.bufferSpec('224', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[224], 'o'), (nodes[222], 'i'), (nodes[223], 'i'), ]
+    arguments = [(nodes[224], 't'), (nodes[222], 'i'), (nodes[223], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1521,13 +1521,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a19', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[224], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[224], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[225] = kaas.bufferSpec('225', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[225], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[225], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1541,7 +1541,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[228] = kaas.bufferSpec('228', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[228], 'o'), (nodes[225], 'i'), (nodes[224], 'i'), (nodes[226], 'i'), (nodes[227], 'i'), ]
+    arguments = [(nodes[228], 't'), (nodes[225], 'i'), (nodes[224], 'i'), (nodes[226], 'i'), (nodes[227], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1555,7 +1555,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[231] = kaas.bufferSpec('231', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[229], 'i'), (nodes[230], 'i'), (nodes[231], 'o'), ]
+    arguments = [(nodes[229], 'i'), (nodes[230], 'i'), (nodes[231], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -1566,7 +1566,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[233] = kaas.bufferSpec('233', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[233], 'o'), (nodes[231], 'i'), (nodes[232], 'i'), ]
+    arguments = [(nodes[233], 't'), (nodes[231], 'i'), (nodes[232], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -1577,7 +1577,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[235] = kaas.bufferSpec('235', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[233], 'i'), (nodes[234], 'i'), (nodes[235], 'o'), ]
+    arguments = [(nodes[233], 'i'), (nodes[234], 'i'), (nodes[235], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -1588,7 +1588,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[237] = kaas.bufferSpec('237', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[237], 'o'), (nodes[235], 'i'), (nodes[236], 'i'), (nodes[228], 'i'), ]
+    arguments = [(nodes[237], 't'), (nodes[235], 'i'), (nodes[236], 'i'), (nodes[228], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -1597,13 +1597,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a20', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[237], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[237], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[238] = kaas.bufferSpec('238', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[238], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[238], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -1611,7 +1611,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[239] = kaas.bufferSpec('239', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[239], 'o'), (nodes[237], 'i'), (nodes[238], 'i'), ]
+    arguments = [(nodes[239], 't'), (nodes[237], 'i'), (nodes[238], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1620,13 +1620,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a21', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[239], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[239], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[240] = kaas.bufferSpec('240', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[240], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[240], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1640,7 +1640,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[243] = kaas.bufferSpec('243', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[243], 'o'), (nodes[240], 'i'), (nodes[239], 'i'), (nodes[241], 'i'), (nodes[242], 'i'), ]
+    arguments = [(nodes[243], 't'), (nodes[240], 'i'), (nodes[239], 'i'), (nodes[241], 'i'), (nodes[242], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1654,7 +1654,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[246] = kaas.bufferSpec('246', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[244], 'i'), (nodes[245], 'i'), (nodes[246], 'o'), ]
+    arguments = [(nodes[244], 'i'), (nodes[245], 'i'), (nodes[246], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1665,7 +1665,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[248] = kaas.bufferSpec('248', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[248], 'o'), (nodes[246], 'i'), (nodes[247], 'i'), ]
+    arguments = [(nodes[248], 't'), (nodes[246], 'i'), (nodes[247], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1676,7 +1676,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[250] = kaas.bufferSpec('250', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[244], 'i'), (nodes[249], 'i'), (nodes[250], 'o'), ]
+    arguments = [(nodes[244], 'i'), (nodes[249], 'i'), (nodes[250], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1687,7 +1687,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[252] = kaas.bufferSpec('252', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[252], 'o'), (nodes[250], 'i'), (nodes[251], 'i'), ]
+    arguments = [(nodes[252], 't'), (nodes[250], 'i'), (nodes[251], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -1695,7 +1695,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[253] = kaas.bufferSpec('253', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[248], 'i'), (nodes[252], 'i'), (nodes[253], 'o'), ]
+    arguments = [(nodes[248], 'i'), (nodes[252], 'i'), (nodes[253], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -1703,7 +1703,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[254] = kaas.bufferSpec('254', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[254], 'o'), (nodes[253], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[254], 't'), (nodes[253], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -1711,7 +1711,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[255] = kaas.bufferSpec('255', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[254], 'i'), (nodes[255], 'o'), ]
+    arguments = [(nodes[254], 'i'), (nodes[255], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -1719,7 +1719,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[256] = kaas.bufferSpec('256', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[256], 'o'), (nodes[254], 'i'), (nodes[255], 'i'), ]
+    arguments = [(nodes[256], 't'), (nodes[254], 'i'), (nodes[255], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -1727,7 +1727,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[257] = kaas.bufferSpec('257', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[256], 'i'), (nodes[257], 'o'), ]
+    arguments = [(nodes[256], 'i'), (nodes[257], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -1735,7 +1735,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[258] = kaas.bufferSpec('258', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[258], 'o'), (nodes[256], 'i'), (nodes[257], 'i'), ]
+    arguments = [(nodes[258], 't'), (nodes[256], 'i'), (nodes[257], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -1746,7 +1746,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[260] = kaas.bufferSpec('260', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[244], 'i'), (nodes[259], 'i'), (nodes[260], 'o'), ]
+    arguments = [(nodes[244], 'i'), (nodes[259], 'i'), (nodes[260], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1757,7 +1757,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[262] = kaas.bufferSpec('262', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[262], 'o'), (nodes[260], 'i'), (nodes[261], 'i'), ]
+    arguments = [(nodes[262], 't'), (nodes[260], 'i'), (nodes[261], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -1765,7 +1765,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[263] = kaas.bufferSpec('263', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[258], 'i'), (nodes[262], 'i'), (nodes[263], 'o'), ]
+    arguments = [(nodes[258], 'i'), (nodes[262], 'i'), (nodes[263], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -1773,7 +1773,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[264] = kaas.bufferSpec('264', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[264], 'o'), (nodes[263], 'i'), ]
+    arguments = [(nodes[264], 't'), (nodes[263], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1784,7 +1784,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[266] = kaas.bufferSpec('266', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[264], 'i'), (nodes[265], 'i'), (nodes[266], 'o'), ]
+    arguments = [(nodes[264], 'i'), (nodes[265], 'i'), (nodes[266], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1795,7 +1795,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[268] = kaas.bufferSpec('268', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[268], 'o'), (nodes[266], 'i'), (nodes[267], 'i'), (nodes[243], 'i'), ]
+    arguments = [(nodes[268], 't'), (nodes[266], 'i'), (nodes[267], 'i'), (nodes[243], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -1804,13 +1804,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a22', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[268], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[268], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[269] = kaas.bufferSpec('269', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[269], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[269], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -1818,7 +1818,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[270] = kaas.bufferSpec('270', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[270], 'o'), (nodes[268], 'i'), (nodes[269], 'i'), ]
+    arguments = [(nodes[270], 't'), (nodes[268], 'i'), (nodes[269], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1827,13 +1827,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a23', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[270], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[270], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[271] = kaas.bufferSpec('271', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[271], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[271], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1847,7 +1847,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[274] = kaas.bufferSpec('274', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[274], 'o'), (nodes[271], 'i'), (nodes[270], 'i'), (nodes[272], 'i'), (nodes[273], 'i'), ]
+    arguments = [(nodes[274], 't'), (nodes[271], 'i'), (nodes[270], 'i'), (nodes[272], 'i'), (nodes[273], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1861,7 +1861,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[277] = kaas.bufferSpec('277', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[275], 'i'), (nodes[276], 'i'), (nodes[277], 'o'), ]
+    arguments = [(nodes[275], 'i'), (nodes[276], 'i'), (nodes[277], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -1872,7 +1872,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[279] = kaas.bufferSpec('279', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[279], 'o'), (nodes[277], 'i'), (nodes[278], 'i'), ]
+    arguments = [(nodes[279], 't'), (nodes[277], 'i'), (nodes[278], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -1883,7 +1883,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[281] = kaas.bufferSpec('281', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[279], 'i'), (nodes[280], 'i'), (nodes[281], 'o'), ]
+    arguments = [(nodes[279], 'i'), (nodes[280], 'i'), (nodes[281], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -1894,7 +1894,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[283] = kaas.bufferSpec('283', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[283], 'o'), (nodes[281], 'i'), (nodes[282], 'i'), (nodes[274], 'i'), ]
+    arguments = [(nodes[283], 't'), (nodes[281], 'i'), (nodes[282], 'i'), (nodes[274], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -1903,13 +1903,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a24', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[283], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[283], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[284] = kaas.bufferSpec('284', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[284], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[284], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -1917,7 +1917,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[285] = kaas.bufferSpec('285', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[285], 'o'), (nodes[283], 'i'), (nodes[284], 'i'), ]
+    arguments = [(nodes[285], 't'), (nodes[283], 'i'), (nodes[284], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -1926,13 +1926,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a25', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[285], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[285], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[286] = kaas.bufferSpec('286', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[286], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[286], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -1946,7 +1946,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[289] = kaas.bufferSpec('289', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[289], 'o'), (nodes[286], 'i'), (nodes[285], 'i'), (nodes[287], 'i'), (nodes[288], 'i'), ]
+    arguments = [(nodes[289], 't'), (nodes[286], 'i'), (nodes[285], 'i'), (nodes[287], 'i'), (nodes[288], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -1960,7 +1960,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[292] = kaas.bufferSpec('292', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[290], 'i'), (nodes[291], 'i'), (nodes[292], 'o'), ]
+    arguments = [(nodes[290], 'i'), (nodes[291], 'i'), (nodes[292], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1971,7 +1971,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[294] = kaas.bufferSpec('294', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[294], 'o'), (nodes[292], 'i'), (nodes[293], 'i'), ]
+    arguments = [(nodes[294], 't'), (nodes[292], 'i'), (nodes[293], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -1982,7 +1982,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[296] = kaas.bufferSpec('296', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[290], 'i'), (nodes[295], 'i'), (nodes[296], 'o'), ]
+    arguments = [(nodes[290], 'i'), (nodes[295], 'i'), (nodes[296], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -1993,7 +1993,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[298] = kaas.bufferSpec('298', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[298], 'o'), (nodes[296], 'i'), (nodes[297], 'i'), ]
+    arguments = [(nodes[298], 't'), (nodes[296], 'i'), (nodes[297], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -2001,7 +2001,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[299] = kaas.bufferSpec('299', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[294], 'i'), (nodes[298], 'i'), (nodes[299], 'o'), ]
+    arguments = [(nodes[294], 'i'), (nodes[298], 'i'), (nodes[299], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -2009,7 +2009,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[300] = kaas.bufferSpec('300', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[300], 'o'), (nodes[299], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[300], 't'), (nodes[299], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -2017,7 +2017,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[301] = kaas.bufferSpec('301', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[300], 'i'), (nodes[301], 'o'), ]
+    arguments = [(nodes[300], 'i'), (nodes[301], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -2025,7 +2025,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[302] = kaas.bufferSpec('302', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[302], 'o'), (nodes[300], 'i'), (nodes[301], 'i'), ]
+    arguments = [(nodes[302], 't'), (nodes[300], 'i'), (nodes[301], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -2033,7 +2033,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[303] = kaas.bufferSpec('303', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[302], 'i'), (nodes[303], 'o'), ]
+    arguments = [(nodes[302], 'i'), (nodes[303], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -2041,7 +2041,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[304] = kaas.bufferSpec('304', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[304], 'o'), (nodes[302], 'i'), (nodes[303], 'i'), ]
+    arguments = [(nodes[304], 't'), (nodes[302], 'i'), (nodes[303], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -2052,7 +2052,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[306] = kaas.bufferSpec('306', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[290], 'i'), (nodes[305], 'i'), (nodes[306], 'o'), ]
+    arguments = [(nodes[290], 'i'), (nodes[305], 'i'), (nodes[306], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2063,7 +2063,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[308] = kaas.bufferSpec('308', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[308], 'o'), (nodes[306], 'i'), (nodes[307], 'i'), ]
+    arguments = [(nodes[308], 't'), (nodes[306], 'i'), (nodes[307], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -2071,7 +2071,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[309] = kaas.bufferSpec('309', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[304], 'i'), (nodes[308], 'i'), (nodes[309], 'o'), ]
+    arguments = [(nodes[304], 'i'), (nodes[308], 'i'), (nodes[309], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -2079,7 +2079,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[310] = kaas.bufferSpec('310', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[310], 'o'), (nodes[309], 'i'), ]
+    arguments = [(nodes[310], 't'), (nodes[309], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -2090,7 +2090,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[312] = kaas.bufferSpec('312', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[310], 'i'), (nodes[311], 'i'), (nodes[312], 'o'), ]
+    arguments = [(nodes[310], 'i'), (nodes[311], 'i'), (nodes[312], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2101,7 +2101,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[314] = kaas.bufferSpec('314', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[314], 'o'), (nodes[312], 'i'), (nodes[313], 'i'), (nodes[289], 'i'), ]
+    arguments = [(nodes[314], 't'), (nodes[312], 'i'), (nodes[313], 'i'), (nodes[289], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -2110,13 +2110,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a26', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[314], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[314], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[315] = kaas.bufferSpec('315', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[315], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[315], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -2124,7 +2124,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[316] = kaas.bufferSpec('316', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[316], 'o'), (nodes[314], 'i'), (nodes[315], 'i'), ]
+    arguments = [(nodes[316], 't'), (nodes[314], 'i'), (nodes[315], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -2133,13 +2133,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a27', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[316], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[316], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[317] = kaas.bufferSpec('317', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[317], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[317], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -2153,7 +2153,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[320] = kaas.bufferSpec('320', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[320], 'o'), (nodes[317], 'i'), (nodes[316], 'i'), (nodes[318], 'i'), (nodes[319], 'i'), ]
+    arguments = [(nodes[320], 't'), (nodes[317], 'i'), (nodes[316], 'i'), (nodes[318], 'i'), (nodes[319], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -2167,7 +2167,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[323] = kaas.bufferSpec('323', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[321], 'i'), (nodes[322], 'i'), (nodes[323], 'o'), ]
+    arguments = [(nodes[321], 'i'), (nodes[322], 'i'), (nodes[323], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -2178,7 +2178,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[325] = kaas.bufferSpec('325', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[325], 'o'), (nodes[323], 'i'), (nodes[324], 'i'), ]
+    arguments = [(nodes[325], 't'), (nodes[323], 'i'), (nodes[324], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -2189,7 +2189,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[327] = kaas.bufferSpec('327', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[325], 'i'), (nodes[326], 'i'), (nodes[327], 'o'), ]
+    arguments = [(nodes[325], 'i'), (nodes[326], 'i'), (nodes[327], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -2200,7 +2200,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[329] = kaas.bufferSpec('329', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[329], 'o'), (nodes[327], 'i'), (nodes[328], 'i'), (nodes[320], 'i'), ]
+    arguments = [(nodes[329], 't'), (nodes[327], 'i'), (nodes[328], 'i'), (nodes[320], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -2209,13 +2209,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a28', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[329], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[329], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[330] = kaas.bufferSpec('330', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[330], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[330], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -2223,7 +2223,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[331] = kaas.bufferSpec('331', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[331], 'o'), (nodes[329], 'i'), (nodes[330], 'i'), ]
+    arguments = [(nodes[331], 't'), (nodes[329], 'i'), (nodes[330], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -2232,13 +2232,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a29', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[331], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[331], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[332] = kaas.bufferSpec('332', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[332], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[332], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -2252,7 +2252,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[335] = kaas.bufferSpec('335', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[335], 'o'), (nodes[332], 'i'), (nodes[331], 'i'), (nodes[333], 'i'), (nodes[334], 'i'), ]
+    arguments = [(nodes[335], 't'), (nodes[332], 'i'), (nodes[331], 'i'), (nodes[333], 'i'), (nodes[334], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -2266,7 +2266,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[338] = kaas.bufferSpec('338', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[336], 'i'), (nodes[337], 'i'), (nodes[338], 'o'), ]
+    arguments = [(nodes[336], 'i'), (nodes[337], 'i'), (nodes[338], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2277,7 +2277,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[340] = kaas.bufferSpec('340', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[340], 'o'), (nodes[338], 'i'), (nodes[339], 'i'), ]
+    arguments = [(nodes[340], 't'), (nodes[338], 'i'), (nodes[339], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -2288,7 +2288,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[342] = kaas.bufferSpec('342', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[336], 'i'), (nodes[341], 'i'), (nodes[342], 'o'), ]
+    arguments = [(nodes[336], 'i'), (nodes[341], 'i'), (nodes[342], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2299,7 +2299,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[344] = kaas.bufferSpec('344', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[344], 'o'), (nodes[342], 'i'), (nodes[343], 'i'), ]
+    arguments = [(nodes[344], 't'), (nodes[342], 'i'), (nodes[343], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -2307,7 +2307,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[345] = kaas.bufferSpec('345', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[340], 'i'), (nodes[344], 'i'), (nodes[345], 'o'), ]
+    arguments = [(nodes[340], 'i'), (nodes[344], 'i'), (nodes[345], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -2315,7 +2315,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[346] = kaas.bufferSpec('346', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[346], 'o'), (nodes[345], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[346], 't'), (nodes[345], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -2323,7 +2323,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[347] = kaas.bufferSpec('347', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[346], 'i'), (nodes[347], 'o'), ]
+    arguments = [(nodes[346], 'i'), (nodes[347], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -2331,7 +2331,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[348] = kaas.bufferSpec('348', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[348], 'o'), (nodes[346], 'i'), (nodes[347], 'i'), ]
+    arguments = [(nodes[348], 't'), (nodes[346], 'i'), (nodes[347], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -2339,7 +2339,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[349] = kaas.bufferSpec('349', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[348], 'i'), (nodes[349], 'o'), ]
+    arguments = [(nodes[348], 'i'), (nodes[349], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -2347,7 +2347,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[350] = kaas.bufferSpec('350', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[350], 'o'), (nodes[348], 'i'), (nodes[349], 'i'), ]
+    arguments = [(nodes[350], 't'), (nodes[348], 'i'), (nodes[349], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -2358,7 +2358,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[352] = kaas.bufferSpec('352', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[336], 'i'), (nodes[351], 'i'), (nodes[352], 'o'), ]
+    arguments = [(nodes[336], 'i'), (nodes[351], 'i'), (nodes[352], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2369,7 +2369,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[354] = kaas.bufferSpec('354', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[354], 'o'), (nodes[352], 'i'), (nodes[353], 'i'), ]
+    arguments = [(nodes[354], 't'), (nodes[352], 'i'), (nodes[353], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -2377,7 +2377,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[355] = kaas.bufferSpec('355', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[350], 'i'), (nodes[354], 'i'), (nodes[355], 'o'), ]
+    arguments = [(nodes[350], 'i'), (nodes[354], 'i'), (nodes[355], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -2385,7 +2385,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[356] = kaas.bufferSpec('356', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[356], 'o'), (nodes[355], 'i'), ]
+    arguments = [(nodes[356], 't'), (nodes[355], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -2396,7 +2396,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[358] = kaas.bufferSpec('358', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[356], 'i'), (nodes[357], 'i'), (nodes[358], 'o'), ]
+    arguments = [(nodes[356], 'i'), (nodes[357], 'i'), (nodes[358], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2407,7 +2407,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[360] = kaas.bufferSpec('360', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[360], 'o'), (nodes[358], 'i'), (nodes[359], 'i'), (nodes[335], 'i'), ]
+    arguments = [(nodes[360], 't'), (nodes[358], 'i'), (nodes[359], 'i'), (nodes[335], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -2416,13 +2416,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a30', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[360], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[360], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[361] = kaas.bufferSpec('361', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[361], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[361], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -2430,7 +2430,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[362] = kaas.bufferSpec('362', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[362], 'o'), (nodes[360], 'i'), (nodes[361], 'i'), ]
+    arguments = [(nodes[362], 't'), (nodes[360], 'i'), (nodes[361], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -2439,13 +2439,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a31', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[362], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[362], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[363] = kaas.bufferSpec('363', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[363], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[363], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -2459,7 +2459,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[366] = kaas.bufferSpec('366', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[366], 'o'), (nodes[363], 'i'), (nodes[362], 'i'), (nodes[364], 'i'), (nodes[365], 'i'), ]
+    arguments = [(nodes[366], 't'), (nodes[363], 'i'), (nodes[362], 'i'), (nodes[364], 'i'), (nodes[365], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -2473,7 +2473,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[369] = kaas.bufferSpec('369', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[367], 'i'), (nodes[368], 'i'), (nodes[369], 'o'), ]
+    arguments = [(nodes[367], 'i'), (nodes[368], 'i'), (nodes[369], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -2484,7 +2484,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[371] = kaas.bufferSpec('371', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[371], 'o'), (nodes[369], 'i'), (nodes[370], 'i'), ]
+    arguments = [(nodes[371], 't'), (nodes[369], 'i'), (nodes[370], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -2495,7 +2495,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[373] = kaas.bufferSpec('373', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[371], 'i'), (nodes[372], 'i'), (nodes[373], 'o'), ]
+    arguments = [(nodes[371], 'i'), (nodes[372], 'i'), (nodes[373], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -2506,7 +2506,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[375] = kaas.bufferSpec('375', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[375], 'o'), (nodes[373], 'i'), (nodes[374], 'i'), (nodes[366], 'i'), ]
+    arguments = [(nodes[375], 't'), (nodes[373], 'i'), (nodes[374], 'i'), (nodes[366], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -2515,13 +2515,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a32', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[375], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[375], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[376] = kaas.bufferSpec('376', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[376], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[376], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -2529,7 +2529,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[377] = kaas.bufferSpec('377', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[377], 'o'), (nodes[375], 'i'), (nodes[376], 'i'), ]
+    arguments = [(nodes[377], 't'), (nodes[375], 'i'), (nodes[376], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -2538,13 +2538,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a33', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[377], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[377], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[378] = kaas.bufferSpec('378', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[378], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[378], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -2558,7 +2558,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[381] = kaas.bufferSpec('381', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[381], 'o'), (nodes[378], 'i'), (nodes[377], 'i'), (nodes[379], 'i'), (nodes[380], 'i'), ]
+    arguments = [(nodes[381], 't'), (nodes[378], 'i'), (nodes[377], 'i'), (nodes[379], 'i'), (nodes[380], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -2572,7 +2572,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[384] = kaas.bufferSpec('384', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[382], 'i'), (nodes[383], 'i'), (nodes[384], 'o'), ]
+    arguments = [(nodes[382], 'i'), (nodes[383], 'i'), (nodes[384], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2583,7 +2583,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[386] = kaas.bufferSpec('386', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[386], 'o'), (nodes[384], 'i'), (nodes[385], 'i'), ]
+    arguments = [(nodes[386], 't'), (nodes[384], 'i'), (nodes[385], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -2594,7 +2594,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[388] = kaas.bufferSpec('388', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[382], 'i'), (nodes[387], 'i'), (nodes[388], 'o'), ]
+    arguments = [(nodes[382], 'i'), (nodes[387], 'i'), (nodes[388], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2605,7 +2605,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[390] = kaas.bufferSpec('390', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[390], 'o'), (nodes[388], 'i'), (nodes[389], 'i'), ]
+    arguments = [(nodes[390], 't'), (nodes[388], 'i'), (nodes[389], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -2613,7 +2613,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[391] = kaas.bufferSpec('391', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[386], 'i'), (nodes[390], 'i'), (nodes[391], 'o'), ]
+    arguments = [(nodes[386], 'i'), (nodes[390], 'i'), (nodes[391], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -2621,7 +2621,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[392] = kaas.bufferSpec('392', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[392], 'o'), (nodes[391], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[392], 't'), (nodes[391], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -2629,7 +2629,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[393] = kaas.bufferSpec('393', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[392], 'i'), (nodes[393], 'o'), ]
+    arguments = [(nodes[392], 'i'), (nodes[393], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -2637,7 +2637,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[394] = kaas.bufferSpec('394', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[394], 'o'), (nodes[392], 'i'), (nodes[393], 'i'), ]
+    arguments = [(nodes[394], 't'), (nodes[392], 'i'), (nodes[393], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -2645,7 +2645,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[395] = kaas.bufferSpec('395', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[394], 'i'), (nodes[395], 'o'), ]
+    arguments = [(nodes[394], 'i'), (nodes[395], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -2653,7 +2653,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[396] = kaas.bufferSpec('396', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[396], 'o'), (nodes[394], 'i'), (nodes[395], 'i'), ]
+    arguments = [(nodes[396], 't'), (nodes[394], 'i'), (nodes[395], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -2664,7 +2664,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[398] = kaas.bufferSpec('398', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[382], 'i'), (nodes[397], 'i'), (nodes[398], 'o'), ]
+    arguments = [(nodes[382], 'i'), (nodes[397], 'i'), (nodes[398], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2675,7 +2675,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[400] = kaas.bufferSpec('400', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[400], 'o'), (nodes[398], 'i'), (nodes[399], 'i'), ]
+    arguments = [(nodes[400], 't'), (nodes[398], 'i'), (nodes[399], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -2683,7 +2683,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[401] = kaas.bufferSpec('401', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[396], 'i'), (nodes[400], 'i'), (nodes[401], 'o'), ]
+    arguments = [(nodes[396], 'i'), (nodes[400], 'i'), (nodes[401], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -2691,7 +2691,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[402] = kaas.bufferSpec('402', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[402], 'o'), (nodes[401], 'i'), ]
+    arguments = [(nodes[402], 't'), (nodes[401], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -2702,7 +2702,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[404] = kaas.bufferSpec('404', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[402], 'i'), (nodes[403], 'i'), (nodes[404], 'o'), ]
+    arguments = [(nodes[402], 'i'), (nodes[403], 'i'), (nodes[404], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2713,7 +2713,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[406] = kaas.bufferSpec('406', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[406], 'o'), (nodes[404], 'i'), (nodes[405], 'i'), (nodes[381], 'i'), ]
+    arguments = [(nodes[406], 't'), (nodes[404], 'i'), (nodes[405], 'i'), (nodes[381], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -2722,13 +2722,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a34', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[406], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[406], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[407] = kaas.bufferSpec('407', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[407], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[407], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -2736,7 +2736,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[408] = kaas.bufferSpec('408', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[408], 'o'), (nodes[406], 'i'), (nodes[407], 'i'), ]
+    arguments = [(nodes[408], 't'), (nodes[406], 'i'), (nodes[407], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -2745,13 +2745,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a35', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[408], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[408], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[409] = kaas.bufferSpec('409', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[409], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[409], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -2765,7 +2765,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[412] = kaas.bufferSpec('412', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[412], 'o'), (nodes[409], 'i'), (nodes[408], 'i'), (nodes[410], 'i'), (nodes[411], 'i'), ]
+    arguments = [(nodes[412], 't'), (nodes[409], 'i'), (nodes[408], 'i'), (nodes[410], 'i'), (nodes[411], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -2779,7 +2779,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[415] = kaas.bufferSpec('415', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[413], 'i'), (nodes[414], 'i'), (nodes[415], 'o'), ]
+    arguments = [(nodes[413], 'i'), (nodes[414], 'i'), (nodes[415], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -2790,7 +2790,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[417] = kaas.bufferSpec('417', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[417], 'o'), (nodes[415], 'i'), (nodes[416], 'i'), ]
+    arguments = [(nodes[417], 't'), (nodes[415], 'i'), (nodes[416], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -2801,7 +2801,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[419] = kaas.bufferSpec('419', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[417], 'i'), (nodes[418], 'i'), (nodes[419], 'o'), ]
+    arguments = [(nodes[417], 'i'), (nodes[418], 'i'), (nodes[419], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -2812,7 +2812,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[421] = kaas.bufferSpec('421', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[421], 'o'), (nodes[419], 'i'), (nodes[420], 'i'), (nodes[412], 'i'), ]
+    arguments = [(nodes[421], 't'), (nodes[419], 'i'), (nodes[420], 'i'), (nodes[412], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -2821,13 +2821,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a36', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[421], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[421], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[422] = kaas.bufferSpec('422', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[422], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[422], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -2835,7 +2835,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[423] = kaas.bufferSpec('423', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[423], 'o'), (nodes[421], 'i'), (nodes[422], 'i'), ]
+    arguments = [(nodes[423], 't'), (nodes[421], 'i'), (nodes[422], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -2844,13 +2844,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a37', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[423], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[423], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[424] = kaas.bufferSpec('424', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[424], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[424], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -2864,7 +2864,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[427] = kaas.bufferSpec('427', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[427], 'o'), (nodes[424], 'i'), (nodes[423], 'i'), (nodes[425], 'i'), (nodes[426], 'i'), ]
+    arguments = [(nodes[427], 't'), (nodes[424], 'i'), (nodes[423], 'i'), (nodes[425], 'i'), (nodes[426], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -2878,7 +2878,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[430] = kaas.bufferSpec('430', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[428], 'i'), (nodes[429], 'i'), (nodes[430], 'o'), ]
+    arguments = [(nodes[428], 'i'), (nodes[429], 'i'), (nodes[430], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2889,7 +2889,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[432] = kaas.bufferSpec('432', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[432], 'o'), (nodes[430], 'i'), (nodes[431], 'i'), ]
+    arguments = [(nodes[432], 't'), (nodes[430], 'i'), (nodes[431], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -2900,7 +2900,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[434] = kaas.bufferSpec('434', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[428], 'i'), (nodes[433], 'i'), (nodes[434], 'o'), ]
+    arguments = [(nodes[428], 'i'), (nodes[433], 'i'), (nodes[434], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2911,7 +2911,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[436] = kaas.bufferSpec('436', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[436], 'o'), (nodes[434], 'i'), (nodes[435], 'i'), ]
+    arguments = [(nodes[436], 't'), (nodes[434], 'i'), (nodes[435], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -2919,7 +2919,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[437] = kaas.bufferSpec('437', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[432], 'i'), (nodes[436], 'i'), (nodes[437], 'o'), ]
+    arguments = [(nodes[432], 'i'), (nodes[436], 'i'), (nodes[437], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -2927,7 +2927,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[438] = kaas.bufferSpec('438', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[438], 'o'), (nodes[437], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[438], 't'), (nodes[437], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -2935,7 +2935,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[439] = kaas.bufferSpec('439', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[438], 'i'), (nodes[439], 'o'), ]
+    arguments = [(nodes[438], 'i'), (nodes[439], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -2943,7 +2943,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[440] = kaas.bufferSpec('440', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[440], 'o'), (nodes[438], 'i'), (nodes[439], 'i'), ]
+    arguments = [(nodes[440], 't'), (nodes[438], 'i'), (nodes[439], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -2951,7 +2951,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[441] = kaas.bufferSpec('441', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[440], 'i'), (nodes[441], 'o'), ]
+    arguments = [(nodes[440], 'i'), (nodes[441], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -2959,7 +2959,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[442] = kaas.bufferSpec('442', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[442], 'o'), (nodes[440], 'i'), (nodes[441], 'i'), ]
+    arguments = [(nodes[442], 't'), (nodes[440], 'i'), (nodes[441], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -2970,7 +2970,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[444] = kaas.bufferSpec('444', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[428], 'i'), (nodes[443], 'i'), (nodes[444], 'o'), ]
+    arguments = [(nodes[428], 'i'), (nodes[443], 'i'), (nodes[444], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -2981,7 +2981,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[446] = kaas.bufferSpec('446', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[446], 'o'), (nodes[444], 'i'), (nodes[445], 'i'), ]
+    arguments = [(nodes[446], 't'), (nodes[444], 'i'), (nodes[445], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -2989,7 +2989,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[447] = kaas.bufferSpec('447', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[442], 'i'), (nodes[446], 'i'), (nodes[447], 'o'), ]
+    arguments = [(nodes[442], 'i'), (nodes[446], 'i'), (nodes[447], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -2997,7 +2997,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[448] = kaas.bufferSpec('448', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[448], 'o'), (nodes[447], 'i'), ]
+    arguments = [(nodes[448], 't'), (nodes[447], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3008,7 +3008,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[450] = kaas.bufferSpec('450', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[448], 'i'), (nodes[449], 'i'), (nodes[450], 'o'), ]
+    arguments = [(nodes[448], 'i'), (nodes[449], 'i'), (nodes[450], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3019,7 +3019,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[452] = kaas.bufferSpec('452', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[452], 'o'), (nodes[450], 'i'), (nodes[451], 'i'), (nodes[427], 'i'), ]
+    arguments = [(nodes[452], 't'), (nodes[450], 'i'), (nodes[451], 'i'), (nodes[427], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3028,13 +3028,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a38', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[452], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[452], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[453] = kaas.bufferSpec('453', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[453], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[453], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3042,7 +3042,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[454] = kaas.bufferSpec('454', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[454], 'o'), (nodes[452], 'i'), (nodes[453], 'i'), ]
+    arguments = [(nodes[454], 't'), (nodes[452], 'i'), (nodes[453], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3051,13 +3051,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a39', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[454], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[454], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[455] = kaas.bufferSpec('455', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[455], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[455], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3071,7 +3071,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[458] = kaas.bufferSpec('458', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[458], 'o'), (nodes[455], 'i'), (nodes[454], 'i'), (nodes[456], 'i'), (nodes[457], 'i'), ]
+    arguments = [(nodes[458], 't'), (nodes[455], 'i'), (nodes[454], 'i'), (nodes[456], 'i'), (nodes[457], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -3085,7 +3085,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[461] = kaas.bufferSpec('461', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[459], 'i'), (nodes[460], 'i'), (nodes[461], 'o'), ]
+    arguments = [(nodes[459], 'i'), (nodes[460], 'i'), (nodes[461], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -3096,7 +3096,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[463] = kaas.bufferSpec('463', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[463], 'o'), (nodes[461], 'i'), (nodes[462], 'i'), ]
+    arguments = [(nodes[463], 't'), (nodes[461], 'i'), (nodes[462], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -3107,7 +3107,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[465] = kaas.bufferSpec('465', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[463], 'i'), (nodes[464], 'i'), (nodes[465], 'o'), ]
+    arguments = [(nodes[463], 'i'), (nodes[464], 'i'), (nodes[465], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -3118,7 +3118,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[467] = kaas.bufferSpec('467', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[467], 'o'), (nodes[465], 'i'), (nodes[466], 'i'), (nodes[458], 'i'), ]
+    arguments = [(nodes[467], 't'), (nodes[465], 'i'), (nodes[466], 'i'), (nodes[458], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3127,13 +3127,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a40', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[467], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[467], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[468] = kaas.bufferSpec('468', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[468], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[468], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3141,7 +3141,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[469] = kaas.bufferSpec('469', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[469], 'o'), (nodes[467], 'i'), (nodes[468], 'i'), ]
+    arguments = [(nodes[469], 't'), (nodes[467], 'i'), (nodes[468], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3150,13 +3150,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a41', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[469], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[469], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[470] = kaas.bufferSpec('470', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[470], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[470], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3170,7 +3170,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[473] = kaas.bufferSpec('473', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[473], 'o'), (nodes[470], 'i'), (nodes[469], 'i'), (nodes[471], 'i'), (nodes[472], 'i'), ]
+    arguments = [(nodes[473], 't'), (nodes[470], 'i'), (nodes[469], 'i'), (nodes[471], 'i'), (nodes[472], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -3184,7 +3184,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[476] = kaas.bufferSpec('476', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[474], 'i'), (nodes[475], 'i'), (nodes[476], 'o'), ]
+    arguments = [(nodes[474], 'i'), (nodes[475], 'i'), (nodes[476], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3195,7 +3195,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[478] = kaas.bufferSpec('478', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[478], 'o'), (nodes[476], 'i'), (nodes[477], 'i'), ]
+    arguments = [(nodes[478], 't'), (nodes[476], 'i'), (nodes[477], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3206,7 +3206,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[480] = kaas.bufferSpec('480', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[474], 'i'), (nodes[479], 'i'), (nodes[480], 'o'), ]
+    arguments = [(nodes[474], 'i'), (nodes[479], 'i'), (nodes[480], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3217,7 +3217,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[482] = kaas.bufferSpec('482', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[482], 'o'), (nodes[480], 'i'), (nodes[481], 'i'), ]
+    arguments = [(nodes[482], 't'), (nodes[480], 'i'), (nodes[481], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -3225,7 +3225,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[483] = kaas.bufferSpec('483', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[478], 'i'), (nodes[482], 'i'), (nodes[483], 'o'), ]
+    arguments = [(nodes[478], 'i'), (nodes[482], 'i'), (nodes[483], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -3233,7 +3233,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[484] = kaas.bufferSpec('484', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[484], 'o'), (nodes[483], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[484], 't'), (nodes[483], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -3241,7 +3241,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[485] = kaas.bufferSpec('485', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[484], 'i'), (nodes[485], 'o'), ]
+    arguments = [(nodes[484], 'i'), (nodes[485], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -3249,7 +3249,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[486] = kaas.bufferSpec('486', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[486], 'o'), (nodes[484], 'i'), (nodes[485], 'i'), ]
+    arguments = [(nodes[486], 't'), (nodes[484], 'i'), (nodes[485], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -3257,7 +3257,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[487] = kaas.bufferSpec('487', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[486], 'i'), (nodes[487], 'o'), ]
+    arguments = [(nodes[486], 'i'), (nodes[487], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -3265,7 +3265,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[488] = kaas.bufferSpec('488', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[488], 'o'), (nodes[486], 'i'), (nodes[487], 'i'), ]
+    arguments = [(nodes[488], 't'), (nodes[486], 'i'), (nodes[487], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -3276,7 +3276,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[490] = kaas.bufferSpec('490', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[474], 'i'), (nodes[489], 'i'), (nodes[490], 'o'), ]
+    arguments = [(nodes[474], 'i'), (nodes[489], 'i'), (nodes[490], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3287,7 +3287,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[492] = kaas.bufferSpec('492', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[492], 'o'), (nodes[490], 'i'), (nodes[491], 'i'), ]
+    arguments = [(nodes[492], 't'), (nodes[490], 'i'), (nodes[491], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -3295,7 +3295,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[493] = kaas.bufferSpec('493', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[488], 'i'), (nodes[492], 'i'), (nodes[493], 'o'), ]
+    arguments = [(nodes[488], 'i'), (nodes[492], 'i'), (nodes[493], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -3303,7 +3303,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[494] = kaas.bufferSpec('494', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[494], 'o'), (nodes[493], 'i'), ]
+    arguments = [(nodes[494], 't'), (nodes[493], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3314,7 +3314,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[496] = kaas.bufferSpec('496', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[494], 'i'), (nodes[495], 'i'), (nodes[496], 'o'), ]
+    arguments = [(nodes[494], 'i'), (nodes[495], 'i'), (nodes[496], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3325,7 +3325,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[498] = kaas.bufferSpec('498', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[498], 'o'), (nodes[496], 'i'), (nodes[497], 'i'), (nodes[473], 'i'), ]
+    arguments = [(nodes[498], 't'), (nodes[496], 'i'), (nodes[497], 'i'), (nodes[473], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3334,13 +3334,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a42', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[498], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[498], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[499] = kaas.bufferSpec('499', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[499], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[499], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3348,7 +3348,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[500] = kaas.bufferSpec('500', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[500], 'o'), (nodes[498], 'i'), (nodes[499], 'i'), ]
+    arguments = [(nodes[500], 't'), (nodes[498], 'i'), (nodes[499], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3357,13 +3357,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a43', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[500], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[500], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[501] = kaas.bufferSpec('501', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[501], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[501], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3377,7 +3377,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[504] = kaas.bufferSpec('504', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[504], 'o'), (nodes[501], 'i'), (nodes[500], 'i'), (nodes[502], 'i'), (nodes[503], 'i'), ]
+    arguments = [(nodes[504], 't'), (nodes[501], 'i'), (nodes[500], 'i'), (nodes[502], 'i'), (nodes[503], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -3391,7 +3391,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[507] = kaas.bufferSpec('507', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[505], 'i'), (nodes[506], 'i'), (nodes[507], 'o'), ]
+    arguments = [(nodes[505], 'i'), (nodes[506], 'i'), (nodes[507], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -3402,7 +3402,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[509] = kaas.bufferSpec('509', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[509], 'o'), (nodes[507], 'i'), (nodes[508], 'i'), ]
+    arguments = [(nodes[509], 't'), (nodes[507], 'i'), (nodes[508], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -3413,7 +3413,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[511] = kaas.bufferSpec('511', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[509], 'i'), (nodes[510], 'i'), (nodes[511], 'o'), ]
+    arguments = [(nodes[509], 'i'), (nodes[510], 'i'), (nodes[511], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -3424,7 +3424,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[513] = kaas.bufferSpec('513', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[513], 'o'), (nodes[511], 'i'), (nodes[512], 'i'), (nodes[504], 'i'), ]
+    arguments = [(nodes[513], 't'), (nodes[511], 'i'), (nodes[512], 'i'), (nodes[504], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3433,13 +3433,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a44', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[513], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[513], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[514] = kaas.bufferSpec('514', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[514], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[514], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3447,7 +3447,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[515] = kaas.bufferSpec('515', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[515], 'o'), (nodes[513], 'i'), (nodes[514], 'i'), ]
+    arguments = [(nodes[515], 't'), (nodes[513], 'i'), (nodes[514], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3456,13 +3456,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a45', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[515], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[515], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[516] = kaas.bufferSpec('516', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[516], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[516], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3476,7 +3476,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[519] = kaas.bufferSpec('519', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[519], 'o'), (nodes[516], 'i'), (nodes[515], 'i'), (nodes[517], 'i'), (nodes[518], 'i'), ]
+    arguments = [(nodes[519], 't'), (nodes[516], 'i'), (nodes[515], 'i'), (nodes[517], 'i'), (nodes[518], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -3490,7 +3490,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[522] = kaas.bufferSpec('522', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[520], 'i'), (nodes[521], 'i'), (nodes[522], 'o'), ]
+    arguments = [(nodes[520], 'i'), (nodes[521], 'i'), (nodes[522], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3501,7 +3501,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[524] = kaas.bufferSpec('524', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[524], 'o'), (nodes[522], 'i'), (nodes[523], 'i'), ]
+    arguments = [(nodes[524], 't'), (nodes[522], 'i'), (nodes[523], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3512,7 +3512,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[526] = kaas.bufferSpec('526', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[520], 'i'), (nodes[525], 'i'), (nodes[526], 'o'), ]
+    arguments = [(nodes[520], 'i'), (nodes[525], 'i'), (nodes[526], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3523,7 +3523,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[528] = kaas.bufferSpec('528', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[528], 'o'), (nodes[526], 'i'), (nodes[527], 'i'), ]
+    arguments = [(nodes[528], 't'), (nodes[526], 'i'), (nodes[527], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -3531,7 +3531,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[529] = kaas.bufferSpec('529', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[524], 'i'), (nodes[528], 'i'), (nodes[529], 'o'), ]
+    arguments = [(nodes[524], 'i'), (nodes[528], 'i'), (nodes[529], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -3539,7 +3539,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[530] = kaas.bufferSpec('530', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[530], 'o'), (nodes[529], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[530], 't'), (nodes[529], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -3547,7 +3547,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[531] = kaas.bufferSpec('531', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[530], 'i'), (nodes[531], 'o'), ]
+    arguments = [(nodes[530], 'i'), (nodes[531], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -3555,7 +3555,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[532] = kaas.bufferSpec('532', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[532], 'o'), (nodes[530], 'i'), (nodes[531], 'i'), ]
+    arguments = [(nodes[532], 't'), (nodes[530], 'i'), (nodes[531], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -3563,7 +3563,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[533] = kaas.bufferSpec('533', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[532], 'i'), (nodes[533], 'o'), ]
+    arguments = [(nodes[532], 'i'), (nodes[533], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -3571,7 +3571,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[534] = kaas.bufferSpec('534', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[534], 'o'), (nodes[532], 'i'), (nodes[533], 'i'), ]
+    arguments = [(nodes[534], 't'), (nodes[532], 'i'), (nodes[533], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -3582,7 +3582,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[536] = kaas.bufferSpec('536', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[520], 'i'), (nodes[535], 'i'), (nodes[536], 'o'), ]
+    arguments = [(nodes[520], 'i'), (nodes[535], 'i'), (nodes[536], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3593,7 +3593,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[538] = kaas.bufferSpec('538', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[538], 'o'), (nodes[536], 'i'), (nodes[537], 'i'), ]
+    arguments = [(nodes[538], 't'), (nodes[536], 'i'), (nodes[537], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -3601,7 +3601,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[539] = kaas.bufferSpec('539', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[534], 'i'), (nodes[538], 'i'), (nodes[539], 'o'), ]
+    arguments = [(nodes[534], 'i'), (nodes[538], 'i'), (nodes[539], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -3609,7 +3609,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[540] = kaas.bufferSpec('540', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[540], 'o'), (nodes[539], 'i'), ]
+    arguments = [(nodes[540], 't'), (nodes[539], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3620,7 +3620,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[542] = kaas.bufferSpec('542', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[540], 'i'), (nodes[541], 'i'), (nodes[542], 'o'), ]
+    arguments = [(nodes[540], 'i'), (nodes[541], 'i'), (nodes[542], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3631,7 +3631,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[544] = kaas.bufferSpec('544', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[544], 'o'), (nodes[542], 'i'), (nodes[543], 'i'), (nodes[519], 'i'), ]
+    arguments = [(nodes[544], 't'), (nodes[542], 'i'), (nodes[543], 'i'), (nodes[519], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3640,13 +3640,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a46', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[544], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[544], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[545] = kaas.bufferSpec('545', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[545], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[545], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3654,7 +3654,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[546] = kaas.bufferSpec('546', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[546], 'o'), (nodes[544], 'i'), (nodes[545], 'i'), ]
+    arguments = [(nodes[546], 't'), (nodes[544], 'i'), (nodes[545], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3663,13 +3663,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a47', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[546], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[546], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[547] = kaas.bufferSpec('547', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[547], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[547], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3683,7 +3683,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[550] = kaas.bufferSpec('550', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[550], 'o'), (nodes[547], 'i'), (nodes[546], 'i'), (nodes[548], 'i'), (nodes[549], 'i'), ]
+    arguments = [(nodes[550], 't'), (nodes[547], 'i'), (nodes[546], 'i'), (nodes[548], 'i'), (nodes[549], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -3697,7 +3697,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[553] = kaas.bufferSpec('553', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[551], 'i'), (nodes[552], 'i'), (nodes[553], 'o'), ]
+    arguments = [(nodes[551], 'i'), (nodes[552], 'i'), (nodes[553], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -3708,7 +3708,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[555] = kaas.bufferSpec('555', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[555], 'o'), (nodes[553], 'i'), (nodes[554], 'i'), ]
+    arguments = [(nodes[555], 't'), (nodes[553], 'i'), (nodes[554], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -3719,7 +3719,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[557] = kaas.bufferSpec('557', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[555], 'i'), (nodes[556], 'i'), (nodes[557], 'o'), ]
+    arguments = [(nodes[555], 'i'), (nodes[556], 'i'), (nodes[557], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -3730,7 +3730,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[559] = kaas.bufferSpec('559', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[559], 'o'), (nodes[557], 'i'), (nodes[558], 'i'), (nodes[550], 'i'), ]
+    arguments = [(nodes[559], 't'), (nodes[557], 'i'), (nodes[558], 'i'), (nodes[550], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3739,13 +3739,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a48', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[559], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[559], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[560] = kaas.bufferSpec('560', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[560], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[560], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3753,7 +3753,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[561] = kaas.bufferSpec('561', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[561], 'o'), (nodes[559], 'i'), (nodes[560], 'i'), ]
+    arguments = [(nodes[561], 't'), (nodes[559], 'i'), (nodes[560], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3762,13 +3762,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a49', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[561], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[561], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[562] = kaas.bufferSpec('562', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[562], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[562], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3782,7 +3782,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[565] = kaas.bufferSpec('565', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[565], 'o'), (nodes[562], 'i'), (nodes[561], 'i'), (nodes[563], 'i'), (nodes[564], 'i'), ]
+    arguments = [(nodes[565], 't'), (nodes[562], 'i'), (nodes[561], 'i'), (nodes[563], 'i'), (nodes[564], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -3796,7 +3796,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[568] = kaas.bufferSpec('568', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[566], 'i'), (nodes[567], 'i'), (nodes[568], 'o'), ]
+    arguments = [(nodes[566], 'i'), (nodes[567], 'i'), (nodes[568], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3807,7 +3807,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[570] = kaas.bufferSpec('570', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[570], 'o'), (nodes[568], 'i'), (nodes[569], 'i'), ]
+    arguments = [(nodes[570], 't'), (nodes[568], 'i'), (nodes[569], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3818,7 +3818,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[572] = kaas.bufferSpec('572', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[566], 'i'), (nodes[571], 'i'), (nodes[572], 'o'), ]
+    arguments = [(nodes[566], 'i'), (nodes[571], 'i'), (nodes[572], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3829,7 +3829,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[574] = kaas.bufferSpec('574', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[574], 'o'), (nodes[572], 'i'), (nodes[573], 'i'), ]
+    arguments = [(nodes[574], 't'), (nodes[572], 'i'), (nodes[573], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -3837,7 +3837,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[575] = kaas.bufferSpec('575', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[570], 'i'), (nodes[574], 'i'), (nodes[575], 'o'), ]
+    arguments = [(nodes[570], 'i'), (nodes[574], 'i'), (nodes[575], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -3845,7 +3845,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[576] = kaas.bufferSpec('576', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[576], 'o'), (nodes[575], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[576], 't'), (nodes[575], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -3853,7 +3853,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[577] = kaas.bufferSpec('577', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[576], 'i'), (nodes[577], 'o'), ]
+    arguments = [(nodes[576], 'i'), (nodes[577], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -3861,7 +3861,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[578] = kaas.bufferSpec('578', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[578], 'o'), (nodes[576], 'i'), (nodes[577], 'i'), ]
+    arguments = [(nodes[578], 't'), (nodes[576], 'i'), (nodes[577], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -3869,7 +3869,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[579] = kaas.bufferSpec('579', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[578], 'i'), (nodes[579], 'o'), ]
+    arguments = [(nodes[578], 'i'), (nodes[579], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -3877,7 +3877,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[580] = kaas.bufferSpec('580', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[580], 'o'), (nodes[578], 'i'), (nodes[579], 'i'), ]
+    arguments = [(nodes[580], 't'), (nodes[578], 'i'), (nodes[579], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -3888,7 +3888,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[582] = kaas.bufferSpec('582', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[566], 'i'), (nodes[581], 'i'), (nodes[582], 'o'), ]
+    arguments = [(nodes[566], 'i'), (nodes[581], 'i'), (nodes[582], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3899,7 +3899,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[584] = kaas.bufferSpec('584', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[584], 'o'), (nodes[582], 'i'), (nodes[583], 'i'), ]
+    arguments = [(nodes[584], 't'), (nodes[582], 'i'), (nodes[583], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -3907,7 +3907,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[585] = kaas.bufferSpec('585', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[580], 'i'), (nodes[584], 'i'), (nodes[585], 'o'), ]
+    arguments = [(nodes[580], 'i'), (nodes[584], 'i'), (nodes[585], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -3915,7 +3915,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[586] = kaas.bufferSpec('586', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[586], 'o'), (nodes[585], 'i'), ]
+    arguments = [(nodes[586], 't'), (nodes[585], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -3926,7 +3926,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[588] = kaas.bufferSpec('588', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[586], 'i'), (nodes[587], 'i'), (nodes[588], 'o'), ]
+    arguments = [(nodes[586], 'i'), (nodes[587], 'i'), (nodes[588], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -3937,7 +3937,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[590] = kaas.bufferSpec('590', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[590], 'o'), (nodes[588], 'i'), (nodes[589], 'i'), (nodes[565], 'i'), ]
+    arguments = [(nodes[590], 't'), (nodes[588], 'i'), (nodes[589], 'i'), (nodes[565], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -3946,13 +3946,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a50', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[590], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[590], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[591] = kaas.bufferSpec('591', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[591], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[591], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -3960,7 +3960,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[592] = kaas.bufferSpec('592', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[592], 'o'), (nodes[590], 'i'), (nodes[591], 'i'), ]
+    arguments = [(nodes[592], 't'), (nodes[590], 'i'), (nodes[591], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -3969,13 +3969,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a51', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[592], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[592], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[593] = kaas.bufferSpec('593', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[593], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[593], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -3989,7 +3989,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[596] = kaas.bufferSpec('596', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[596], 'o'), (nodes[593], 'i'), (nodes[592], 'i'), (nodes[594], 'i'), (nodes[595], 'i'), ]
+    arguments = [(nodes[596], 't'), (nodes[593], 'i'), (nodes[592], 'i'), (nodes[594], 'i'), (nodes[595], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4003,7 +4003,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[599] = kaas.bufferSpec('599', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[597], 'i'), (nodes[598], 'i'), (nodes[599], 'o'), ]
+    arguments = [(nodes[597], 'i'), (nodes[598], 'i'), (nodes[599], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -4014,7 +4014,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[601] = kaas.bufferSpec('601', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[601], 'o'), (nodes[599], 'i'), (nodes[600], 'i'), ]
+    arguments = [(nodes[601], 't'), (nodes[599], 'i'), (nodes[600], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -4025,7 +4025,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[603] = kaas.bufferSpec('603', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[601], 'i'), (nodes[602], 'i'), (nodes[603], 'o'), ]
+    arguments = [(nodes[601], 'i'), (nodes[602], 'i'), (nodes[603], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -4036,7 +4036,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[605] = kaas.bufferSpec('605', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[605], 'o'), (nodes[603], 'i'), (nodes[604], 'i'), (nodes[596], 'i'), ]
+    arguments = [(nodes[605], 't'), (nodes[603], 'i'), (nodes[604], 'i'), (nodes[596], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4045,13 +4045,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a52', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[605], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[605], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[606] = kaas.bufferSpec('606', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[606], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[606], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4059,7 +4059,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[607] = kaas.bufferSpec('607', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[607], 'o'), (nodes[605], 'i'), (nodes[606], 'i'), ]
+    arguments = [(nodes[607], 't'), (nodes[605], 'i'), (nodes[606], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4068,13 +4068,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a53', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[607], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[607], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[608] = kaas.bufferSpec('608', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[608], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[608], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -4088,7 +4088,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[611] = kaas.bufferSpec('611', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[611], 'o'), (nodes[608], 'i'), (nodes[607], 'i'), (nodes[609], 'i'), (nodes[610], 'i'), ]
+    arguments = [(nodes[611], 't'), (nodes[608], 'i'), (nodes[607], 'i'), (nodes[609], 'i'), (nodes[610], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4102,7 +4102,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[614] = kaas.bufferSpec('614', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[612], 'i'), (nodes[613], 'i'), (nodes[614], 'o'), ]
+    arguments = [(nodes[612], 'i'), (nodes[613], 'i'), (nodes[614], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4113,7 +4113,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[616] = kaas.bufferSpec('616', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[616], 'o'), (nodes[614], 'i'), (nodes[615], 'i'), ]
+    arguments = [(nodes[616], 't'), (nodes[614], 'i'), (nodes[615], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -4124,7 +4124,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[618] = kaas.bufferSpec('618', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[612], 'i'), (nodes[617], 'i'), (nodes[618], 'o'), ]
+    arguments = [(nodes[612], 'i'), (nodes[617], 'i'), (nodes[618], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4135,7 +4135,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[620] = kaas.bufferSpec('620', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[620], 'o'), (nodes[618], 'i'), (nodes[619], 'i'), ]
+    arguments = [(nodes[620], 't'), (nodes[618], 'i'), (nodes[619], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -4143,7 +4143,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[621] = kaas.bufferSpec('621', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[616], 'i'), (nodes[620], 'i'), (nodes[621], 'o'), ]
+    arguments = [(nodes[616], 'i'), (nodes[620], 'i'), (nodes[621], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -4151,7 +4151,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[622] = kaas.bufferSpec('622', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[622], 'o'), (nodes[621], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[622], 't'), (nodes[621], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -4159,7 +4159,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[623] = kaas.bufferSpec('623', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[622], 'i'), (nodes[623], 'o'), ]
+    arguments = [(nodes[622], 'i'), (nodes[623], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -4167,7 +4167,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[624] = kaas.bufferSpec('624', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[624], 'o'), (nodes[622], 'i'), (nodes[623], 'i'), ]
+    arguments = [(nodes[624], 't'), (nodes[622], 'i'), (nodes[623], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -4175,7 +4175,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[625] = kaas.bufferSpec('625', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[624], 'i'), (nodes[625], 'o'), ]
+    arguments = [(nodes[624], 'i'), (nodes[625], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -4183,7 +4183,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[626] = kaas.bufferSpec('626', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[626], 'o'), (nodes[624], 'i'), (nodes[625], 'i'), ]
+    arguments = [(nodes[626], 't'), (nodes[624], 'i'), (nodes[625], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -4194,7 +4194,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[628] = kaas.bufferSpec('628', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[612], 'i'), (nodes[627], 'i'), (nodes[628], 'o'), ]
+    arguments = [(nodes[612], 'i'), (nodes[627], 'i'), (nodes[628], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4205,7 +4205,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[630] = kaas.bufferSpec('630', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[630], 'o'), (nodes[628], 'i'), (nodes[629], 'i'), ]
+    arguments = [(nodes[630], 't'), (nodes[628], 'i'), (nodes[629], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -4213,7 +4213,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[631] = kaas.bufferSpec('631', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[626], 'i'), (nodes[630], 'i'), (nodes[631], 'o'), ]
+    arguments = [(nodes[626], 'i'), (nodes[630], 'i'), (nodes[631], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -4221,7 +4221,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[632] = kaas.bufferSpec('632', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[632], 'o'), (nodes[631], 'i'), ]
+    arguments = [(nodes[632], 't'), (nodes[631], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -4232,7 +4232,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[634] = kaas.bufferSpec('634', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[632], 'i'), (nodes[633], 'i'), (nodes[634], 'o'), ]
+    arguments = [(nodes[632], 'i'), (nodes[633], 'i'), (nodes[634], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4243,7 +4243,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[636] = kaas.bufferSpec('636', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[636], 'o'), (nodes[634], 'i'), (nodes[635], 'i'), (nodes[611], 'i'), ]
+    arguments = [(nodes[636], 't'), (nodes[634], 'i'), (nodes[635], 'i'), (nodes[611], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4252,13 +4252,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a54', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[636], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[636], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[637] = kaas.bufferSpec('637', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[637], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[637], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4266,7 +4266,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[638] = kaas.bufferSpec('638', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[638], 'o'), (nodes[636], 'i'), (nodes[637], 'i'), ]
+    arguments = [(nodes[638], 't'), (nodes[636], 'i'), (nodes[637], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4275,13 +4275,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a55', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[638], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[638], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[639] = kaas.bufferSpec('639', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[639], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[639], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -4295,7 +4295,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[642] = kaas.bufferSpec('642', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[642], 'o'), (nodes[639], 'i'), (nodes[638], 'i'), (nodes[640], 'i'), (nodes[641], 'i'), ]
+    arguments = [(nodes[642], 't'), (nodes[639], 'i'), (nodes[638], 'i'), (nodes[640], 'i'), (nodes[641], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4309,7 +4309,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[645] = kaas.bufferSpec('645', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[643], 'i'), (nodes[644], 'i'), (nodes[645], 'o'), ]
+    arguments = [(nodes[643], 'i'), (nodes[644], 'i'), (nodes[645], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -4320,7 +4320,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[647] = kaas.bufferSpec('647', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[647], 'o'), (nodes[645], 'i'), (nodes[646], 'i'), ]
+    arguments = [(nodes[647], 't'), (nodes[645], 'i'), (nodes[646], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -4331,7 +4331,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[649] = kaas.bufferSpec('649', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[647], 'i'), (nodes[648], 'i'), (nodes[649], 'o'), ]
+    arguments = [(nodes[647], 'i'), (nodes[648], 'i'), (nodes[649], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -4342,7 +4342,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[651] = kaas.bufferSpec('651', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[651], 'o'), (nodes[649], 'i'), (nodes[650], 'i'), (nodes[642], 'i'), ]
+    arguments = [(nodes[651], 't'), (nodes[649], 'i'), (nodes[650], 'i'), (nodes[642], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4351,13 +4351,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a56', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[651], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[651], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[652] = kaas.bufferSpec('652', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[652], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[652], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4365,7 +4365,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[653] = kaas.bufferSpec('653', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[653], 'o'), (nodes[651], 'i'), (nodes[652], 'i'), ]
+    arguments = [(nodes[653], 't'), (nodes[651], 'i'), (nodes[652], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4374,13 +4374,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a57', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[653], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[653], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[654] = kaas.bufferSpec('654', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[654], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[654], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -4394,7 +4394,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[657] = kaas.bufferSpec('657', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[657], 'o'), (nodes[654], 'i'), (nodes[653], 'i'), (nodes[655], 'i'), (nodes[656], 'i'), ]
+    arguments = [(nodes[657], 't'), (nodes[654], 'i'), (nodes[653], 'i'), (nodes[655], 'i'), (nodes[656], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4408,7 +4408,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[660] = kaas.bufferSpec('660', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[658], 'i'), (nodes[659], 'i'), (nodes[660], 'o'), ]
+    arguments = [(nodes[658], 'i'), (nodes[659], 'i'), (nodes[660], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4419,7 +4419,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[662] = kaas.bufferSpec('662', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[662], 'o'), (nodes[660], 'i'), (nodes[661], 'i'), ]
+    arguments = [(nodes[662], 't'), (nodes[660], 'i'), (nodes[661], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -4430,7 +4430,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[664] = kaas.bufferSpec('664', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[658], 'i'), (nodes[663], 'i'), (nodes[664], 'o'), ]
+    arguments = [(nodes[658], 'i'), (nodes[663], 'i'), (nodes[664], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4441,7 +4441,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[666] = kaas.bufferSpec('666', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[666], 'o'), (nodes[664], 'i'), (nodes[665], 'i'), ]
+    arguments = [(nodes[666], 't'), (nodes[664], 'i'), (nodes[665], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -4449,7 +4449,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[667] = kaas.bufferSpec('667', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[662], 'i'), (nodes[666], 'i'), (nodes[667], 'o'), ]
+    arguments = [(nodes[662], 'i'), (nodes[666], 'i'), (nodes[667], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -4457,7 +4457,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[668] = kaas.bufferSpec('668', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[668], 'o'), (nodes[667], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[668], 't'), (nodes[667], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -4465,7 +4465,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[669] = kaas.bufferSpec('669', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[668], 'i'), (nodes[669], 'o'), ]
+    arguments = [(nodes[668], 'i'), (nodes[669], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -4473,7 +4473,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[670] = kaas.bufferSpec('670', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[670], 'o'), (nodes[668], 'i'), (nodes[669], 'i'), ]
+    arguments = [(nodes[670], 't'), (nodes[668], 'i'), (nodes[669], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -4481,7 +4481,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[671] = kaas.bufferSpec('671', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[670], 'i'), (nodes[671], 'o'), ]
+    arguments = [(nodes[670], 'i'), (nodes[671], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -4489,7 +4489,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[672] = kaas.bufferSpec('672', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[672], 'o'), (nodes[670], 'i'), (nodes[671], 'i'), ]
+    arguments = [(nodes[672], 't'), (nodes[670], 'i'), (nodes[671], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -4500,7 +4500,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[674] = kaas.bufferSpec('674', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[658], 'i'), (nodes[673], 'i'), (nodes[674], 'o'), ]
+    arguments = [(nodes[658], 'i'), (nodes[673], 'i'), (nodes[674], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4511,7 +4511,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[676] = kaas.bufferSpec('676', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[676], 'o'), (nodes[674], 'i'), (nodes[675], 'i'), ]
+    arguments = [(nodes[676], 't'), (nodes[674], 'i'), (nodes[675], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -4519,7 +4519,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[677] = kaas.bufferSpec('677', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[672], 'i'), (nodes[676], 'i'), (nodes[677], 'o'), ]
+    arguments = [(nodes[672], 'i'), (nodes[676], 'i'), (nodes[677], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -4527,7 +4527,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[678] = kaas.bufferSpec('678', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[678], 'o'), (nodes[677], 'i'), ]
+    arguments = [(nodes[678], 't'), (nodes[677], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -4538,7 +4538,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[680] = kaas.bufferSpec('680', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[678], 'i'), (nodes[679], 'i'), (nodes[680], 'o'), ]
+    arguments = [(nodes[678], 'i'), (nodes[679], 'i'), (nodes[680], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4549,7 +4549,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[682] = kaas.bufferSpec('682', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[682], 'o'), (nodes[680], 'i'), (nodes[681], 'i'), (nodes[657], 'i'), ]
+    arguments = [(nodes[682], 't'), (nodes[680], 'i'), (nodes[681], 'i'), (nodes[657], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4558,13 +4558,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a58', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[682], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[682], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[683] = kaas.bufferSpec('683', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[683], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[683], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4572,7 +4572,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[684] = kaas.bufferSpec('684', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[684], 'o'), (nodes[682], 'i'), (nodes[683], 'i'), ]
+    arguments = [(nodes[684], 't'), (nodes[682], 'i'), (nodes[683], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4581,13 +4581,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a59', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[684], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[684], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[685] = kaas.bufferSpec('685', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[685], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[685], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -4601,7 +4601,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[688] = kaas.bufferSpec('688', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[688], 'o'), (nodes[685], 'i'), (nodes[684], 'i'), (nodes[686], 'i'), (nodes[687], 'i'), ]
+    arguments = [(nodes[688], 't'), (nodes[685], 'i'), (nodes[684], 'i'), (nodes[686], 'i'), (nodes[687], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4615,7 +4615,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[691] = kaas.bufferSpec('691', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[689], 'i'), (nodes[690], 'i'), (nodes[691], 'o'), ]
+    arguments = [(nodes[689], 'i'), (nodes[690], 'i'), (nodes[691], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -4626,7 +4626,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[693] = kaas.bufferSpec('693', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[693], 'o'), (nodes[691], 'i'), (nodes[692], 'i'), ]
+    arguments = [(nodes[693], 't'), (nodes[691], 'i'), (nodes[692], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -4637,7 +4637,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[695] = kaas.bufferSpec('695', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[693], 'i'), (nodes[694], 'i'), (nodes[695], 'o'), ]
+    arguments = [(nodes[693], 'i'), (nodes[694], 'i'), (nodes[695], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -4648,7 +4648,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[697] = kaas.bufferSpec('697', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[697], 'o'), (nodes[695], 'i'), (nodes[696], 'i'), (nodes[688], 'i'), ]
+    arguments = [(nodes[697], 't'), (nodes[695], 'i'), (nodes[696], 'i'), (nodes[688], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4657,13 +4657,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a60', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[697], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[697], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[698] = kaas.bufferSpec('698', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[698], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[698], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4671,7 +4671,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[699] = kaas.bufferSpec('699', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[699], 'o'), (nodes[697], 'i'), (nodes[698], 'i'), ]
+    arguments = [(nodes[699], 't'), (nodes[697], 'i'), (nodes[698], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4680,13 +4680,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a61', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[699], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[699], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[700] = kaas.bufferSpec('700', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[700], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[700], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -4700,7 +4700,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[703] = kaas.bufferSpec('703', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[703], 'o'), (nodes[700], 'i'), (nodes[699], 'i'), (nodes[701], 'i'), (nodes[702], 'i'), ]
+    arguments = [(nodes[703], 't'), (nodes[700], 'i'), (nodes[699], 'i'), (nodes[701], 'i'), (nodes[702], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4714,7 +4714,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[706] = kaas.bufferSpec('706', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[704], 'i'), (nodes[705], 'i'), (nodes[706], 'o'), ]
+    arguments = [(nodes[704], 'i'), (nodes[705], 'i'), (nodes[706], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4725,7 +4725,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[708] = kaas.bufferSpec('708', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[708], 'o'), (nodes[706], 'i'), (nodes[707], 'i'), ]
+    arguments = [(nodes[708], 't'), (nodes[706], 'i'), (nodes[707], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -4736,7 +4736,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[710] = kaas.bufferSpec('710', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[704], 'i'), (nodes[709], 'i'), (nodes[710], 'o'), ]
+    arguments = [(nodes[704], 'i'), (nodes[709], 'i'), (nodes[710], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4747,7 +4747,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[712] = kaas.bufferSpec('712', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[712], 'o'), (nodes[710], 'i'), (nodes[711], 'i'), ]
+    arguments = [(nodes[712], 't'), (nodes[710], 'i'), (nodes[711], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -4755,7 +4755,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[713] = kaas.bufferSpec('713', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[708], 'i'), (nodes[712], 'i'), (nodes[713], 'o'), ]
+    arguments = [(nodes[708], 'i'), (nodes[712], 'i'), (nodes[713], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -4763,7 +4763,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[714] = kaas.bufferSpec('714', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[714], 'o'), (nodes[713], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[714], 't'), (nodes[713], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -4771,7 +4771,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[715] = kaas.bufferSpec('715', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[714], 'i'), (nodes[715], 'o'), ]
+    arguments = [(nodes[714], 'i'), (nodes[715], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -4779,7 +4779,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[716] = kaas.bufferSpec('716', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[716], 'o'), (nodes[714], 'i'), (nodes[715], 'i'), ]
+    arguments = [(nodes[716], 't'), (nodes[714], 'i'), (nodes[715], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -4787,7 +4787,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[717] = kaas.bufferSpec('717', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[716], 'i'), (nodes[717], 'o'), ]
+    arguments = [(nodes[716], 'i'), (nodes[717], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -4795,7 +4795,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[718] = kaas.bufferSpec('718', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[718], 'o'), (nodes[716], 'i'), (nodes[717], 'i'), ]
+    arguments = [(nodes[718], 't'), (nodes[716], 'i'), (nodes[717], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -4806,7 +4806,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[720] = kaas.bufferSpec('720', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[704], 'i'), (nodes[719], 'i'), (nodes[720], 'o'), ]
+    arguments = [(nodes[704], 'i'), (nodes[719], 'i'), (nodes[720], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4817,7 +4817,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[722] = kaas.bufferSpec('722', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[722], 'o'), (nodes[720], 'i'), (nodes[721], 'i'), ]
+    arguments = [(nodes[722], 't'), (nodes[720], 'i'), (nodes[721], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -4825,7 +4825,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[723] = kaas.bufferSpec('723', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[718], 'i'), (nodes[722], 'i'), (nodes[723], 'o'), ]
+    arguments = [(nodes[718], 'i'), (nodes[722], 'i'), (nodes[723], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -4833,7 +4833,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[724] = kaas.bufferSpec('724', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[724], 'o'), (nodes[723], 'i'), ]
+    arguments = [(nodes[724], 't'), (nodes[723], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -4844,7 +4844,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[726] = kaas.bufferSpec('726', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[724], 'i'), (nodes[725], 'i'), (nodes[726], 'o'), ]
+    arguments = [(nodes[724], 'i'), (nodes[725], 'i'), (nodes[726], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -4855,7 +4855,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[728] = kaas.bufferSpec('728', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[728], 'o'), (nodes[726], 'i'), (nodes[727], 'i'), (nodes[703], 'i'), ]
+    arguments = [(nodes[728], 't'), (nodes[726], 'i'), (nodes[727], 'i'), (nodes[703], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4864,13 +4864,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a62', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[728], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[728], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[729] = kaas.bufferSpec('729', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[729], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[729], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4878,7 +4878,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[730] = kaas.bufferSpec('730', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[730], 'o'), (nodes[728], 'i'), (nodes[729], 'i'), ]
+    arguments = [(nodes[730], 't'), (nodes[728], 'i'), (nodes[729], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4887,13 +4887,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a63', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[730], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[730], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[731] = kaas.bufferSpec('731', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[731], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[731], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -4907,7 +4907,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[734] = kaas.bufferSpec('734', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[734], 'o'), (nodes[731], 'i'), (nodes[730], 'i'), (nodes[732], 'i'), (nodes[733], 'i'), ]
+    arguments = [(nodes[734], 't'), (nodes[731], 'i'), (nodes[730], 'i'), (nodes[732], 'i'), (nodes[733], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -4921,7 +4921,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[737] = kaas.bufferSpec('737', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[735], 'i'), (nodes[736], 'i'), (nodes[737], 'o'), ]
+    arguments = [(nodes[735], 'i'), (nodes[736], 'i'), (nodes[737], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -4932,7 +4932,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[739] = kaas.bufferSpec('739', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[739], 'o'), (nodes[737], 'i'), (nodes[738], 'i'), ]
+    arguments = [(nodes[739], 't'), (nodes[737], 'i'), (nodes[738], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -4943,7 +4943,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[741] = kaas.bufferSpec('741', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[739], 'i'), (nodes[740], 'i'), (nodes[741], 'o'), ]
+    arguments = [(nodes[739], 'i'), (nodes[740], 'i'), (nodes[741], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -4954,7 +4954,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[743] = kaas.bufferSpec('743', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[743], 'o'), (nodes[741], 'i'), (nodes[742], 'i'), (nodes[734], 'i'), ]
+    arguments = [(nodes[743], 't'), (nodes[741], 'i'), (nodes[742], 'i'), (nodes[734], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -4963,13 +4963,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a64', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[743], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[743], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[744] = kaas.bufferSpec('744', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[744], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[744], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -4977,7 +4977,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[745] = kaas.bufferSpec('745', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[745], 'o'), (nodes[743], 'i'), (nodes[744], 'i'), ]
+    arguments = [(nodes[745], 't'), (nodes[743], 'i'), (nodes[744], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -4986,13 +4986,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a65', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[745], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[745], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[746] = kaas.bufferSpec('746', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[746], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[746], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5006,7 +5006,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[749] = kaas.bufferSpec('749', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[749], 'o'), (nodes[746], 'i'), (nodes[745], 'i'), (nodes[747], 'i'), (nodes[748], 'i'), ]
+    arguments = [(nodes[749], 't'), (nodes[746], 'i'), (nodes[745], 'i'), (nodes[747], 'i'), (nodes[748], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5020,7 +5020,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[752] = kaas.bufferSpec('752', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[750], 'i'), (nodes[751], 'i'), (nodes[752], 'o'), ]
+    arguments = [(nodes[750], 'i'), (nodes[751], 'i'), (nodes[752], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5031,7 +5031,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[754] = kaas.bufferSpec('754', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[754], 'o'), (nodes[752], 'i'), (nodes[753], 'i'), ]
+    arguments = [(nodes[754], 't'), (nodes[752], 'i'), (nodes[753], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5042,7 +5042,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[756] = kaas.bufferSpec('756', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[750], 'i'), (nodes[755], 'i'), (nodes[756], 'o'), ]
+    arguments = [(nodes[750], 'i'), (nodes[755], 'i'), (nodes[756], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5053,7 +5053,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[758] = kaas.bufferSpec('758', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[758], 'o'), (nodes[756], 'i'), (nodes[757], 'i'), ]
+    arguments = [(nodes[758], 't'), (nodes[756], 'i'), (nodes[757], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -5061,7 +5061,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[759] = kaas.bufferSpec('759', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[754], 'i'), (nodes[758], 'i'), (nodes[759], 'o'), ]
+    arguments = [(nodes[754], 'i'), (nodes[758], 'i'), (nodes[759], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -5069,7 +5069,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[760] = kaas.bufferSpec('760', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[760], 'o'), (nodes[759], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[760], 't'), (nodes[759], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -5077,7 +5077,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[761] = kaas.bufferSpec('761', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[760], 'i'), (nodes[761], 'o'), ]
+    arguments = [(nodes[760], 'i'), (nodes[761], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -5085,7 +5085,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[762] = kaas.bufferSpec('762', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[762], 'o'), (nodes[760], 'i'), (nodes[761], 'i'), ]
+    arguments = [(nodes[762], 't'), (nodes[760], 'i'), (nodes[761], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -5093,7 +5093,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[763] = kaas.bufferSpec('763', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[762], 'i'), (nodes[763], 'o'), ]
+    arguments = [(nodes[762], 'i'), (nodes[763], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -5101,7 +5101,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[764] = kaas.bufferSpec('764', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[764], 'o'), (nodes[762], 'i'), (nodes[763], 'i'), ]
+    arguments = [(nodes[764], 't'), (nodes[762], 'i'), (nodes[763], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -5112,7 +5112,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[766] = kaas.bufferSpec('766', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[750], 'i'), (nodes[765], 'i'), (nodes[766], 'o'), ]
+    arguments = [(nodes[750], 'i'), (nodes[765], 'i'), (nodes[766], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5123,7 +5123,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[768] = kaas.bufferSpec('768', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[768], 'o'), (nodes[766], 'i'), (nodes[767], 'i'), ]
+    arguments = [(nodes[768], 't'), (nodes[766], 'i'), (nodes[767], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -5131,7 +5131,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[769] = kaas.bufferSpec('769', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[764], 'i'), (nodes[768], 'i'), (nodes[769], 'o'), ]
+    arguments = [(nodes[764], 'i'), (nodes[768], 'i'), (nodes[769], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -5139,7 +5139,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[770] = kaas.bufferSpec('770', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[770], 'o'), (nodes[769], 'i'), ]
+    arguments = [(nodes[770], 't'), (nodes[769], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5150,7 +5150,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[772] = kaas.bufferSpec('772', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[770], 'i'), (nodes[771], 'i'), (nodes[772], 'o'), ]
+    arguments = [(nodes[770], 'i'), (nodes[771], 'i'), (nodes[772], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5161,7 +5161,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[774] = kaas.bufferSpec('774', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[774], 'o'), (nodes[772], 'i'), (nodes[773], 'i'), (nodes[749], 'i'), ]
+    arguments = [(nodes[774], 't'), (nodes[772], 'i'), (nodes[773], 'i'), (nodes[749], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -5170,13 +5170,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a66', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[774], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[774], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[775] = kaas.bufferSpec('775', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[775], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[775], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -5184,7 +5184,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[776] = kaas.bufferSpec('776', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[776], 'o'), (nodes[774], 'i'), (nodes[775], 'i'), ]
+    arguments = [(nodes[776], 't'), (nodes[774], 'i'), (nodes[775], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -5193,13 +5193,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a67', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[776], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[776], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[777] = kaas.bufferSpec('777', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[777], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[777], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5213,7 +5213,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[780] = kaas.bufferSpec('780', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[780], 'o'), (nodes[777], 'i'), (nodes[776], 'i'), (nodes[778], 'i'), (nodes[779], 'i'), ]
+    arguments = [(nodes[780], 't'), (nodes[777], 'i'), (nodes[776], 'i'), (nodes[778], 'i'), (nodes[779], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5227,7 +5227,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[783] = kaas.bufferSpec('783', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[781], 'i'), (nodes[782], 'i'), (nodes[783], 'o'), ]
+    arguments = [(nodes[781], 'i'), (nodes[782], 'i'), (nodes[783], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -5238,7 +5238,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[785] = kaas.bufferSpec('785', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[785], 'o'), (nodes[783], 'i'), (nodes[784], 'i'), ]
+    arguments = [(nodes[785], 't'), (nodes[783], 'i'), (nodes[784], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -5249,7 +5249,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[787] = kaas.bufferSpec('787', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[785], 'i'), (nodes[786], 'i'), (nodes[787], 'o'), ]
+    arguments = [(nodes[785], 'i'), (nodes[786], 'i'), (nodes[787], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -5260,7 +5260,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[789] = kaas.bufferSpec('789', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[789], 'o'), (nodes[787], 'i'), (nodes[788], 'i'), (nodes[780], 'i'), ]
+    arguments = [(nodes[789], 't'), (nodes[787], 'i'), (nodes[788], 'i'), (nodes[780], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -5269,13 +5269,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a68', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[789], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[789], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[790] = kaas.bufferSpec('790', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[790], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[790], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -5283,7 +5283,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[791] = kaas.bufferSpec('791', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[791], 'o'), (nodes[789], 'i'), (nodes[790], 'i'), ]
+    arguments = [(nodes[791], 't'), (nodes[789], 'i'), (nodes[790], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -5292,13 +5292,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a69', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[791], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[791], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[792] = kaas.bufferSpec('792', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[792], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[792], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5312,7 +5312,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[795] = kaas.bufferSpec('795', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[795], 'o'), (nodes[792], 'i'), (nodes[791], 'i'), (nodes[793], 'i'), (nodes[794], 'i'), ]
+    arguments = [(nodes[795], 't'), (nodes[792], 'i'), (nodes[791], 'i'), (nodes[793], 'i'), (nodes[794], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5326,7 +5326,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[798] = kaas.bufferSpec('798', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[796], 'i'), (nodes[797], 'i'), (nodes[798], 'o'), ]
+    arguments = [(nodes[796], 'i'), (nodes[797], 'i'), (nodes[798], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5337,7 +5337,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[800] = kaas.bufferSpec('800', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[800], 'o'), (nodes[798], 'i'), (nodes[799], 'i'), ]
+    arguments = [(nodes[800], 't'), (nodes[798], 'i'), (nodes[799], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5348,7 +5348,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[802] = kaas.bufferSpec('802', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[796], 'i'), (nodes[801], 'i'), (nodes[802], 'o'), ]
+    arguments = [(nodes[796], 'i'), (nodes[801], 'i'), (nodes[802], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5359,7 +5359,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[804] = kaas.bufferSpec('804', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[804], 'o'), (nodes[802], 'i'), (nodes[803], 'i'), ]
+    arguments = [(nodes[804], 't'), (nodes[802], 'i'), (nodes[803], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -5367,7 +5367,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[805] = kaas.bufferSpec('805', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[800], 'i'), (nodes[804], 'i'), (nodes[805], 'o'), ]
+    arguments = [(nodes[800], 'i'), (nodes[804], 'i'), (nodes[805], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -5375,7 +5375,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[806] = kaas.bufferSpec('806', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[806], 'o'), (nodes[805], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[806], 't'), (nodes[805], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -5383,7 +5383,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[807] = kaas.bufferSpec('807', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[806], 'i'), (nodes[807], 'o'), ]
+    arguments = [(nodes[806], 'i'), (nodes[807], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -5391,7 +5391,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[808] = kaas.bufferSpec('808', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[808], 'o'), (nodes[806], 'i'), (nodes[807], 'i'), ]
+    arguments = [(nodes[808], 't'), (nodes[806], 'i'), (nodes[807], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -5399,7 +5399,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[809] = kaas.bufferSpec('809', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[808], 'i'), (nodes[809], 'o'), ]
+    arguments = [(nodes[808], 'i'), (nodes[809], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -5407,7 +5407,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[810] = kaas.bufferSpec('810', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[810], 'o'), (nodes[808], 'i'), (nodes[809], 'i'), ]
+    arguments = [(nodes[810], 't'), (nodes[808], 'i'), (nodes[809], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -5418,7 +5418,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[812] = kaas.bufferSpec('812', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[796], 'i'), (nodes[811], 'i'), (nodes[812], 'o'), ]
+    arguments = [(nodes[796], 'i'), (nodes[811], 'i'), (nodes[812], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5429,7 +5429,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[814] = kaas.bufferSpec('814', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[814], 'o'), (nodes[812], 'i'), (nodes[813], 'i'), ]
+    arguments = [(nodes[814], 't'), (nodes[812], 'i'), (nodes[813], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -5437,7 +5437,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[815] = kaas.bufferSpec('815', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[810], 'i'), (nodes[814], 'i'), (nodes[815], 'o'), ]
+    arguments = [(nodes[810], 'i'), (nodes[814], 'i'), (nodes[815], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -5445,7 +5445,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[816] = kaas.bufferSpec('816', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[816], 'o'), (nodes[815], 'i'), ]
+    arguments = [(nodes[816], 't'), (nodes[815], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5456,7 +5456,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[818] = kaas.bufferSpec('818', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[816], 'i'), (nodes[817], 'i'), (nodes[818], 'o'), ]
+    arguments = [(nodes[816], 'i'), (nodes[817], 'i'), (nodes[818], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5467,7 +5467,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[820] = kaas.bufferSpec('820', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[820], 'o'), (nodes[818], 'i'), (nodes[819], 'i'), (nodes[795], 'i'), ]
+    arguments = [(nodes[820], 't'), (nodes[818], 'i'), (nodes[819], 'i'), (nodes[795], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -5476,13 +5476,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a70', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[820], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[820], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[821] = kaas.bufferSpec('821', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[821], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[821], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -5490,7 +5490,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[822] = kaas.bufferSpec('822', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[822], 'o'), (nodes[820], 'i'), (nodes[821], 'i'), ]
+    arguments = [(nodes[822], 't'), (nodes[820], 'i'), (nodes[821], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -5499,13 +5499,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a71', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[822], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[822], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[823] = kaas.bufferSpec('823', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[823], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[823], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5519,7 +5519,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[826] = kaas.bufferSpec('826', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[826], 'o'), (nodes[823], 'i'), (nodes[822], 'i'), (nodes[824], 'i'), (nodes[825], 'i'), ]
+    arguments = [(nodes[826], 't'), (nodes[823], 'i'), (nodes[822], 'i'), (nodes[824], 'i'), (nodes[825], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5533,7 +5533,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[829] = kaas.bufferSpec('829', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[827], 'i'), (nodes[828], 'i'), (nodes[829], 'o'), ]
+    arguments = [(nodes[827], 'i'), (nodes[828], 'i'), (nodes[829], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -5544,7 +5544,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[831] = kaas.bufferSpec('831', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[831], 'o'), (nodes[829], 'i'), (nodes[830], 'i'), ]
+    arguments = [(nodes[831], 't'), (nodes[829], 'i'), (nodes[830], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -5555,7 +5555,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[833] = kaas.bufferSpec('833', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[831], 'i'), (nodes[832], 'i'), (nodes[833], 'o'), ]
+    arguments = [(nodes[831], 'i'), (nodes[832], 'i'), (nodes[833], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -5566,7 +5566,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[835] = kaas.bufferSpec('835', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[835], 'o'), (nodes[833], 'i'), (nodes[834], 'i'), (nodes[826], 'i'), ]
+    arguments = [(nodes[835], 't'), (nodes[833], 'i'), (nodes[834], 'i'), (nodes[826], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -5575,13 +5575,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a72', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[835], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[835], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[836] = kaas.bufferSpec('836', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[836], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[836], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -5589,7 +5589,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[837] = kaas.bufferSpec('837', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[837], 'o'), (nodes[835], 'i'), (nodes[836], 'i'), ]
+    arguments = [(nodes[837], 't'), (nodes[835], 'i'), (nodes[836], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -5598,13 +5598,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a73', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[837], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[837], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[838] = kaas.bufferSpec('838', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[838], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[838], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5618,7 +5618,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[841] = kaas.bufferSpec('841', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[841], 'o'), (nodes[838], 'i'), (nodes[837], 'i'), (nodes[839], 'i'), (nodes[840], 'i'), ]
+    arguments = [(nodes[841], 't'), (nodes[838], 'i'), (nodes[837], 'i'), (nodes[839], 'i'), (nodes[840], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5632,7 +5632,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[844] = kaas.bufferSpec('844', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[842], 'i'), (nodes[843], 'i'), (nodes[844], 'o'), ]
+    arguments = [(nodes[842], 'i'), (nodes[843], 'i'), (nodes[844], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5643,7 +5643,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[846] = kaas.bufferSpec('846', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[846], 'o'), (nodes[844], 'i'), (nodes[845], 'i'), ]
+    arguments = [(nodes[846], 't'), (nodes[844], 'i'), (nodes[845], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5654,7 +5654,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[848] = kaas.bufferSpec('848', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[842], 'i'), (nodes[847], 'i'), (nodes[848], 'o'), ]
+    arguments = [(nodes[842], 'i'), (nodes[847], 'i'), (nodes[848], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5665,7 +5665,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[850] = kaas.bufferSpec('850', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[850], 'o'), (nodes[848], 'i'), (nodes[849], 'i'), ]
+    arguments = [(nodes[850], 't'), (nodes[848], 'i'), (nodes[849], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -5673,7 +5673,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[851] = kaas.bufferSpec('851', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[846], 'i'), (nodes[850], 'i'), (nodes[851], 'o'), ]
+    arguments = [(nodes[846], 'i'), (nodes[850], 'i'), (nodes[851], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -5681,7 +5681,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[852] = kaas.bufferSpec('852', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[852], 'o'), (nodes[851], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[852], 't'), (nodes[851], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -5689,7 +5689,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[853] = kaas.bufferSpec('853', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[852], 'i'), (nodes[853], 'o'), ]
+    arguments = [(nodes[852], 'i'), (nodes[853], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -5697,7 +5697,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[854] = kaas.bufferSpec('854', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[854], 'o'), (nodes[852], 'i'), (nodes[853], 'i'), ]
+    arguments = [(nodes[854], 't'), (nodes[852], 'i'), (nodes[853], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -5705,7 +5705,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[855] = kaas.bufferSpec('855', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[854], 'i'), (nodes[855], 'o'), ]
+    arguments = [(nodes[854], 'i'), (nodes[855], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -5713,7 +5713,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[856] = kaas.bufferSpec('856', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[856], 'o'), (nodes[854], 'i'), (nodes[855], 'i'), ]
+    arguments = [(nodes[856], 't'), (nodes[854], 'i'), (nodes[855], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -5724,7 +5724,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[858] = kaas.bufferSpec('858', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[842], 'i'), (nodes[857], 'i'), (nodes[858], 'o'), ]
+    arguments = [(nodes[842], 'i'), (nodes[857], 'i'), (nodes[858], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5735,7 +5735,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[860] = kaas.bufferSpec('860', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[860], 'o'), (nodes[858], 'i'), (nodes[859], 'i'), ]
+    arguments = [(nodes[860], 't'), (nodes[858], 'i'), (nodes[859], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -5743,7 +5743,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[861] = kaas.bufferSpec('861', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[856], 'i'), (nodes[860], 'i'), (nodes[861], 'o'), ]
+    arguments = [(nodes[856], 'i'), (nodes[860], 'i'), (nodes[861], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -5751,7 +5751,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[862] = kaas.bufferSpec('862', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[862], 'o'), (nodes[861], 'i'), ]
+    arguments = [(nodes[862], 't'), (nodes[861], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5762,7 +5762,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[864] = kaas.bufferSpec('864', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[862], 'i'), (nodes[863], 'i'), (nodes[864], 'o'), ]
+    arguments = [(nodes[862], 'i'), (nodes[863], 'i'), (nodes[864], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5773,7 +5773,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[866] = kaas.bufferSpec('866', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[866], 'o'), (nodes[864], 'i'), (nodes[865], 'i'), (nodes[841], 'i'), ]
+    arguments = [(nodes[866], 't'), (nodes[864], 'i'), (nodes[865], 'i'), (nodes[841], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -5782,13 +5782,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a74', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[866], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[866], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[867] = kaas.bufferSpec('867', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[867], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[867], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -5796,7 +5796,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[868] = kaas.bufferSpec('868', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[868], 'o'), (nodes[866], 'i'), (nodes[867], 'i'), ]
+    arguments = [(nodes[868], 't'), (nodes[866], 'i'), (nodes[867], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -5805,13 +5805,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a75', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[868], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[868], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[869] = kaas.bufferSpec('869', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[869], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[869], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5825,7 +5825,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[872] = kaas.bufferSpec('872', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[872], 'o'), (nodes[869], 'i'), (nodes[868], 'i'), (nodes[870], 'i'), (nodes[871], 'i'), ]
+    arguments = [(nodes[872], 't'), (nodes[869], 'i'), (nodes[868], 'i'), (nodes[870], 'i'), (nodes[871], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5839,7 +5839,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[875] = kaas.bufferSpec('875', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[873], 'i'), (nodes[874], 'i'), (nodes[875], 'o'), ]
+    arguments = [(nodes[873], 'i'), (nodes[874], 'i'), (nodes[875], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -5850,7 +5850,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[877] = kaas.bufferSpec('877', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[877], 'o'), (nodes[875], 'i'), (nodes[876], 'i'), ]
+    arguments = [(nodes[877], 't'), (nodes[875], 'i'), (nodes[876], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -5861,7 +5861,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[879] = kaas.bufferSpec('879', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[877], 'i'), (nodes[878], 'i'), (nodes[879], 'o'), ]
+    arguments = [(nodes[877], 'i'), (nodes[878], 'i'), (nodes[879], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -5872,7 +5872,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[881] = kaas.bufferSpec('881', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[881], 'o'), (nodes[879], 'i'), (nodes[880], 'i'), (nodes[872], 'i'), ]
+    arguments = [(nodes[881], 't'), (nodes[879], 'i'), (nodes[880], 'i'), (nodes[872], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -5881,13 +5881,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a76', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[881], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[881], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[882] = kaas.bufferSpec('882', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[882], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[882], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -5895,7 +5895,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[883] = kaas.bufferSpec('883', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[883], 'o'), (nodes[881], 'i'), (nodes[882], 'i'), ]
+    arguments = [(nodes[883], 't'), (nodes[881], 'i'), (nodes[882], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -5904,13 +5904,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a77', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[883], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[883], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[884] = kaas.bufferSpec('884', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[884], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[884], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -5924,7 +5924,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[887] = kaas.bufferSpec('887', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[887], 'o'), (nodes[884], 'i'), (nodes[883], 'i'), (nodes[885], 'i'), (nodes[886], 'i'), ]
+    arguments = [(nodes[887], 't'), (nodes[884], 'i'), (nodes[883], 'i'), (nodes[885], 'i'), (nodes[886], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -5938,7 +5938,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[890] = kaas.bufferSpec('890', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[888], 'i'), (nodes[889], 'i'), (nodes[890], 'o'), ]
+    arguments = [(nodes[888], 'i'), (nodes[889], 'i'), (nodes[890], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5949,7 +5949,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[892] = kaas.bufferSpec('892', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[892], 'o'), (nodes[890], 'i'), (nodes[891], 'i'), ]
+    arguments = [(nodes[892], 't'), (nodes[890], 'i'), (nodes[891], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -5960,7 +5960,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[894] = kaas.bufferSpec('894', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[888], 'i'), (nodes[893], 'i'), (nodes[894], 'o'), ]
+    arguments = [(nodes[888], 'i'), (nodes[893], 'i'), (nodes[894], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -5971,7 +5971,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[896] = kaas.bufferSpec('896', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[896], 'o'), (nodes[894], 'i'), (nodes[895], 'i'), ]
+    arguments = [(nodes[896], 't'), (nodes[894], 'i'), (nodes[895], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -5979,7 +5979,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[897] = kaas.bufferSpec('897', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[892], 'i'), (nodes[896], 'i'), (nodes[897], 'o'), ]
+    arguments = [(nodes[892], 'i'), (nodes[896], 'i'), (nodes[897], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -5987,7 +5987,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[898] = kaas.bufferSpec('898', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[898], 'o'), (nodes[897], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[898], 't'), (nodes[897], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -5995,7 +5995,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[899] = kaas.bufferSpec('899', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[898], 'i'), (nodes[899], 'o'), ]
+    arguments = [(nodes[898], 'i'), (nodes[899], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -6003,7 +6003,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[900] = kaas.bufferSpec('900', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[900], 'o'), (nodes[898], 'i'), (nodes[899], 'i'), ]
+    arguments = [(nodes[900], 't'), (nodes[898], 'i'), (nodes[899], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -6011,7 +6011,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[901] = kaas.bufferSpec('901', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[900], 'i'), (nodes[901], 'o'), ]
+    arguments = [(nodes[900], 'i'), (nodes[901], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -6019,7 +6019,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[902] = kaas.bufferSpec('902', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[902], 'o'), (nodes[900], 'i'), (nodes[901], 'i'), ]
+    arguments = [(nodes[902], 't'), (nodes[900], 'i'), (nodes[901], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -6030,7 +6030,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[904] = kaas.bufferSpec('904', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[888], 'i'), (nodes[903], 'i'), (nodes[904], 'o'), ]
+    arguments = [(nodes[888], 'i'), (nodes[903], 'i'), (nodes[904], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6041,7 +6041,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[906] = kaas.bufferSpec('906', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[906], 'o'), (nodes[904], 'i'), (nodes[905], 'i'), ]
+    arguments = [(nodes[906], 't'), (nodes[904], 'i'), (nodes[905], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -6049,7 +6049,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[907] = kaas.bufferSpec('907', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[902], 'i'), (nodes[906], 'i'), (nodes[907], 'o'), ]
+    arguments = [(nodes[902], 'i'), (nodes[906], 'i'), (nodes[907], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -6057,7 +6057,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[908] = kaas.bufferSpec('908', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[908], 'o'), (nodes[907], 'i'), ]
+    arguments = [(nodes[908], 't'), (nodes[907], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6068,7 +6068,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[910] = kaas.bufferSpec('910', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[908], 'i'), (nodes[909], 'i'), (nodes[910], 'o'), ]
+    arguments = [(nodes[908], 'i'), (nodes[909], 'i'), (nodes[910], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6079,7 +6079,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[912] = kaas.bufferSpec('912', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[912], 'o'), (nodes[910], 'i'), (nodes[911], 'i'), (nodes[887], 'i'), ]
+    arguments = [(nodes[912], 't'), (nodes[910], 'i'), (nodes[911], 'i'), (nodes[887], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -6088,13 +6088,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a78', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[912], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[912], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[913] = kaas.bufferSpec('913', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[913], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[913], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -6102,7 +6102,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[914] = kaas.bufferSpec('914', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[914], 'o'), (nodes[912], 'i'), (nodes[913], 'i'), ]
+    arguments = [(nodes[914], 't'), (nodes[912], 'i'), (nodes[913], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -6111,13 +6111,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a79', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[914], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[914], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[915] = kaas.bufferSpec('915', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[915], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[915], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -6131,7 +6131,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[918] = kaas.bufferSpec('918', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[918], 'o'), (nodes[915], 'i'), (nodes[914], 'i'), (nodes[916], 'i'), (nodes[917], 'i'), ]
+    arguments = [(nodes[918], 't'), (nodes[915], 'i'), (nodes[914], 'i'), (nodes[916], 'i'), (nodes[917], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -6145,7 +6145,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[921] = kaas.bufferSpec('921', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[919], 'i'), (nodes[920], 'i'), (nodes[921], 'o'), ]
+    arguments = [(nodes[919], 'i'), (nodes[920], 'i'), (nodes[921], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -6156,7 +6156,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[923] = kaas.bufferSpec('923', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[923], 'o'), (nodes[921], 'i'), (nodes[922], 'i'), ]
+    arguments = [(nodes[923], 't'), (nodes[921], 'i'), (nodes[922], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -6167,7 +6167,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[925] = kaas.bufferSpec('925', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[923], 'i'), (nodes[924], 'i'), (nodes[925], 'o'), ]
+    arguments = [(nodes[923], 'i'), (nodes[924], 'i'), (nodes[925], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -6178,7 +6178,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[927] = kaas.bufferSpec('927', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[927], 'o'), (nodes[925], 'i'), (nodes[926], 'i'), (nodes[918], 'i'), ]
+    arguments = [(nodes[927], 't'), (nodes[925], 'i'), (nodes[926], 'i'), (nodes[918], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -6187,13 +6187,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a80', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[927], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[927], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[928] = kaas.bufferSpec('928', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[928], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[928], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -6201,7 +6201,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[929] = kaas.bufferSpec('929', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[929], 'o'), (nodes[927], 'i'), (nodes[928], 'i'), ]
+    arguments = [(nodes[929], 't'), (nodes[927], 'i'), (nodes[928], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -6210,13 +6210,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a81', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[929], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[929], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[930] = kaas.bufferSpec('930', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[930], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[930], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -6230,7 +6230,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[933] = kaas.bufferSpec('933', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[933], 'o'), (nodes[930], 'i'), (nodes[929], 'i'), (nodes[931], 'i'), (nodes[932], 'i'), ]
+    arguments = [(nodes[933], 't'), (nodes[930], 'i'), (nodes[929], 'i'), (nodes[931], 'i'), (nodes[932], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -6244,7 +6244,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[936] = kaas.bufferSpec('936', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[934], 'i'), (nodes[935], 'i'), (nodes[936], 'o'), ]
+    arguments = [(nodes[934], 'i'), (nodes[935], 'i'), (nodes[936], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6255,7 +6255,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[938] = kaas.bufferSpec('938', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[938], 'o'), (nodes[936], 'i'), (nodes[937], 'i'), ]
+    arguments = [(nodes[938], 't'), (nodes[936], 'i'), (nodes[937], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6266,7 +6266,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[940] = kaas.bufferSpec('940', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[934], 'i'), (nodes[939], 'i'), (nodes[940], 'o'), ]
+    arguments = [(nodes[934], 'i'), (nodes[939], 'i'), (nodes[940], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6277,7 +6277,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[942] = kaas.bufferSpec('942', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[942], 'o'), (nodes[940], 'i'), (nodes[941], 'i'), ]
+    arguments = [(nodes[942], 't'), (nodes[940], 'i'), (nodes[941], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -6285,7 +6285,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[943] = kaas.bufferSpec('943', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[938], 'i'), (nodes[942], 'i'), (nodes[943], 'o'), ]
+    arguments = [(nodes[938], 'i'), (nodes[942], 'i'), (nodes[943], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -6293,7 +6293,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[944] = kaas.bufferSpec('944', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[944], 'o'), (nodes[943], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[944], 't'), (nodes[943], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -6301,7 +6301,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[945] = kaas.bufferSpec('945', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[944], 'i'), (nodes[945], 'o'), ]
+    arguments = [(nodes[944], 'i'), (nodes[945], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -6309,7 +6309,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[946] = kaas.bufferSpec('946', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[946], 'o'), (nodes[944], 'i'), (nodes[945], 'i'), ]
+    arguments = [(nodes[946], 't'), (nodes[944], 'i'), (nodes[945], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -6317,7 +6317,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[947] = kaas.bufferSpec('947', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[946], 'i'), (nodes[947], 'o'), ]
+    arguments = [(nodes[946], 'i'), (nodes[947], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -6325,7 +6325,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[948] = kaas.bufferSpec('948', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[948], 'o'), (nodes[946], 'i'), (nodes[947], 'i'), ]
+    arguments = [(nodes[948], 't'), (nodes[946], 'i'), (nodes[947], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -6336,7 +6336,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[950] = kaas.bufferSpec('950', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[934], 'i'), (nodes[949], 'i'), (nodes[950], 'o'), ]
+    arguments = [(nodes[934], 'i'), (nodes[949], 'i'), (nodes[950], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6347,7 +6347,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[952] = kaas.bufferSpec('952', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[952], 'o'), (nodes[950], 'i'), (nodes[951], 'i'), ]
+    arguments = [(nodes[952], 't'), (nodes[950], 'i'), (nodes[951], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -6355,7 +6355,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[953] = kaas.bufferSpec('953', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[948], 'i'), (nodes[952], 'i'), (nodes[953], 'o'), ]
+    arguments = [(nodes[948], 'i'), (nodes[952], 'i'), (nodes[953], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -6363,7 +6363,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[954] = kaas.bufferSpec('954', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[954], 'o'), (nodes[953], 'i'), ]
+    arguments = [(nodes[954], 't'), (nodes[953], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6374,7 +6374,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[956] = kaas.bufferSpec('956', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[954], 'i'), (nodes[955], 'i'), (nodes[956], 'o'), ]
+    arguments = [(nodes[954], 'i'), (nodes[955], 'i'), (nodes[956], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6385,7 +6385,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[958] = kaas.bufferSpec('958', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[958], 'o'), (nodes[956], 'i'), (nodes[957], 'i'), (nodes[933], 'i'), ]
+    arguments = [(nodes[958], 't'), (nodes[956], 'i'), (nodes[957], 'i'), (nodes[933], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -6394,13 +6394,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a82', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[958], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[958], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[959] = kaas.bufferSpec('959', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[959], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[959], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -6408,7 +6408,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[960] = kaas.bufferSpec('960', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[960], 'o'), (nodes[958], 'i'), (nodes[959], 'i'), ]
+    arguments = [(nodes[960], 't'), (nodes[958], 'i'), (nodes[959], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -6417,13 +6417,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a83', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[960], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[960], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[961] = kaas.bufferSpec('961', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[961], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[961], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -6437,7 +6437,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[964] = kaas.bufferSpec('964', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[964], 'o'), (nodes[961], 'i'), (nodes[960], 'i'), (nodes[962], 'i'), (nodes[963], 'i'), ]
+    arguments = [(nodes[964], 't'), (nodes[961], 'i'), (nodes[960], 'i'), (nodes[962], 'i'), (nodes[963], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -6451,7 +6451,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[967] = kaas.bufferSpec('967', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[965], 'i'), (nodes[966], 'i'), (nodes[967], 'o'), ]
+    arguments = [(nodes[965], 'i'), (nodes[966], 'i'), (nodes[967], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -6462,7 +6462,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[969] = kaas.bufferSpec('969', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[969], 'o'), (nodes[967], 'i'), (nodes[968], 'i'), ]
+    arguments = [(nodes[969], 't'), (nodes[967], 'i'), (nodes[968], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -6473,7 +6473,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[971] = kaas.bufferSpec('971', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[969], 'i'), (nodes[970], 'i'), (nodes[971], 'o'), ]
+    arguments = [(nodes[969], 'i'), (nodes[970], 'i'), (nodes[971], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -6484,7 +6484,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[973] = kaas.bufferSpec('973', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[973], 'o'), (nodes[971], 'i'), (nodes[972], 'i'), (nodes[964], 'i'), ]
+    arguments = [(nodes[973], 't'), (nodes[971], 'i'), (nodes[972], 'i'), (nodes[964], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -6493,13 +6493,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a84', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[973], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[973], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[974] = kaas.bufferSpec('974', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[974], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[974], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -6507,7 +6507,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[975] = kaas.bufferSpec('975', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[975], 'o'), (nodes[973], 'i'), (nodes[974], 'i'), ]
+    arguments = [(nodes[975], 't'), (nodes[973], 'i'), (nodes[974], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -6516,13 +6516,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a85', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[975], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[975], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[976] = kaas.bufferSpec('976', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[976], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[976], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -6536,7 +6536,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[979] = kaas.bufferSpec('979', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[979], 'o'), (nodes[976], 'i'), (nodes[975], 'i'), (nodes[977], 'i'), (nodes[978], 'i'), ]
+    arguments = [(nodes[979], 't'), (nodes[976], 'i'), (nodes[975], 'i'), (nodes[977], 'i'), (nodes[978], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -6550,7 +6550,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[982] = kaas.bufferSpec('982', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[980], 'i'), (nodes[981], 'i'), (nodes[982], 'o'), ]
+    arguments = [(nodes[980], 'i'), (nodes[981], 'i'), (nodes[982], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6561,7 +6561,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[984] = kaas.bufferSpec('984', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[984], 'o'), (nodes[982], 'i'), (nodes[983], 'i'), ]
+    arguments = [(nodes[984], 't'), (nodes[982], 'i'), (nodes[983], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6572,7 +6572,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[986] = kaas.bufferSpec('986', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[980], 'i'), (nodes[985], 'i'), (nodes[986], 'o'), ]
+    arguments = [(nodes[980], 'i'), (nodes[985], 'i'), (nodes[986], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6583,7 +6583,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[988] = kaas.bufferSpec('988', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[988], 'o'), (nodes[986], 'i'), (nodes[987], 'i'), ]
+    arguments = [(nodes[988], 't'), (nodes[986], 'i'), (nodes[987], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -6591,7 +6591,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[989] = kaas.bufferSpec('989', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[984], 'i'), (nodes[988], 'i'), (nodes[989], 'o'), ]
+    arguments = [(nodes[984], 'i'), (nodes[988], 'i'), (nodes[989], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -6599,7 +6599,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[990] = kaas.bufferSpec('990', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[990], 'o'), (nodes[989], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[990], 't'), (nodes[989], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -6607,7 +6607,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[991] = kaas.bufferSpec('991', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[990], 'i'), (nodes[991], 'o'), ]
+    arguments = [(nodes[990], 'i'), (nodes[991], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -6615,7 +6615,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[992] = kaas.bufferSpec('992', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[992], 'o'), (nodes[990], 'i'), (nodes[991], 'i'), ]
+    arguments = [(nodes[992], 't'), (nodes[990], 'i'), (nodes[991], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -6623,7 +6623,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[993] = kaas.bufferSpec('993', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[992], 'i'), (nodes[993], 'o'), ]
+    arguments = [(nodes[992], 'i'), (nodes[993], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -6631,7 +6631,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[994] = kaas.bufferSpec('994', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[994], 'o'), (nodes[992], 'i'), (nodes[993], 'i'), ]
+    arguments = [(nodes[994], 't'), (nodes[992], 'i'), (nodes[993], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -6642,7 +6642,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[996] = kaas.bufferSpec('996', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[980], 'i'), (nodes[995], 'i'), (nodes[996], 'o'), ]
+    arguments = [(nodes[980], 'i'), (nodes[995], 'i'), (nodes[996], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6653,7 +6653,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[998] = kaas.bufferSpec('998', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[998], 'o'), (nodes[996], 'i'), (nodes[997], 'i'), ]
+    arguments = [(nodes[998], 't'), (nodes[996], 'i'), (nodes[997], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -6661,7 +6661,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[999] = kaas.bufferSpec('999', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[994], 'i'), (nodes[998], 'i'), (nodes[999], 'o'), ]
+    arguments = [(nodes[994], 'i'), (nodes[998], 'i'), (nodes[999], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -6669,7 +6669,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1000] = kaas.bufferSpec('1000', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1000], 'o'), (nodes[999], 'i'), ]
+    arguments = [(nodes[1000], 't'), (nodes[999], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6680,7 +6680,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1002] = kaas.bufferSpec('1002', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1000], 'i'), (nodes[1001], 'i'), (nodes[1002], 'o'), ]
+    arguments = [(nodes[1000], 'i'), (nodes[1001], 'i'), (nodes[1002], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6691,7 +6691,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1004] = kaas.bufferSpec('1004', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1004], 'o'), (nodes[1002], 'i'), (nodes[1003], 'i'), (nodes[979], 'i'), ]
+    arguments = [(nodes[1004], 't'), (nodes[1002], 'i'), (nodes[1003], 'i'), (nodes[979], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -6700,13 +6700,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a86', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1004], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1004], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1005] = kaas.bufferSpec('1005', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1005], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1005], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -6714,7 +6714,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1006] = kaas.bufferSpec('1006', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1006], 'o'), (nodes[1004], 'i'), (nodes[1005], 'i'), ]
+    arguments = [(nodes[1006], 't'), (nodes[1004], 'i'), (nodes[1005], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -6723,13 +6723,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a87', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1006], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1006], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1007] = kaas.bufferSpec('1007', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1007], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1007], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -6743,7 +6743,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1010] = kaas.bufferSpec('1010', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1010], 'o'), (nodes[1007], 'i'), (nodes[1006], 'i'), (nodes[1008], 'i'), (nodes[1009], 'i'), ]
+    arguments = [(nodes[1010], 't'), (nodes[1007], 'i'), (nodes[1006], 'i'), (nodes[1008], 'i'), (nodes[1009], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -6757,7 +6757,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[1013] = kaas.bufferSpec('1013', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1011], 'i'), (nodes[1012], 'i'), (nodes[1013], 'o'), ]
+    arguments = [(nodes[1011], 'i'), (nodes[1012], 'i'), (nodes[1013], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -6768,7 +6768,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[1015] = kaas.bufferSpec('1015', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1015], 'o'), (nodes[1013], 'i'), (nodes[1014], 'i'), ]
+    arguments = [(nodes[1015], 't'), (nodes[1013], 'i'), (nodes[1014], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -6779,7 +6779,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1017] = kaas.bufferSpec('1017', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1015], 'i'), (nodes[1016], 'i'), (nodes[1017], 'o'), ]
+    arguments = [(nodes[1015], 'i'), (nodes[1016], 'i'), (nodes[1017], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -6790,7 +6790,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1019] = kaas.bufferSpec('1019', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1019], 'o'), (nodes[1017], 'i'), (nodes[1018], 'i'), (nodes[1010], 'i'), ]
+    arguments = [(nodes[1019], 't'), (nodes[1017], 'i'), (nodes[1018], 'i'), (nodes[1010], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -6799,13 +6799,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a88', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1019], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1019], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1020] = kaas.bufferSpec('1020', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1020], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1020], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -6813,7 +6813,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1021] = kaas.bufferSpec('1021', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1021], 'o'), (nodes[1019], 'i'), (nodes[1020], 'i'), ]
+    arguments = [(nodes[1021], 't'), (nodes[1019], 'i'), (nodes[1020], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -6822,13 +6822,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a89', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1021], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1021], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1022] = kaas.bufferSpec('1022', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1022], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1022], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -6842,7 +6842,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1025] = kaas.bufferSpec('1025', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1025], 'o'), (nodes[1022], 'i'), (nodes[1021], 'i'), (nodes[1023], 'i'), (nodes[1024], 'i'), ]
+    arguments = [(nodes[1025], 't'), (nodes[1022], 'i'), (nodes[1021], 'i'), (nodes[1023], 'i'), (nodes[1024], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -6856,7 +6856,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1028] = kaas.bufferSpec('1028', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1026], 'i'), (nodes[1027], 'i'), (nodes[1028], 'o'), ]
+    arguments = [(nodes[1026], 'i'), (nodes[1027], 'i'), (nodes[1028], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6867,7 +6867,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1030] = kaas.bufferSpec('1030', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1030], 'o'), (nodes[1028], 'i'), (nodes[1029], 'i'), ]
+    arguments = [(nodes[1030], 't'), (nodes[1028], 'i'), (nodes[1029], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6878,7 +6878,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1032] = kaas.bufferSpec('1032', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1026], 'i'), (nodes[1031], 'i'), (nodes[1032], 'o'), ]
+    arguments = [(nodes[1026], 'i'), (nodes[1031], 'i'), (nodes[1032], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6889,7 +6889,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1034] = kaas.bufferSpec('1034', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1034], 'o'), (nodes[1032], 'i'), (nodes[1033], 'i'), ]
+    arguments = [(nodes[1034], 't'), (nodes[1032], 'i'), (nodes[1033], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -6897,7 +6897,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1035] = kaas.bufferSpec('1035', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1030], 'i'), (nodes[1034], 'i'), (nodes[1035], 'o'), ]
+    arguments = [(nodes[1030], 'i'), (nodes[1034], 'i'), (nodes[1035], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -6905,7 +6905,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1036] = kaas.bufferSpec('1036', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1036], 'o'), (nodes[1035], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[1036], 't'), (nodes[1035], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -6913,7 +6913,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[1037] = kaas.bufferSpec('1037', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1036], 'i'), (nodes[1037], 'o'), ]
+    arguments = [(nodes[1036], 'i'), (nodes[1037], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -6921,7 +6921,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1038] = kaas.bufferSpec('1038', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1038], 'o'), (nodes[1036], 'i'), (nodes[1037], 'i'), ]
+    arguments = [(nodes[1038], 't'), (nodes[1036], 'i'), (nodes[1037], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -6929,7 +6929,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[1039] = kaas.bufferSpec('1039', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1038], 'i'), (nodes[1039], 'o'), ]
+    arguments = [(nodes[1038], 'i'), (nodes[1039], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -6937,7 +6937,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1040] = kaas.bufferSpec('1040', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1040], 'o'), (nodes[1038], 'i'), (nodes[1039], 'i'), ]
+    arguments = [(nodes[1040], 't'), (nodes[1038], 'i'), (nodes[1039], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -6948,7 +6948,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1042] = kaas.bufferSpec('1042', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1026], 'i'), (nodes[1041], 'i'), (nodes[1042], 'o'), ]
+    arguments = [(nodes[1026], 'i'), (nodes[1041], 'i'), (nodes[1042], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6959,7 +6959,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1044] = kaas.bufferSpec('1044', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1044], 'o'), (nodes[1042], 'i'), (nodes[1043], 'i'), ]
+    arguments = [(nodes[1044], 't'), (nodes[1042], 'i'), (nodes[1043], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -6967,7 +6967,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1045] = kaas.bufferSpec('1045', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1040], 'i'), (nodes[1044], 'i'), (nodes[1045], 'o'), ]
+    arguments = [(nodes[1040], 'i'), (nodes[1044], 'i'), (nodes[1045], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -6975,7 +6975,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1046] = kaas.bufferSpec('1046', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1046], 'o'), (nodes[1045], 'i'), ]
+    arguments = [(nodes[1046], 't'), (nodes[1045], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -6986,7 +6986,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1048] = kaas.bufferSpec('1048', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1046], 'i'), (nodes[1047], 'i'), (nodes[1048], 'o'), ]
+    arguments = [(nodes[1046], 'i'), (nodes[1047], 'i'), (nodes[1048], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -6997,7 +6997,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1050] = kaas.bufferSpec('1050', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1050], 'o'), (nodes[1048], 'i'), (nodes[1049], 'i'), (nodes[1025], 'i'), ]
+    arguments = [(nodes[1050], 't'), (nodes[1048], 'i'), (nodes[1049], 'i'), (nodes[1025], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -7006,13 +7006,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a90', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1050], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1050], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1051] = kaas.bufferSpec('1051', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1051], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1051], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -7020,7 +7020,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1052] = kaas.bufferSpec('1052', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1052], 'o'), (nodes[1050], 'i'), (nodes[1051], 'i'), ]
+    arguments = [(nodes[1052], 't'), (nodes[1050], 'i'), (nodes[1051], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -7029,13 +7029,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a91', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1052], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1052], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1053] = kaas.bufferSpec('1053', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1053], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1053], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -7049,7 +7049,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1056] = kaas.bufferSpec('1056', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1056], 'o'), (nodes[1053], 'i'), (nodes[1052], 'i'), (nodes[1054], 'i'), (nodes[1055], 'i'), ]
+    arguments = [(nodes[1056], 't'), (nodes[1053], 'i'), (nodes[1052], 'i'), (nodes[1054], 'i'), (nodes[1055], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -7063,7 +7063,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[1059] = kaas.bufferSpec('1059', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1057], 'i'), (nodes[1058], 'i'), (nodes[1059], 'o'), ]
+    arguments = [(nodes[1057], 'i'), (nodes[1058], 'i'), (nodes[1059], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -7074,7 +7074,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[1061] = kaas.bufferSpec('1061', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1061], 'o'), (nodes[1059], 'i'), (nodes[1060], 'i'), ]
+    arguments = [(nodes[1061], 't'), (nodes[1059], 'i'), (nodes[1060], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -7085,7 +7085,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1063] = kaas.bufferSpec('1063', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1061], 'i'), (nodes[1062], 'i'), (nodes[1063], 'o'), ]
+    arguments = [(nodes[1061], 'i'), (nodes[1062], 'i'), (nodes[1063], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -7096,7 +7096,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1065] = kaas.bufferSpec('1065', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1065], 'o'), (nodes[1063], 'i'), (nodes[1064], 'i'), (nodes[1056], 'i'), ]
+    arguments = [(nodes[1065], 't'), (nodes[1063], 'i'), (nodes[1064], 'i'), (nodes[1056], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -7105,13 +7105,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a92', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1065], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1065], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1066] = kaas.bufferSpec('1066', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1066], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1066], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -7119,7 +7119,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1067] = kaas.bufferSpec('1067', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1067], 'o'), (nodes[1065], 'i'), (nodes[1066], 'i'), ]
+    arguments = [(nodes[1067], 't'), (nodes[1065], 'i'), (nodes[1066], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -7128,13 +7128,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a93', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1067], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1067], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1068] = kaas.bufferSpec('1068', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1068], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1068], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -7148,7 +7148,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1071] = kaas.bufferSpec('1071', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1071], 'o'), (nodes[1068], 'i'), (nodes[1067], 'i'), (nodes[1069], 'i'), (nodes[1070], 'i'), ]
+    arguments = [(nodes[1071], 't'), (nodes[1068], 'i'), (nodes[1067], 'i'), (nodes[1069], 'i'), (nodes[1070], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -7162,7 +7162,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1074] = kaas.bufferSpec('1074', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1072], 'i'), (nodes[1073], 'i'), (nodes[1074], 'o'), ]
+    arguments = [(nodes[1072], 'i'), (nodes[1073], 'i'), (nodes[1074], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -7173,7 +7173,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1076] = kaas.bufferSpec('1076', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1076], 'o'), (nodes[1074], 'i'), (nodes[1075], 'i'), ]
+    arguments = [(nodes[1076], 't'), (nodes[1074], 'i'), (nodes[1075], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -7184,7 +7184,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1078] = kaas.bufferSpec('1078', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1072], 'i'), (nodes[1077], 'i'), (nodes[1078], 'o'), ]
+    arguments = [(nodes[1072], 'i'), (nodes[1077], 'i'), (nodes[1078], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -7195,7 +7195,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1080] = kaas.bufferSpec('1080', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1080], 'o'), (nodes[1078], 'i'), (nodes[1079], 'i'), ]
+    arguments = [(nodes[1080], 't'), (nodes[1078], 'i'), (nodes[1079], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_kernel0', path, shapes, arguments))
 
@@ -7203,7 +7203,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1081] = kaas.bufferSpec('1081', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1076], 'i'), (nodes[1080], 'i'), (nodes[1081], 'o'), ]
+    arguments = [(nodes[1076], 'i'), (nodes[1080], 'i'), (nodes[1081], 't'), ]
     shapes = [(6, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_5_kernel0', path, shapes, arguments))
 
@@ -7211,7 +7211,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1082] = kaas.bufferSpec('1082', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1082], 'o'), (nodes[1081], 'i'), (nodes[23], 'i'), ]
+    arguments = [(nodes[1082], 't'), (nodes[1081], 'i'), (nodes[23], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_divide_add_kernel0', path, shapes, arguments))
 
@@ -7219,7 +7219,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[1083] = kaas.bufferSpec('1083', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1082], 'i'), (nodes[1083], 'o'), ]
+    arguments = [(nodes[1082], 'i'), (nodes[1083], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_max_kernel0', path, shapes, arguments))
 
@@ -7227,7 +7227,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1084] = kaas.bufferSpec('1084', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1084], 'o'), (nodes[1082], 'i'), (nodes[1083], 'i'), ]
+    arguments = [(nodes[1084], 't'), (nodes[1082], 'i'), (nodes[1083], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_exp_kernel0', path, shapes, arguments))
 
@@ -7235,7 +7235,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 24576
     nodes[1085] = kaas.bufferSpec('1085', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1084], 'i'), (nodes[1085], 'o'), ]
+    arguments = [(nodes[1084], 'i'), (nodes[1085], 't'), ]
     shapes = [(192, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_sum_kernel0', path, shapes, arguments))
 
@@ -7243,7 +7243,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 9437184
     nodes[1086] = kaas.bufferSpec('1086', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1086], 'o'), (nodes[1084], 'i'), (nodes[1085], 'i'), ]
+    arguments = [(nodes[1086], 't'), (nodes[1084], 'i'), (nodes[1085], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_divide_reshape_kernel0', path, shapes, arguments))
 
@@ -7254,7 +7254,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1088] = kaas.bufferSpec('1088', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1072], 'i'), (nodes[1087], 'i'), (nodes[1088], 'o'), ]
+    arguments = [(nodes[1072], 'i'), (nodes[1087], 'i'), (nodes[1088], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -7265,7 +7265,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1090] = kaas.bufferSpec('1090', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1090], 'o'), (nodes[1088], 'i'), (nodes[1089], 'i'), ]
+    arguments = [(nodes[1090], 't'), (nodes[1088], 'i'), (nodes[1089], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_reshape_transpose_reshape_transpose_1_kernel0', path, shapes, arguments))
 
@@ -7273,7 +7273,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1091] = kaas.bufferSpec('1091', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1086], 'i'), (nodes[1090], 'i'), (nodes[1091], 'o'), ]
+    arguments = [(nodes[1086], 'i'), (nodes[1090], 'i'), (nodes[1091], 't'), ]
     shapes = [(1, 6, 16),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_4_kernel0', path, shapes, arguments))
 
@@ -7281,7 +7281,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1092] = kaas.bufferSpec('1092', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1092], 'o'), (nodes[1091], 'i'), ]
+    arguments = [(nodes[1092], 't'), (nodes[1091], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_transpose_reshape_kernel0', path, shapes, arguments))
 
@@ -7292,7 +7292,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1094] = kaas.bufferSpec('1094', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1092], 'i'), (nodes[1093], 'i'), (nodes[1094], 'o'), ]
+    arguments = [(nodes[1092], 'i'), (nodes[1093], 'i'), (nodes[1094], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_3_kernel0', path, shapes, arguments))
 
@@ -7303,7 +7303,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1096] = kaas.bufferSpec('1096', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1096], 'o'), (nodes[1094], 'i'), (nodes[1095], 'i'), (nodes[1071], 'i'), ]
+    arguments = [(nodes[1096], 't'), (nodes[1094], 'i'), (nodes[1095], 'i'), (nodes[1071], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -7312,13 +7312,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a94', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1096], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1096], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1097] = kaas.bufferSpec('1097', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1097], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1097], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -7326,7 +7326,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1098] = kaas.bufferSpec('1098', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1098], 'o'), (nodes[1096], 'i'), (nodes[1097], 'i'), ]
+    arguments = [(nodes[1098], 't'), (nodes[1096], 'i'), (nodes[1097], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -7335,13 +7335,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a95', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1098], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1098], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1099] = kaas.bufferSpec('1099', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1099], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1099], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -7355,7 +7355,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1102] = kaas.bufferSpec('1102', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1102], 'o'), (nodes[1099], 'i'), (nodes[1098], 'i'), (nodes[1100], 'i'), (nodes[1101], 'i'), ]
+    arguments = [(nodes[1102], 't'), (nodes[1099], 'i'), (nodes[1098], 'i'), (nodes[1100], 'i'), (nodes[1101], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_kernel0', path, shapes, arguments))
 
@@ -7369,7 +7369,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[1105] = kaas.bufferSpec('1105', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1103], 'i'), (nodes[1104], 'i'), (nodes[1105], 'o'), ]
+    arguments = [(nodes[1103], 'i'), (nodes[1104], 'i'), (nodes[1105], 't'), ]
     shapes = [(64, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_2_kernel0', path, shapes, arguments))
 
@@ -7380,7 +7380,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 6291456
     nodes[1107] = kaas.bufferSpec('1107', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1107], 'o'), (nodes[1105], 'i'), (nodes[1106], 'i'), ]
+    arguments = [(nodes[1107], 't'), (nodes[1105], 'i'), (nodes[1106], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_multiply_divide_erf_add_multiply_reshape_kernel0', path, shapes, arguments))
 
@@ -7391,7 +7391,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1109] = kaas.bufferSpec('1109', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1107], 'i'), (nodes[1108], 'i'), (nodes[1109], 'o'), ]
+    arguments = [(nodes[1107], 'i'), (nodes[1108], 'i'), (nodes[1109], 't'), ]
     shapes = [(16, 6, 1),  (8, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_1_kernel0', path, shapes, arguments))
 
@@ -7402,7 +7402,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1111] = kaas.bufferSpec('1111', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1111], 'o'), (nodes[1109], 'i'), (nodes[1110], 'i'), (nodes[1102], 'i'), ]
+    arguments = [(nodes[1111], 't'), (nodes[1109], 'i'), (nodes[1110], 'i'), (nodes[1102], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_add_kernel0', path, shapes, arguments))
 
@@ -7411,13 +7411,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a96', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1111], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1111], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1112] = kaas.bufferSpec('1112', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1112], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1112], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_mean_kernel1', path, shapes, arguments))
 
@@ -7425,7 +7425,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1113] = kaas.bufferSpec('1113', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1113], 'o'), (nodes[1111], 'i'), (nodes[1112], 'i'), ]
+    arguments = [(nodes[1113], 't'), (nodes[1111], 'i'), (nodes[1112], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_subtract_kernel0', path, shapes, arguments))
 
@@ -7434,13 +7434,13 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 4096
     imm.append(kaas.bufferSpec('a97', output_size, const=False, ephemeral=True))
-    arguments = [(nodes[1113], 'i'), (imm[0], 'o'), ]
+    arguments = [(nodes[1113], 'i'), (imm[0], 't'), ]
     shapes = [(12, 1, 1),  (32, 32, 1)]
     kerns.append(makeKern('fused_power_mean_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes[1114] = kaas.bufferSpec('1114', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1114], 'o'), (imm[0], 'i'), ]
+    arguments = [(nodes[1114], 't'), (imm[0], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_power_mean_kernel1', path, shapes, arguments))
 
@@ -7454,7 +7454,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1572864
     nodes[1117] = kaas.bufferSpec('1117', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1117], 'o'), (nodes[1113], 'i'), (nodes[1114], 'i'), (nodes[1115], 'i'), (nodes[1116], 'i'), ]
+    arguments = [(nodes[1117], 't'), (nodes[1113], 'i'), (nodes[1114], 'i'), (nodes[1115], 'i'), (nodes[1116], 'i'), ]
     shapes = [(256, 1, 1),  (1024, 1, 1)]
     kerns.append(makeKern('fused_add_sqrt_divide_multiply_add_reshape_kernel0', path, shapes, arguments))
 
@@ -7465,7 +7465,7 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 3072
     nodes[1119] = kaas.bufferSpec('1119', output_size, const=False, ephemeral=True)
-    arguments = [(nodes[1117], 'i'), (nodes[1118], 'i'), (nodes[1119], 'o'), ]
+    arguments = [(nodes[1117], 'i'), (nodes[1118], 'i'), (nodes[1119], 't'), ]
     shapes = [(1, 6, 1),  (2, 8, 1)]
     kerns.append(makeKern('fused_nn_batch_matmul_kernel0', path, shapes, arguments))
 
@@ -7476,20 +7476,20 @@ def createReq(params, path, mode='direct'):
     # kernel 0
     output_size = 1536
     nodes["1121_0"] = kaas.bufferSpec('1121_0', output_size, const=False, ephemeral=True)
-    arguments = [(nodes['1121_0'], 'o'), (nodes[1119], 'i'), (nodes[1120], 'i'), ]
+    arguments = [(nodes['1121_0'], 't'), (nodes[1119], 'i'), (nodes[1120], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_split_kernel0', path, shapes, arguments))
     # kernel 1
     output_size = 1536
     nodes["1121_1"] = kaas.bufferSpec('1121_1', output_size, const=False, ephemeral=True)
-    arguments = [(nodes['1121_1'], 'o'), (nodes[1119], 'i'), (nodes[1120], 'i'), ]
+    arguments = [(nodes['1121_1'], 't'), (nodes[1119], 'i'), (nodes[1120], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_reshape_add_split_kernel1', path, shapes, arguments))
 
     # 1122. fused_squeeze
     # kernel 0
     output_size = 1536
-    nodes[1122] = kaas.bufferSpec('1122', output_size, const=False, ephemeral=False)
+    nodes[1122] = kaas.bufferSpec('1122', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1122], 'o'), (nodes['1121_1'], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_squeeze_kernel0', path, shapes, arguments))
@@ -7497,7 +7497,7 @@ def createReq(params, path, mode='direct'):
     # 1123. fused_squeeze_1
     # kernel 0
     output_size = 1536
-    nodes[1123] = kaas.bufferSpec('1123', output_size, const=False, ephemeral=False)
+    nodes[1123] = kaas.bufferSpec('1123', output_size, const=False, ephemeral=True)
     arguments = [(nodes[1123], 'o'), (nodes['1121_0'], 'i'), ]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_squeeze_1_kernel0', path, shapes, arguments))
