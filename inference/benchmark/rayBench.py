@@ -9,7 +9,6 @@ import math
 from pprint import pprint
 
 import time
-import asyncio
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -31,8 +30,8 @@ maxOutstanding = 32
 
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
-# PROF_LEVEL = 1  # minimal performance impact
-PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+PROF_LEVEL = 1  # minimal performance impact
+# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -575,8 +574,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     # Warm Runs
     print("Beginning warm runs")
-    results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
-    # results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     warmPoolStats = pool.getProfile()
 
     finalWarm = profiling.profCollection()
@@ -586,11 +585,11 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     coldReport = finalCold.report(includeEvents=False, metrics=['mean'])
     warmReport = finalWarm.report(includeEvents=False, metrics=['mean'])
 
-    print("Warm Results: ")
-    pprint(warmReport)
-
     print("Cold Results: ")
     pprint(coldReport)
+
+    print("Warm Results: ")
+    pprint(warmReport)
 
     print("Saving results to ", reportPath)
     infbench.saveReport(finalWarm, finalCold, benchConfig, reportPath)
@@ -795,13 +794,12 @@ def throughput(modelSpec, benchConfig):
     time.sleep(2)
 
     profs, valid = testLoop.reportMetrics()
-    report = profs.report(includeEvents=False)
 
     print("Saving results to ", benchConfig['name'] + '_results.json')
-    infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(profs, None, benchConfig, benchConfig['name'] + '_results.json')
 
     print("Results")
-    pprint(report)
+    pprint(profs.report())
 
 
 # =============================================================================
