@@ -71,6 +71,14 @@ def updateFormat(suitePath, outPath, suiteType):
 
 
 def aggregateModels(fullResults, metric):
+    """Take the output of loadAllMlperf and return a dictionary of dataframes
+    indexed by model name. Each dataframe will be indexed by nReplicas, the
+    columns are the modes, and the values are 'metric'
+
+    Returns:
+        {modelName: pd.DataFrame()}.
+
+    """
     models = ['resnet50', 'bert', 'jacobi', 'complexCutlassGemm']
     resDfs = {}
     for model in models:
@@ -105,6 +113,9 @@ def aggregateModels(fullResults, metric):
 
 
 def cleanAndMergeRuns(runs):
+    """Load a list or results dictionaries from multiple runs of an MlPerf
+    experiment and merge them into a single dictionary with averaged submission
+    and completion rates and all event lists merged"""
     for run in runs:
         if 'runTime' in run['config']:
             run['config']['t_total'] = run['config']['runTime'] * 1000
@@ -119,6 +130,8 @@ def cleanAndMergeRuns(runs):
             run['submission_rate'] = run['metrics_warm']['n_scheduled']['mean']
 
     merged = {}
+
+    # Assume they all have the same config
     merged['config'] = copy.deepcopy(runs[0]['config'])
 
     # This will get re-added in the merge loop
@@ -135,13 +148,15 @@ def cleanAndMergeRuns(runs):
     merged['completion_rate'] = sum(cRates) / len(cRates)
 
     merged['latencies'] = np.array(list(itertools.chain.from_iterable([run['metrics_warm']['t_response']['events'] for run in runs])))
-    merged['latencies'] *= 1000
 
     return merged
 
 
 def loadOneMlPerf(resDirs):
-    """Consolidate results from a single mlperf output directory into a pandas dataframe"""
+    """Consolidate results from a list of mlperf output directories into a
+    single pandas dataframe representing the aggregate performance of all
+    results dirs.
+    """
     expRuns = collections.defaultdict(list)
     for resDir in resDirs:
         for resFile in resDir.glob("*_results.json"):
@@ -153,6 +168,7 @@ def loadOneMlPerf(resDirs):
         resDicts.append(cleanAndMergeRuns(runs))
 
     aggDict = {}
+
     # Configs are the same across all replicas
     aggDict['config'] = resDicts[0]['config']
     aggDict['config']['n_replica'] = len(resDicts)
@@ -178,7 +194,7 @@ def loadOneMlPerf(resDirs):
     aggDict['n_sample_total'] = len(aggDict['latencies'])
     aggDict['n_mean_sample_per_client'] = aggDict['n_sample_total'] / aggDict['config']['n_replica']
 
-    return aggDict, resDicts
+    return aggDict
 
 
 def loadOneThroughput(resPath):
@@ -201,13 +217,21 @@ def loadOneThroughput(resPath):
 
 
 def getRunDirs(resPath, expNames=None):
-    expDirs = {}
+    """Some experiments support multiple runs that can be aggregated together
+    later. These should have the form of topLevel/run0/,...,runN/ where each
+    runN/ directory contains experiment results directories with the format
+    [model]_[mode]_[nReplica]/. This function parses this directory structure
+    and returns a dictionary mapping the experiment name to the list of
+    directories containing results for that client. In other words, it flattens
+    the multiple runs into lists of directories for each result.
+
+    Returns:
+        {[model]_[mode]_[nReplica]: [pathlib.Path(run0/[model]_[mode]_[nReplica]/), ... pathlib.Path(run1/...)]
+    """
+    expDirs = collections.defaultdict(list)
     for runDir in resPath.glob("*"):
         for resDir in runDir.glob("*"):
             if expNames is None or resDir.name in expNames:
-                if resDir.name not in expDirs:
-                    expDirs[resDir.name] = []
-
                 expDirs[resDir.name].append(resDir)
 
     return expDirs
@@ -222,15 +246,30 @@ def loadAllThroughput(resPath):
     return aggregateModels(fullResults, 'throughput')
 
 
-def loadAllMlPerf(resPath, metric='p90', expNames=None):
+def loadAllMlPerf(resPath, expNames=None):
+    """Load multiple runs of a suite of mlPerf experiments.
+
+    Arguments:
+        resPath: should have the form (run0/, run1/, ...) where each run has a
+            list of [model]_[mode]_[nReplica] results directories, each
+            containing the standard mlperf experiments results.
+        expNames: a list of [model]_[mode]_[nReplica] names to output. Defaults
+            to all available experiments.
+    Returns:
+        {"model_mode_nReplica": pd.DataFrame} # see loadOneMlPerf for details of the dataframe
+    """
+    # per-(model,mode,nReplica) lists of results directories
     expDirs = getRunDirs(resPath, expNames=expNames)
 
+    # Results of a single experiment aggregated across all runs of that
+    # experiment
+    # {"model_mode_nReplica": pd.DataFrame}
     fullResults = {}
     for name, dirs in expDirs.items():
-        aggRes, _ = loadOneMlPerf(dirs)
+        aggRes = loadOneMlPerf(dirs)
         fullResults[name] = aggRes
 
-    return fullResults, aggregateModels(fullResults, metric)
+    return fullResults
 
 
 def minMaxThroughput(thrReport):
@@ -417,28 +456,5 @@ def loadMicroSuite(resDir):
 if __name__ == "__main__":
     resPath = pathlib.Path(sys.argv[1])
 
-    # loadMicroSuiteKaas(resPath)
-    # print(loadNvProf(resPath / 'actNvWarm' / '0_results.csv'))
-
-    means, stds = loadMicroSuite(resPath)
-    print("Means:")
-    print(means)
-    print("STDs:")
-    print(stds)
-
-    # loadOneNShot(resPath)
-    # model = 'resnet50'
-
-    # print(getMaxThroughputs(loadAllThroughput(resPath)))
-    # print(loadAllThroughput(resPath)[model])
-    # print(loadAllMlPerf(resPath, metric='n_sample_total')['cGEMM'])
-
-    # dirs = getRunDirs(resPath, expNames=['resnet50_tvm_5'])
-    # res, _ = loadOneMlPerf(dirs['resnet50_tvm_5'])
-    # res, _ = loadOneMlPerf([resPath])
-
-    # print(loadAllThroughput(resPath))
-    # full, agg = loadAllMlPerf(resPath, metric="p50")
-    # print(agg['resnet50'])
-    # # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='throughput')
-    # updateFormat(resPath, pathlib.Path(sys.argv[2]), suiteType='mlperf')
+    full = loadAllMlPerf(resPath)
+    pprint(aggregateModels(full, metric='p50'))
