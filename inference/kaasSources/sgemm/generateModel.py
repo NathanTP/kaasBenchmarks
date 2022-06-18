@@ -85,7 +85,7 @@ def metaFromReq(req):
             buf = req.bufferMap[bufName]
             if not buf.ephemeral:
                 if buf.const:
-                    #XXX Shape is wrong here, gotta think about why it's really here and what to do with it...
+                    # XXX Shape is wrong here, gotta think about why it's really here and what to do with it...
                     constants.append({"name": buf.name, "type": dtype, "shape": shape, "dataIdx": 0})
                 elif ioType == 'i':
                     inputs.append({"name": buf.name, "type": dtype, "shape": shape})
