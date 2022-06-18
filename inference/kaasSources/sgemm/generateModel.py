@@ -36,10 +36,10 @@ def generateLayer(namePrefix, inputName, libraryPath, layerIdx, outputLayer=Fals
     matSize = (sideLen**2) * elemSize
 
     aBuf = kaas.bufferSpec(inputName, matSize, ephemeral=(not inputLayer), const=False)
-    bBuf = kaas.bufferSpec(namePrefix + "B", matSize, offset=layerIdx * matSize, ephemeral=False, const=True)
+    bBuf = kaas.bufferSpec(namePrefix + "_B", matSize, offset=layerIdx * matSize, ephemeral=False, const=True)
 
-    outputName = namePrefix + "C"
-    cBuf = kaas.bufferSpec(namePrefix + "C", matSize, ephemeral=(not outputLayer), const=False)
+    outputName = namePrefix + "_C"
+    cBuf = kaas.bufferSpec(namePrefix + "_C", matSize, ephemeral=(not outputLayer), const=False)
 
     arguments = [(aBuf, 'i'),
                  (bBuf, 'i'),
@@ -57,16 +57,16 @@ def generateLayer(namePrefix, inputName, libraryPath, layerIdx, outputLayer=Fals
 
 def generateModel(depth, libraryPath):
     layers = []
-    layer, previousOut = generateLayer("input", "inputA", libraryPath, 0,
+    layer, previousOut = generateLayer("layer0", "layer0_A", libraryPath, 0,
                                        outputLayer=False, inputLayer=True)
     layers.append(layer)
 
     for i in range(depth - 2):
-        layer, previousOut = generateLayer("intermediate" + str(i), previousOut, libraryPath, i + 1,
+        layer, previousOut = generateLayer(f"layer{i + 1}", previousOut, libraryPath, i + 1,
                                            outputLayer=False, inputLayer=False)
         layers.append(layer)
 
-    layer, _ = generateLayer("output", previousOut, libraryPath, depth - 1,
+    layer, _ = generateLayer(f"layer{depth - 1}", previousOut, libraryPath, depth - 1,
                              outputLayer=True, inputLayer=False)
     layers.append(layer)
 
@@ -85,7 +85,7 @@ def metaFromReq(req):
             buf = req.bufferMap[bufName]
             if not buf.ephemeral:
                 if buf.const:
-                    #XXX Shape is wrong here, gotta think about why it's really here and what to do with it...
+                    # XXX Shape is wrong here, gotta think about why it's really here and what to do with it...
                     constants.append({"name": buf.name, "type": dtype, "shape": shape, "dataIdx": 0})
                 elif ioType == 'i':
                     inputs.append({"name": buf.name, "type": dtype, "shape": shape})

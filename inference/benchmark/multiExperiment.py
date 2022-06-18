@@ -1,19 +1,37 @@
 #!/usr/bin/env python
 import subprocess as sp
 import pathlib
-import sys
 import datetime
 import shutil
 import time
 import numpy as np
 import itertools
+import argparse
+
 import infbench.bert
 import infbench.resnet50
 import infbench.jacobi
 import infbench.complexCutlassGemm
 
+resultsDir = pathlib.Path("./results")
 
-def getTargetRuntime(nReplica, model, mode):
+# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+# models = ['bert', 'resnet50', 'jacobi', 'complexCutlassGemm']
+# modes = ['kaas', 'tvm']
+
+# nReplicas = [1, 4, 5]
+# models = ['resnet50', 'jacobi']
+# modes = ['kaas', 'tvm']
+
+nReplicas = [1, 2]
+models = ['resnet50', 'jacobi']
+modes = ['kaas', 'tvm']
+
+
+def getTargetRuntime(nReplica, model, mode, fast=False):
+    if fast:
+        return 30
+
     # After 4 replicas, TVM is so slow that we need lots of time to get a good
     # measurement. How much longer we need depends on the model, though longer
     # is always better.
@@ -34,49 +52,32 @@ def getTargetRuntime(nReplica, model, mode):
     return runTime
 
 
-def mlperfMulti(nReplicas, models, modes):
-    if len(sys.argv) == 1:
-        suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-        suiteOutDir = pathlib.Path('results') / f"mlperfSuite_{suffix}"
+def mlperfMulti(configs, suiteOutDir, fast=False):
+    if fast:
+        scaleArg = ['-s', '0.1']
     else:
-        suiteOutDir = pathlib.Path(sys.argv[1])
+        scaleArg = []
 
-    suiteOutDir.mkdir(0o700)
+    for model, mode, nReplica in configs:
+        runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
 
-    resultsDir = pathlib.Path("./results")
+        time.sleep(20)
+        name = f"{model}_{mode}_{nReplica}"
+        print("\nStarting test: ", name)
+        sp.run(['./experiment.py', '-e', 'mlperfMulti',
+                '-n', str(nReplica), f'--runTime={runTime}',
+                '-t', mode, '-m', model] + scaleArg)
 
-    for model in models:
-        for nReplica in nReplicas:
-            for mode in modes:
-                runTime = getTargetRuntime(nReplica, model, mode)
-
-                time.sleep(20)
-                name = f"{model}_{mode}_{nReplica}"
-                print("\nStarting test: ", name)
-                sp.run(['./experiment.py', '-e', 'mlperfMulti',
-                        '-n', str(nReplica), f'--runTime={runTime}',
-                        '-t', mode, '-m', model])
-
-                runOutDir = suiteOutDir / name
-                shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
+        runOutDir = suiteOutDir / name
+        shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
 
     print("Final Results in: ", suiteOutDir)
 
 
-def throughput(configs):
-    if len(sys.argv) == 1:
-        suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-        suiteOutDir = pathlib.Path('results') / f"throughputSuite_{suffix}"
-    else:
-        suiteOutDir = pathlib.Path(sys.argv[1])
-
-    suiteOutDir.mkdir(0o700)
-
-    resultsDir = pathlib.Path("./results")
-
+def throughput(configs, suiteOutDir, fast=False):
     for model, mode, nReplica in configs:
         time.sleep(20)
-        runTime = getTargetRuntime(nReplica, model, mode)
+        runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
 
         name = f"{model}_{mode}_{nReplica}"
         print("\nStarting test: ", name)
@@ -161,7 +162,7 @@ def getMinMaxThroughputs():
     return minMax
 
 
-def getThroughputScales(independent=False):
+def getThroughputScales(independent=False, fast=False):
     # These are the canonical base throughputs used to determine scales
     baseThroughputs = {
         'bert': infbench.bert.bertModelBase.getPerfEstimates("Tesla V100-SXM2-16GB")[0],
@@ -186,28 +187,43 @@ def getThroughputScales(independent=False):
         for mode, modeThpt in modelThpt.items():
             scales[model][mode] = []
             for i, thpt in enumerate(modeThpt):
-                safeThroughput = thpt * 0.8
+                if fast:
+                    safeThroughput = thpt * 0.2
+                else:
+                    safeThroughput = thpt * 0.8
+
                 totalScale = safeThroughput / baseThroughputs[model]
                 scales[model][mode].append(totalScale / (i+1))
 
     return scales
 
 
-def latDistribution(configs, independent=False):
-    suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    if independent:
-        suiteOutDir = pathlib.Path('results') / f"latencyIndependentSuite_{suffix}"
+def latDistribution(configs, suiteOutDir, independent=False, fast=False):
+    global resultsDir
+
+    if suiteOutDir is None:
+        suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+        if independent:
+            suiteOutDir = resultsDir / f"latencyIndependentSuite_{suffix}" / 'run0'
+        else:
+            suiteOutDir = resultsDir / f"latencyDistributionSuite_{suffix}" / 'run0'
     else:
-        suiteOutDir = pathlib.Path('results') / f"latencyDistributionSuite_{suffix}"
+        runIdx = 0
+        for oldRun in suiteOutDir.glob('run*'):
+            oldIdx = int(oldRun.name[-1])
+            if oldIdx >= runIdx:
+                runIdx = oldIdx + 1
+        suiteOutDir = suiteOutDir / f'run{runIdx}'
+        print(suiteOutDir)
 
     suiteOutDir.mkdir(0o700)
 
     resultsDir = pathlib.Path("./results")
 
-    scales = getThroughputScales(independent=independent)
+    scales = getThroughputScales(independent=independent, fast=fast)
     for model, mode, nReplica in configs:
         scale = scales[model][mode][nReplica - 1]
-        runTime = getTargetRuntime(nReplica, model, mode)
+        runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
 
         name = f"{model}_{mode}_{nReplica}"
         print("\nStarting test: ", name)
@@ -221,19 +237,28 @@ def latDistribution(configs, independent=False):
     print("Final Results in: ", suiteOutDir)
 
 
-# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-# models = ['bert', 'resnet50', 'jacobi']
-# modes = ['kaas', 'tvm']
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("Full experiment suites")
+    parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'mlperf'])
+    parser.add_argument('-f', '--fast', action='store_true')
+    parser.add_argument('-o', '--outDir')
+    parser.add_argument('--independent', action='store_true', help="For the lat experiment, this uses the peak throughput for each mode independently. Otherwise, the lowest throughput is used for both modes.")
 
-# nReplicas = [1, 4, 5, 16]
-# nReplicas = [1, 2, 5]
-# nReplicas = [1, 3, 5, 16]
-nReplicas = [4]
-# nReplicas = [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-# models = ['bert', 'jacobi']
-models = ['complexCutlassGemm']
-modes = ['tvm', 'kaas']
-configs = itertools.product(models, modes, nReplicas)
+    args = parser.parse_args()
 
-latDistribution(configs, independent=False)
-# throughput(configs)
+    if args.outDir is None:
+        suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+        outDir = pathlib.Path('results') / f"{args.experiment}_suite_{suffix}"
+        outDir.mkdir(0o700)
+    else:
+        outDir = pathlib.Path(args.outDir)
+
+    configs = itertools.product(models, modes, nReplicas)
+    if args.experiment == 'throughput':
+        throughput(configs, outDir, fast=args.fast)
+    elif args.experiment == 'lat':
+        latDistribution(configs, outDir, independent=args.independent, fast=args.fast)
+    elif args.experiment == 'mlperf':
+        mlperfMulti(configs, outDir, fast=args.fast)
+    else:
+        raise ValueError("Unrecognized experiment: ", args.experiment)

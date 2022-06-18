@@ -299,7 +299,7 @@ def throughput(modelSpec, benchConfig):
     metrics, valid = testLoop.reportMetrics()
     benchConfig['valid'] = valid
 
-    infbench.saveReport(metrics.report(), None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(metrics, None, benchConfig, benchConfig['name'] + '_results.json')
 
 
 # =============================================================================
@@ -311,7 +311,7 @@ class mlperfRunner(threading.Thread):
         self.zmqContext = zmqContext
         self.benchConfig = benchConfig
         self.modelSpec = modelSpec
-        self.metrics = profiling.profCollection()
+        self.metrics = profiling.profCollection(detail=True)
         self.nQuery = 0
 
         threading.Thread.__init__(self)
@@ -427,8 +427,8 @@ def mlperfBench(modelSpec, benchConfig):
     mlPerfMetrics, valid = infbench.parseMlPerf(benchConfig['name'] + '_')
     benchConfig['valid'] = valid
 
-    metrics = profiling.profCollection()
+    metrics = profiling.profCollection(detail=True)
     metrics.merge(testRunner.metrics)
     metrics.merge(mlPerfMetrics)
 
-    infbench.saveReport(metrics.report(), None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(metrics, None, benchConfig, benchConfig['name'] + '_results.json')

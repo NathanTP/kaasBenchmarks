@@ -9,7 +9,6 @@ import math
 from pprint import pprint
 
 import time
-import asyncio
 
 from tornado.ioloop import IOLoop
 import zmq
@@ -31,8 +30,8 @@ maxOutstanding = 32
 
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
-# PROF_LEVEL = 1  # minimal performance impact
-PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
+PROF_LEVEL = 1  # minimal performance impact
+# PROF_LEVEL = 2  # serializes a lot of stuff, really slows down e2e
 
 level1Stats = {
     't_e2e',  # total time for the whole pipeline as observed from the client
@@ -228,7 +227,7 @@ class runActor(kaas.pool.PoolWorker):
     def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
 
-        profs = self.profs
+        profs = self.getProfs()
 
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
@@ -271,7 +270,7 @@ class runActor(kaas.pool.PoolWorker):
 
     def runInline(self, modelInfo, constRefs, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
-        profs = self.profs.mod(clientID)
+        profs = self.getProfs()
 
         # The runActor must cache the model, if you wan't to reset, you must
         # kill and restart the actor. cacheModel is kept for consistency with
@@ -312,7 +311,7 @@ class runActor(kaas.pool.PoolWorker):
         return tuple(result)
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
-        profs = self.profs.mod(clientID)
+        profs = self.getProfs()
 
         with profiling.timer('t_model_run', profs):
             results = kaas.ray.invoke(req, stats=profs.mod('kaas'), clientID=clientID)
@@ -381,14 +380,16 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
-                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
+                # runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"queryId": queryId,
                                              "completionQ": completionQ,
                                              "clientID": clientID})
             else:
-                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
+                # runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"clientID": clientID})
@@ -557,7 +558,9 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
     coldPoolStats = pool.getProfile()
-    coldStats.merge(coldPoolStats)
+    finalCold = profiling.profCollection()
+    finalCold.mod('server').merge(coldStats)
+    finalCold.merge(coldPoolStats)
 
     # Make sure we're done with cold starts by running a large number of
     # requests. Done async to maximize the chances of everything getting warm
@@ -571,23 +574,25 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     # Warm Runs
     print("Beginning warm runs")
-    results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
-    # results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    # results = _nShotAsync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
+    results = _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, warmStats)
     warmPoolStats = pool.getProfile()
 
-    warmStats.merge(warmPoolStats)
+    finalWarm = profiling.profCollection()
+    finalWarm.mod('server').merge(warmStats)
+    finalWarm.merge(warmPoolStats)
 
-    coldReport = coldStats.report(includeEvents=False, metrics=['mean'])
-    warmReport = warmStats.report(includeEvents=False, metrics=['mean'])
-
-    print("Warm Results: ")
-    pprint(warmReport)
+    coldReport = finalCold.report(includeEvents=False, metrics=['mean'])
+    warmReport = finalWarm.report(includeEvents=False, metrics=['mean'])
 
     print("Cold Results: ")
     pprint(coldReport)
 
+    print("Warm Results: ")
+    pprint(warmReport)
+
     print("Saving results to ", reportPath)
-    infbench.saveReport(warmReport, coldReport, benchConfig, reportPath)
+    infbench.saveReport(finalWarm, finalCold, benchConfig, reportPath)
 
     if loader.checkAvailable:
         accuracies = [loader.check(res, idx) for idx, res in results]
@@ -610,9 +615,7 @@ class throughputLoop():
         self.clientID = benchConfig['name'].encode('utf-8')
         self.loop = IOLoop.instance()
 
-        self.coldStats = profiling.profCollection()
-        self.warmStats = profiling.profCollection()
-
+        self.initStats()
         #
         # Common Inputs
         #
@@ -676,6 +679,12 @@ class throughputLoop():
         self.loop.add_callback(self.handleResponses)
         self.startTime = time.time()
 
+    def initStats(self):
+        self.coldStats = profiling.profCollection()
+        self.coldServerStats = self.coldStats.mod('server')
+        self.warmStats = profiling.profCollection()
+        self.warmServerStats = self.warmStats.mod('server')
+
     def preWarm(self):
         self.loader.preLoad([0])
         inputs = self.loader.get(0)
@@ -689,12 +698,12 @@ class throughputLoop():
         for i in range(self.nGpu*2):
             results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
                            self.constRefs, inpRefs, inline=self.benchConfig['inline'],
-                           runPool=self.pool, stats=self.coldStats))
+                           runPool=self.pool, stats=self.coldServerStats))
         for res in results:
             ray.get(res)
 
         coldPoolStats = self.pool.getProfile()
-        self.coldStats.merge(coldPoolStats.mod("throughputGroup"))
+        self.coldServerStats.merge(coldPoolStats.mod("throughputGroup"))
 
     def submitReqs(self):
         while self.nOutstanding < self.targetOutstanding:
@@ -713,7 +722,7 @@ class throughputLoop():
                     self.constRefs, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=self.nextIdx,
                     cacheModel=self.benchConfig['forceCold'], runPool=self.pool,
-                    stats=self.warmStats, clientID='throughputGroup')
+                    stats=self.warmServerStats, clientID='throughputGroup')
 
             self.nextIdx += 1
             self.nOutstanding += 1
@@ -739,11 +748,11 @@ class throughputLoop():
         # metrics = profiling.profCollection()
 
         # useful for debugging mostly. Ideally t_total ~= targetTime
-        self.warmStats['n_completed'].increment(self.nCompleted)
-        self.warmStats['t_total'].increment(self.runTime * 1000)  # we always report time in ms
+        self.warmServerStats['n_completed'].increment(self.nCompleted)
+        self.warmServerStats['t_total'].increment(self.runTime * 1000)  # we always report time in ms
 
         # completions/second
-        self.warmStats['throughput'].increment(self.nCompleted / self.runTime)
+        self.warmServerStats['throughput'].increment(self.nCompleted / self.runTime)
 
         if self.nCompleted < self.targetOutstanding:
             print("\n*********************************************************")
@@ -765,7 +774,7 @@ class throughputLoop():
         self.warmStats.merge(warmPoolStats)
 
         currentStats = self.warmStats
-        self.warmStats = profiling.profCollection()
+        self.initStats()
 
         return currentStats, valid
 
@@ -785,13 +794,12 @@ def throughput(modelSpec, benchConfig):
     time.sleep(2)
 
     profs, valid = testLoop.reportMetrics()
-    report = profs.report(includeEvents=False)
 
     print("Saving results to ", benchConfig['name'] + '_results.json')
-    infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(profs, None, benchConfig, benchConfig['name'] + '_results.json')
 
     print("Results")
-    pprint(report)
+    pprint(profs.report())
 
 
 # =============================================================================
@@ -850,6 +858,8 @@ class mlperfRunner():
 
         self.coldStats = profiling.profCollection(detail=True)
         self.warmStats = profiling.profCollection(detail=True)
+        self.serverColdStats = self.coldStats.mod('server')
+        self.serverWarmStats = self.warmStats.mod('server')
 
         if self.modelSpec.cacheInputs:
             self.inputRefs = {}
@@ -894,7 +904,7 @@ class mlperfRunner():
                 results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
                                self.constants, inpRefs, inline=self.benchConfig['inline'],
                                runPool=self.pool,
-                               stats=self.coldStats, clientID=self.benchConfig['name']))
+                               stats=self.serverColdStats, clientID=self.benchConfig['name']))
             for res in results:
                 ray.get(res)
 
@@ -918,7 +928,7 @@ class mlperfRunner():
                     self.constants, inpRefs, inline=self.benchConfig['inline'],
                     completionQ=self.completionQueue, queryId=q.id,
                     cacheModel=self.benchConfig['forceCold'], runPool=self.pool,
-                    stats=self.warmStats, clientID=self.benchConfig['name'])
+                    stats=self.serverWarmStats, clientID=self.benchConfig['name'])
 
         self.nIssued += len(queryBatch)
 
@@ -977,12 +987,16 @@ def mlperfBench(modelSpec, benchConfig):
         print("*********************************************************\n")
 
     print("\nStats:")
-    warmStats['t_response'] = runner.latMetrics
-    warmStats.merge(mlPerfMetrics)
+    warmStats.mod('server')['t_response'] = runner.latMetrics
+    warmStats.mod('server').merge(mlPerfMetrics)
 
+    print("Performance Profilers")
     pprint(warmStats.report(metrics=['p50']))
 
-    infbench.saveReport(warmStats.report(includeEvents=True), None, benchConfig, 'results.json')
+    print("MLPerf Results:")
+    pprint(mlPerfMetrics.report())
+
+    infbench.saveReport(warmStats, None, benchConfig, 'results.json')
 
 
 # =============================================================================
@@ -1070,9 +1084,9 @@ class serverLoop():
         self.overwhelmed = False
 
     def handleBarrier(self, msg):
-        clientID = msg[0]
+        clientID = msg[0].decode('utf-8')
 
-        print("Recieved Ready from: ", clientID.decode("utf-8"))
+        print("Recieved Ready from: ", clientID)
         self.readyClients.append(clientID)
         if len(self.readyClients) == self.benchConfig['numClient']:
             # Get cold-start stats (if any) and reset for main warm passes
@@ -1083,7 +1097,7 @@ class serverLoop():
 
             print("Releasing Barrier")
             for cID in self.readyClients:
-                self.barrierStream.send_multipart([cID, b'', b'GO'])
+                self.barrierStream.send_multipart([cID.encode('utf-8'), b'', b'GO'])
 
     async def handleWorker(self):
         result, reqData = await self.rayQ.get_async()
@@ -1092,7 +1106,7 @@ class serverLoop():
 
         result = flattenRayRefs(result)
 
-        outBufs = [clientID, reqID]
+        outBufs = [clientID.encode('utf-8'), reqID]
         outBufs.extend(result)
         self.clientStream.send_multipart(outBufs)
         IOLoop.current().add_callback(self.handleWorker)
@@ -1103,22 +1117,10 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
-    async def fakeModel(self, clientID, reqID, startTime=None):
-        startTime = time.time()
-        await self.sem.acquire()
-        self.profs['t_queue'].increment(time.time() - startTime)
-
-        await asyncio.sleep(0.070)
-        self.sem.release()
-
-        self.profs['t_e2e'].increment(time.time() - startTime)
-        self.clientStream.send_multipart([clientID, reqID, b''])
-
     def handleClients(self, msg):
-        clientID = msg[0]
+        clientID = msg[0].decode('utf-8')
         reqID = msg[1]
         data = msg[2:]
-        # clientID, reqID, data = msg
 
         cState = clients.get(clientID, None)
 
@@ -1151,14 +1153,15 @@ class serverLoop():
                     queryId=(clientID, reqID), clientID=clientID,
                     cacheModel=self.benchConfig['forceCold'],
                     inline=self.benchConfig['inline'], runPool=self.pool,
-                    stats=self.clientStats.mod(clientID))
+                    stats=self.clientStats.mod('groups').mod(clientID))
 
     def shutdown(self):
         self.clientStream.stop_on_recv()
         IOLoop.instance().stop()
 
         poolStats = self.pool.getProfile()
-        self.warmStats = self.clientStats
+        self.warmStats = profiling.profCollection()
+        self.warmStats.mod('server').merge(self.clientStats)
         self.warmStats.merge(poolStats)
         self.clientStats = profiling.profCollection()
 
@@ -1184,12 +1187,15 @@ def serveRequests(benchConfig):
     print("Server Exiting")
 
     print("Reporting server stats:")
-    for cID, stats in looper.warmStats.items():
-        if cID is None:
-            strCID = "None"
-        else:
-            strCID = cID.decode("utf-8")
-
-        resPath = f"server_stats_{strCID}.json"
-        print(f"Saving client {strCID} report to {resPath}")
-        infbench.saveReport(stats.report(), None, benchConfig, resPath)
+    resPath = "server_stats.json"
+    print(f"Saving results to: {resPath}")
+    infbench.saveReport(looper.warmStats, None, benchConfig, resPath)
+    # for cID, profs in looper.warmStats.getMods():
+    #     if cID is None:
+    #         strCID = "None"
+    #     else:
+    #         strCID = cID
+    #
+    #     resPath = f"server_stats_{strCID}.json"
+    #     print(f"Saving client {strCID} report to {resPath}")
+    #     infbench.saveReport(profs.report(), None, benchConfig, resPath)
