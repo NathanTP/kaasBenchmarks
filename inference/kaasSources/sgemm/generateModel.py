@@ -39,11 +39,15 @@ def generateLayer(namePrefix, inputName, libraryPath, layerIdx, outputLayer=Fals
     bBuf = kaas.bufferSpec(namePrefix + "_B", matSize, offset=layerIdx * matSize, ephemeral=False, const=True)
 
     outputName = namePrefix + "_C"
-    cBuf = kaas.bufferSpec(namePrefix + "_C", matSize, ephemeral=(not outputLayer), const=False)
+    cBuf = kaas.bufferSpec(namePrefix + "_C", matSize, ephemeral=True, const=False)
 
     arguments = [(aBuf, 'i'),
-                 (bBuf, 'i'),
-                 (cBuf, 'o')]
+                 (bBuf, 'i')]
+
+    if outputLayer:
+        arguments.append((cBuf, 'o'))
+    else:
+        arguments.append((cBuf, 't'))
 
     # libraryName will be overwritten by the client when it loads
     # the model, as will the buffer keys

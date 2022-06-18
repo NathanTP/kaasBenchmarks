@@ -68,11 +68,11 @@ def createReq(M, N, K, redDim, alpha, beta):
 
     firstKern = kaas.kernelSpec(kaas.builtins["complexCutlass"], "complexGemm0",
                                 grid, block, sharedSize=smem,
-                                arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 'o')],
+                                arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 't')],
                                 literals=literals)
 
     dBuf = kaas.bufferSpec('d', N*redDim*dtypeSize, ephemeral=False)
-    eBuf = kaas.bufferSpec('e', M*redDim*dtypeSize, ephemeral=False)
+    eBuf = kaas.bufferSpec('e', M*redDim*dtypeSize, ephemeral=True)
 
     cfg = getDims(M, redDim, N).contents
     grid = (cfg.gridX, cfg.gridY, cfg.gridZ)

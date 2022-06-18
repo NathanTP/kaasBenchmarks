@@ -25,7 +25,7 @@ def generateCubin(outputPath):
 
 def generateModel(libraryPath):
     inpBuf = kaas.bufferSpec('dummyInput', 1024, ephemeral=False)
-    outBuf = kaas.bufferSpec('dummyOutput', 1024, ephemeral=False)
+    outBuf = kaas.bufferSpec('dummyOutput', 1024, ephemeral=True)
 
     kern = kaas.kernelSpec(libraryPath, 'dummy',
                            (1, 1), (1, 1), 0,

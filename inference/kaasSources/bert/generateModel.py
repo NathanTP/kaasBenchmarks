@@ -51,8 +51,8 @@ def metaFromReq(req, graph):
                     constMap[int(bufName)] = buf
                 elif ioType == 'i':
                     inputMap[int(bufName)] = buf
-                elif ioType == 'o':
-                    outputs.append({"name": buf.name, "type": dtype, "shape": shape})
+            elif ioType == 'o':
+                outputs.append({"name": buf.name, "type": dtype, "shape": shape})
 
     constant_list = list(constMap.keys())
     constant_list.sort()

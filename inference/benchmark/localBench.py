@@ -73,7 +73,7 @@ def runKaas(model, kv, constants, inputs, preOut, stats=None):
     runInp = util.packInputs(model.runMap, const=constants, inp=inputs, pre=preOut)
     packedReq = model.run(runInp, outKeys=outKeys)
 
-    kaas.local.invoke(packedReq, kv, stats=stats)
+    kaas.local.invoke(packedReq, kv, profs=stats)
 
     return outKeys
 
