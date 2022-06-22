@@ -104,7 +104,7 @@ def _nShotAsync(inpIds, loader, serverSocket, stats=None, cacheInputs=False):
             respIdx = int.from_bytes(resp[0], sys.byteorder)
 
             respStartTime, respInpId = requests[respIdx]
-            stats['t_e2e'].increment(time.time() - respStartTime)
+            stats['t_e2e'].increment((time.time() - respStartTime)*1000)
 
             # Server is permitted to return requests out of order
             assert (respInpId in inpIds)
@@ -119,7 +119,8 @@ def nShot(modelSpec, n, benchConfig):
     responses. The raw results are returned."""
     clientID = benchConfig['name'].encode('utf-8')
 
-    stats = profiling.profCollection()
+    coldStats = profiling.profCollection()
+    warmStats = profiling.profCollection()
 
     nWarmStep = infbench.getNGpu()*2
 
@@ -137,16 +138,16 @@ def nShot(modelSpec, n, benchConfig):
     sendReq(serverSocket, benchConfig['model'].encode('utf-8'), b'')
 
     # Cold starts
-    _nShotSync(inpIds[:nWarmStep], loader, serverSocket,
-               stats=stats, cacheInputs=modelSpec.cacheInputs)
+    _nShotAsync(inpIds[:nWarmStep], loader, serverSocket,
+                stats=coldStats, cacheInputs=modelSpec.cacheInputs)
 
     print("Waiting for other clients:")
     barrier(barrierSocket)
 
     # Send all requests
     print("Sending Requests:")
-    results = _nShotAsync(inpIds[:n], loader, serverSocket,
-                          stats=stats, cacheInputs=modelSpec.cacheInputs)
+    results = _nShotSync(inpIds[:n], loader, serverSocket,
+                         stats=warmStats, cacheInputs=modelSpec.cacheInputs)
     print("Test complete")
 
     if loader.checkAvailable:
@@ -159,13 +160,13 @@ def nShot(modelSpec, n, benchConfig):
     else:
         print("Accuracy checking not supported for this model")
 
-    report = stats.report(metrics=['mean'])
+    report = warmStats.report(metrics=['mean'])
 
     print("Stats: ")
     pprint(report)
 
     print("Writing full report to: ", benchConfig['name'] + '_results.json')
-    infbench.saveReport(report, None, benchConfig, benchConfig['name'] + '_results.json')
+    infbench.saveReport(warmStats, coldStats, benchConfig, benchConfig['name'] + '_results.json')
 
     return results
 
@@ -245,15 +246,14 @@ class throughputLoop():
             else:
                 return
 
+        self.nOutstanding -= 1
+        self.nCompleted += 1
+
         if time.time() - self.startTime >= self.targetTime:
             print("Test complete, shutting down")
             self.runTime = time.time() - self.startTime
             self.done = True
-
-        self.nOutstanding -= 1
-        self.nCompleted += 1
-
-        if self.nOutstanding < (self.targetOutstanding / 2):
+        elif self.nOutstanding < (self.targetOutstanding / 2):
             self.loop.add_callback(self.submitReqs)
 
     def reportMetrics(self):
@@ -269,6 +269,7 @@ class throughputLoop():
         if self.nCompleted < self.targetOutstanding:
             print("\n*********************************************************")
             print("WARNING: Too few queries completed!")
+            print("\tnQuery=", self.nCompleted)
             print("*********************************************************\n")
             valid = False
         elif self.runTime > self.targetTime*1.2 or self.runTime < self.targetTime*0.2:

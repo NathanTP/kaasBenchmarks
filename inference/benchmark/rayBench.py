@@ -380,16 +380,14 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
-                # runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
-                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"queryId": queryId,
                                              "completionQ": completionQ,
                                              "clientID": clientID})
             else:
-                # runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
-                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"clientID": clientID})
@@ -550,10 +548,12 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
 
     nGpu = infbench.getNGpu()
     pool = kaas.pool.Pool(nGpu, policy=benchConfig['policy'])
-    pool.registerGroup(benchConfig['name'], runActor)
 
     if modelSpec.modelType == 'kaas':
+        pool.registerGroup('kaasExecutor', runActor)
         warmKaas(pool)
+    else:
+        pool.registerGroup(benchConfig['name'], runActor)
 
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)

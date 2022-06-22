@@ -64,8 +64,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
     if modelType == 'Kaas':
         policy = 'balance'
     elif modelType == 'Tvm':
-        # policy = 'exclusive'
-        policy = 'balance'
+        policy = 'exclusive'
     else:
         raise ValueError("Unrecognized Model Type: " + modelType)
 
@@ -207,7 +206,7 @@ def nShotMulti(n, modelType, prefix="nshot_multi", outDir="results"):
 
     models = [
         "resnet50",
-        "bert"
+        "resnet50"
     ]
 
     prefix = f"{prefix}_{modelType}"
@@ -294,7 +293,7 @@ if __name__ == "__main__":
             nIter = args.nCopy
         nShot(args.model, args.modelType, outDir=resultsDir, nIter=nIter)
     elif args.experiment == 'nshotMulti':
-        nShotMulti(8, args.modelType, outDir=resultsDir)
+        nShotMulti(64, args.modelType, outDir=resultsDir)
     elif args.experiment == 'mlperfOne':
         print("Starting mlperfOne")
         mlperfOne(args.model, args.modelType, outDir=resultsDir,
