@@ -198,33 +198,17 @@ def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=
         raise RuntimeError("Run Failed")
 
 
-def nShotMulti(n, modelType, prefix="nshot_multi", outDir="results"):
+def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results", model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    expResultsDir = outDir / f"multi_{modelType}_{suffix}"
+    expResultsDir = outDir / f"nshot_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    models = [
-        "resnet50",
-        "resnet50"
-    ]
+    models = [model]*nCpy
 
     prefix = f"{prefix}_{modelType}"
 
     runTest('nshot', models, modelType, prefix, expResultsDir, nRun=n)
-
-
-def nShot(baseModel, modelType, nIter=1, prefix="nshotOne", outDir="results"):
-    server = launchServer(outDir, 1, modelType, 'balance')
-
-    model = baseModel + modelType
-    runner = launchClient(1.0, model, prefix, 'nshot', outDir, nRun=nIter)
-
-    runner.wait()
-    server.send_signal(signal.SIGINT)
-    server.wait()
-    if runner.returncode != 0:
-        raise RuntimeError("Run Failed")
 
 
 def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="results", nCpy=1, model=None):
@@ -271,13 +255,13 @@ if __name__ == "__main__":
                         choices=['testModel', 'bert', 'resnet50', 'superRes', 'complexCutlassGemm', 'jacobi'],
                         help="Model to run. Not used in mlperfMulti mode.")
     parser.add_argument("-e", "--experiment",
-                        choices=['nshot', 'nshotMulti', 'mlperfOne', 'mlperfMulti', 'throughput'],
+                        choices=['nshot', 'mlperfOne', 'mlperfMulti', 'throughput'],
                         help="Which experiment to run.")
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
-    parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance.")
+    parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
-    parser.add_argument("-n", "--nCopy", type=int, default=1, help="For mlperfMulti, this is the number of model replicas to use. For nshot, this is the number of iterations.")
+    parser.add_argument("-n", "--nCopy", type=int, default=1, help="Number of model replicas to use")
 
     args = parser.parse_args()
 
@@ -287,13 +271,8 @@ if __name__ == "__main__":
 
     if args.experiment == 'nshot':
         print("Starting nshot")
-        if args.nCopy is None:
-            nIter = 32
-        else:
-            nIter = args.nCopy
-        nShot(args.model, args.modelType, outDir=resultsDir, nIter=nIter)
-    elif args.experiment == 'nshotMulti':
-        nShotMulti(64, args.modelType, outDir=resultsDir)
+        nShot(int(args.scale), modelType=args.modelType, nCpy=args.nCopy,
+              outDir=resultsDir, model=args.model)
     elif args.experiment == 'mlperfOne':
         print("Starting mlperfOne")
         mlperfOne(args.model, args.modelType, outDir=resultsDir,

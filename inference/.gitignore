@@ -3,3 +3,4 @@ data
 mlperf_log_*
 *.swp
 modelCache
+benchmark/results

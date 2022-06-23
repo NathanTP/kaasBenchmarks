@@ -119,8 +119,8 @@ def nShot(modelSpec, n, benchConfig):
     responses. The raw results are returned."""
     clientID = benchConfig['name'].encode('utf-8')
 
-    coldStats = profiling.profCollection()
-    warmStats = profiling.profCollection()
+    coldStats = profiling.profCollection(detail=True)
+    warmStats = profiling.profCollection(detail=True)
 
     nWarmStep = infbench.getNGpu()*2
 

@@ -23,7 +23,7 @@ resultsDir = pathlib.Path("./results")
 # models = ['resnet50', 'jacobi']
 # modes = ['kaas', 'tvm']
 
-nReplicas = [1, 2]
+nReplicas = [1]
 models = ['resnet50', 'jacobi']
 modes = ['kaas', 'tvm']
 
@@ -70,6 +70,24 @@ def mlperfMulti(configs, suiteOutDir, fast=False):
 
         runOutDir = suiteOutDir / name
         shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
+
+    print("Final Results in: ", suiteOutDir)
+
+
+def nShot(configs, suiteOutDir):
+    for model, mode, nReplica in configs:
+        name = f"{model}_{mode}_{nReplica}"
+        print("\nStarting test: ", name)
+        sp.run(['./experiment.py',
+                '-e', 'nshot',
+                '-n', str(nReplica),
+                '-s', '64',
+                '-t', mode,
+                '-m', model])
+
+        runOutDir = suiteOutDir / name
+        shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
+        time.sleep(20)
 
     print("Final Results in: ", suiteOutDir)
 
@@ -239,7 +257,7 @@ def latDistribution(configs, suiteOutDir, independent=False, fast=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Full experiment suites")
-    parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'mlperf'])
+    parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'mlperf', 'nshot'])
     parser.add_argument('-f', '--fast', action='store_true')
     parser.add_argument('-o', '--outDir')
     parser.add_argument('--independent', action='store_true', help="For the lat experiment, this uses the peak throughput for each mode independently. Otherwise, the lowest throughput is used for both modes.")
@@ -260,5 +278,7 @@ if __name__ == "__main__":
         latDistribution(configs, outDir, independent=args.independent, fast=args.fast)
     elif args.experiment == 'mlperf':
         mlperfMulti(configs, outDir, fast=args.fast)
+    elif args.experiment == 'nshot':
+        nShot(configs, outDir)
     else:
         raise ValueError("Unrecognized experiment: ", args.experiment)
