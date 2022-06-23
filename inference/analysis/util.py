@@ -86,20 +86,18 @@ def aggregateModels(fullResults, metric):
         modelRes = [res for res in fullResults.values() if model in res['config']['model']]
         if len(modelRes) == 0:
             continue
-        maxNReplica = max([d['config']['n_replica'] for d in modelRes])
+        maxNReplica = max([d['config']['numClient'] for d in modelRes])
 
         fullIndex = list(range(1, maxNReplica+1))
         df = pd.DataFrame(index=fullIndex)
 
         tvmRes = [res for res in modelRes if res['config']['model_type'] in ['tvm', 'direct']]
-        tvmSer = pd.Series([res[metric] for res in tvmRes], index=[res['config']['n_replica'] for res in tvmRes])
-        # tvmSer = pd.Series([res['config']['t_total'] for res in tvmRes], index=[res['config']['n_replica'] for res in tvmRes])
+        tvmSer = pd.Series([res[metric] for res in tvmRes], index=[res['config']['numClient'] for res in tvmRes])
         tvmSer = tvmSer.reindex(fullIndex)
         df[baselineName] = tvmSer
 
         kaasRes = [res for res in modelRes if res['config']['model_type'] == "kaas"]
-        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes])
-        # kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['n_replica'] for res in kaasRes], dtype=np.float64)
+        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['numClient'] for res in kaasRes])
         kaasSer = kaasSer.reindex(fullIndex)
         df[kaasName] = kaasSer
 
@@ -198,25 +196,6 @@ def loadOneMlPerf(resDirs):
     return aggDict
 
 
-def loadOneThroughput(resPath):
-    resDicts = []
-    for resFile in resPath.glob("*_results.json"):
-        with open(resFile, 'r') as f:
-            # resDicts += json.load(f)
-            resDicts.append(json.load(f))
-
-    aggDict = {}
-    aggDict['config'] = resDicts[0]['config']
-    aggDict['config']['n_replica'] = len(resDicts)
-
-    aggDict['throughput'] = sum([d['metrics_warm']['throughput']['mean'] for d in resDicts])
-
-    # Standard deviation between replicas
-    aggDict['std'] = np.std(np.array([d['metrics_warm']['throughput']['mean'] for d in resDicts]))
-
-    return aggDict, resDicts
-
-
 def getRunDirs(resPath, expNames=None):
     """Some experiments support multiple runs that can be aggregated together
     later. These should have the form of topLevel/run0/,...,runN/ where each
@@ -238,12 +217,49 @@ def getRunDirs(resPath, expNames=None):
     return expDirs
 
 
-def loadAllThroughput(resPath):
-    fullResults = {}
-    for resDir in resPath.glob("*"):
-        aggRes, _ = loadOneThroughput(resDir)
-        fullResults[resDir.name] = aggRes
+def loadOneThroughput(resDirs):
+    resDicts = []
 
+    with open(resDirs[0] / "server_stats.json", 'r') as f:
+        serverStats = json.load(f)
+
+    for resDir in resDirs:
+        for resFile in resDir.glob("*_results.json"):
+            with open(resFile, 'r') as f:
+                resDicts.append(json.load(f))
+
+    aggDict = {}
+    aggDict['config'] = resDicts[0]['config']
+
+    # The per-client configs think they only have one client, but the server
+    # knows the real number.
+    aggDict['config']['numClient'] = serverStats['config']['numClient']
+
+    aggDict['throughput'] = sum([d['metrics_warm']['throughput']['mean'] for d in resDicts]) / len(resDirs)
+
+    # Standard deviation between replicas
+    aggDict['std'] = np.std(np.array([d['metrics_warm']['throughput']['mean'] for d in resDicts]))
+
+    return aggDict
+
+
+def loadAllThroughput(resDir):
+    """Return pandas dataframes representing throughput results aggregated across all runs in resDir.
+        {modelName: pd.DataFrame}
+
+        DataFrames:
+            index: numClient
+            cols: 'eTask', 'kTask'
+            values: aggregate throughput across all clients
+    """
+    expDirs = getRunDirs(resDir)
+
+    fullResults = {}
+    for name, dirs in expDirs.items():
+        aggRes = loadOneThroughput(dirs)
+        fullResults[name] = aggRes
+
+    print(fullResults.keys())
     return aggregateModels(fullResults, 'throughput')
 
 
@@ -562,8 +578,6 @@ def generateProperties(nShotDir, throughputDir, propFile):
 
 if __name__ == "__main__":
     resDir = pathlib.Path(sys.argv[1])
-    pprint(generateProperties(resDir, None, None))
+    pprint(loadAllThroughput(resDir))
+    # pprint(generateProperties(resDir, None, None))
     # resPath = pathlib.Path(sys.argv[1])
-    #
-    # full = loadAllMlPerf(resPath)
-    # pprint(aggregateModels(full, metric='p50'))
