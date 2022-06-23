@@ -531,14 +531,26 @@ def generateProperties(nShotDir, throughputDir, propFile):
     #         }
     #     }
     # }
+    warmNShot, _ = loadAllNShot(nShotDir)
     dat = {'isolated': {}, 'full': {}}
     isolated = dat['isolated']
     for modelName in models:
+        kaasRunName = f"{modelName}_kaas_1"
+        tvmRunName = f"{modelName}_tvm_1"
+
         isolated[modelName] = {'kaas': {}, 'tvm': {}}
+        if kaasRunName not in warmNShot:
+            isolated[modelName]['kaas']['latency'] = None
+        else:
+            isolated[modelName]['kaas']['latency'] = warmNShot[kaasRunName]['t_e2e']['p50']
+
+        if tvmRunName not in warmNShot:
+            isolated[modelName]['tvm']['latency'] = None
+        else:
+            isolated[modelName]['tvm']['latency'] = warmNShot[tvmRunName]['t_e2e']['p50']
+
         isolated[modelName]['kaas']['qps'] = None
-        isolated[modelName]['kaas']['latency'] = None
         isolated[modelName]['tvm']['qps'] = None
-        isolated[modelName]['tvm']['latency'] = None
 
     full = dat['full']
     for modelName in models:
@@ -550,8 +562,7 @@ def generateProperties(nShotDir, throughputDir, propFile):
 
 if __name__ == "__main__":
     resDir = pathlib.Path(sys.argv[1])
-    warm, cold = loadAllNShot(resDir)
-    print(warm['resnet50_tvm_1']['t_e2e']['p50'])
+    pprint(generateProperties(resDir, None, None))
     # resPath = pathlib.Path(sys.argv[1])
     #
     # full = loadAllMlPerf(resPath)
