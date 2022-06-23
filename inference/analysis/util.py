@@ -11,6 +11,7 @@ import shutil
 from pprint import pprint
 
 
+models = ['complexCutlassGemm', 'resnet50', 'testModel', 'bert', 'jacobi']
 modelRenames = {"complexCutlassGemm": "cGEMM"}
 
 baselineName = "eTask"
@@ -290,13 +291,62 @@ def getMaxThroughputs(thrReport):
     return maxThr
 
 
-def loadOneNShot(resPath):
-    with open(resPath, 'r') as f:
-        allRes = json.load(f)
-
+def mergeNShot(allRes):
+    # Merge just the events from each metric for all runs
+    # aggDict = collections.defaultdict(lambda: collections.defaultdict(list))
+    aggDict = {}
     for res in allRes:
-        res['metrics'] = {k: v['mean'] for k, v in res['metrics'].items()}
-    pprint(allRes[0]['config'])
+        for metric, values in res.items():
+            if metric not in aggDict:
+                aggDict[metric] = {'events': []}
+            aggDict[metric]['events'] += values['events']
+
+    for metric, values in aggDict.items():
+        values['max'] = np.max(values['events'])
+        values['min'] = np.min(values['events'])
+        values['mean'] = np.mean(values['events'])
+        values['p10'] = np.quantile(values['events'], 0.10)
+        values['p50'] = np.quantile(values['events'], 0.50)
+        values['p90'] = np.quantile(values['events'], 0.90)
+        values['p99'] = np.quantile(values['events'], 0.99)
+        values['std'] = np.std(values['events'])
+        values['cov'] = values['std'] / values['mean']
+
+    return aggDict
+
+
+def loadOneNShot(resPaths):
+    """Load raw results directories and merge them into one
+        Returns: warmResults, coldResults
+    """
+    allWarm = []
+    allCold = []
+    for resPath in resPaths:
+        resFiles = list(resPath.glob("*_results.json"))
+        assert len(resFiles) == 1
+        with open(resFiles[0], 'r') as f:
+            allRes = json.load(f)
+            allWarm.append(allRes['metrics_warm'])
+            allCold.append(allRes['metrics_cold'])
+
+    return mergeNShot(allWarm), mergeNShot(allCold)
+
+
+def loadAllNShot(resDir):
+    """Given an nshot suite directory, return all the merged results including derived metrics.
+        {[model]_[mode]_[nReplica]: {metric: {'events': [...], 'mean': mean, 'p50': median, etc...}, ...}, ...}
+    Returns warmResults, coldResults
+    """
+    runDirs = getRunDirs(resDir)
+
+    allWarm = {}
+    allCold = {}
+    for exp, dirs in runDirs.items():
+        warm, cold = loadOneNShot(dirs)
+        allWarm[exp] = warm
+        allCold[exp] = cold
+
+    return allWarm, allCold
 
 
 def loadMicroNative(builtinMetrics, nvMetrics):
@@ -453,8 +503,56 @@ def loadMicroSuite(resDir):
     return (means, stds)
 
 
-if __name__ == "__main__":
-    resPath = pathlib.Path(sys.argv[1])
+def generateProperties(nShotDir, throughputDir, propFile):
+    """Generate a properties.json file given a list of nShot and throughput
+    results.  If profFile exists, new data from nShitDir or throughputDir will
+    be used, but any existing data that doesn't exist in the new results will
+    be left alone. This allows for incremental construction as needed.
 
-    full = loadAllMlPerf(resPath)
-    pprint(aggregateModels(full, metric='p50'))
+    Missing data will be set to None
+    """
+    # Schema:
+    # {
+    #     'isolated': { # measurements taken on a single GPU in client/server mode
+    #         modelName: {
+    #             'kaas': {
+    #                 "qps": peak throughput number,
+    #                 "latency": median latency as reported by nShot
+    #             },
+    #             'tvm': {...}
+    #         }, ...
+    #     },
+    #     'full': { # measurements from full suite of runs on 8 GPU system
+    #         modelName: {
+    #             'kaas': {
+    #                 'throughput': [throughput for 1 client, 2 clients, ..., 16 clients]
+    #             },
+    #             'tvm': {...}
+    #         }
+    #     }
+    # }
+    dat = {'isolated': {}, 'full': {}}
+    isolated = dat['isolated']
+    for modelName in models:
+        isolated[modelName] = {'kaas': {}, 'tvm': {}}
+        isolated[modelName]['kaas']['qps'] = None
+        isolated[modelName]['kaas']['latency'] = None
+        isolated[modelName]['tvm']['qps'] = None
+        isolated[modelName]['tvm']['latency'] = None
+
+    full = dat['full']
+    for modelName in models:
+        full[modelName] = {'kaas': {'throughput': [None]*16},
+                           'tvm':  {'throughput': [None]*16}}
+
+    return dat
+
+
+if __name__ == "__main__":
+    resDir = pathlib.Path(sys.argv[1])
+    warm, cold = loadAllNShot(resDir)
+    print(warm['resnet50_tvm_1']['t_e2e']['p50'])
+    # resPath = pathlib.Path(sys.argv[1])
+    #
+    # full = loadAllMlPerf(resPath)
+    # pprint(aggregateModels(full, metric='p50'))
