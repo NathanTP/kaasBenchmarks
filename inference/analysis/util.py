@@ -518,35 +518,43 @@ def loadMicroSuite(resDir):
     return (means, stds)
 
 
-def generatePropertiesNShot(nShotDir):
+def generatePropertiesNShot(dat, nShotDir):
+    """Add any results from nShotDir to dat. See generateProperties() for details."""
     warmNShot, _ = loadAllNShot(nShotDir)
-    isolated = {}
+    isolated = dat['isolated']
     for modelName in models:
         kaasRunName = f"{modelName}_kaas_1"
         tvmRunName = f"{modelName}_tvm_1"
 
-        isolated[modelName] = {'kaas': {}, 'tvm': {}}
-        if kaasRunName not in warmNShot:
-            isolated[modelName]['kaas']['latency'] = None
-        else:
+        if kaasRunName in warmNShot:
             isolated[modelName]['kaas']['latency'] = warmNShot[kaasRunName]['t_e2e']['p50']
 
-        if tvmRunName not in warmNShot:
-            isolated[modelName]['tvm']['latency'] = None
-        else:
+        if tvmRunName in warmNShot:
             isolated[modelName]['tvm']['latency'] = warmNShot[tvmRunName]['t_e2e']['p50']
 
     return isolated
 
 
-def generatePropertiesThroughput(throughputDir):
+def generatePropertiesThroughputSingle(dat, throughputDir):
+    """Add any results from throughputDir to dat. See generateProperties() for details."""
+    throughputRes = loadAllThroughput(throughputDir)
+    isolated = dat['isolated']
+    for modelName in models:
+        if modelName in throughputRes:
+            modelRes = throughputRes[modelName]
+            kQps = modelRes.loc[1, 'kTask']
+            eQps = modelRes.loc[1, 'eTask']
+            isolated[modelName] = {'kaas': {'qps': kQps}, 'tvm': {'qps': eQps}}
+
+    return isolated
+
+
+def generatePropertiesThroughputFull(dat, throughputDir):
+    """Add any results from throughputDir to dat. See generateProperties() for details."""
     throughputRes = loadAllThroughput(throughputDir)
 
-    full = {}
+    full = dat['full']
     for modelName in models:
-        full[modelName] = {'kaas': {'throughput': [None]*16},
-                           'tvm':  {'throughput': [None]*16}}
-
         if modelName in throughputRes:
             modelRes = throughputRes[modelName]
             for nClient, row in modelRes.iterrows():
@@ -556,51 +564,78 @@ def generatePropertiesThroughput(throughputDir):
     return full
 
 
-def generateProperties(nShotDir, throughputDir, propFile):
+def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDir):
     """Generate a properties.yaml file given a list of nShot and throughput
-    results.  If profFile exists, new data from nShitDir or throughputDir will
-    be used, but any existing data that doesn't exist in the new results will
-    be left alone. This allows for incremental construction as needed. Merged
-    results will be written back to propFile.
+    results. Missing data will be set to None. If profFile exists, new data
+    from nShotDir or throughputDir will be used, but any existing data that
+    doesn't exist in the new results will be left alone. This allows for
+    incremental construction as needed. Merged results will be written back to
+    propFile.
 
-    Missing data will be set to None
+    Arguments:
+        propFile:
+            properties file (json) to output. If propFile exists, any new
+            results will be merged into it.
+        nShotDir:
+            Output of "CUDA_VISIBLE_DEVICES=0 ./multiExperiment.py -e nshot"
+        throughputSingleDir:
+            Output of "CUDA_VISIBLE_DEVICES=0 ./multiExperiment.py -e throughput"
+        throughputFullDir:
+            Output of "./multiExperiment.py -e throughput" (on the full 8 GPU
+            system with all nReplicas and models enabled)
+
+    Returns:
+        The full properties dictionary (same thing written to propFile)
     """
     # Schema:
     # {
     #     # measurements taken on a single GPU in client/server mode.
+    #     # Generate with "CUDA_VISIBLE_DEVICES=0 ./multiExperiment.py" and
+    #     # configured for just 1 replica.
     #     'isolated': {
     #         modelName: {
     #             'kaas': {
+    #                 # Generated with ./multiExperiment.py -e nshot
     #                 "qps": peak throughput number,
+    #                 # Generated with ./multiExperiment.py -e throughput
     #                 "latency": median latency as reported by nShot
     #             },
     #             'tvm': {...}
     #         }, ...
     #     },
-    #     # measurements from full suite of runs on 8 GPU system
+    #     # measurements from full suite of runs on 8 GPU system.
+    #     # Generate on the full 8 GPU server with "./multiExperiment"
+    #     # configured with the full range of models/replicas
     #     'full': {
     #         modelName: {
     #             'kaas': {
+    #                 # Use ./multiExperiment.py -e throughput
     #                 'throughput': [throughput for 1 client, 2 clients, ..., 16 clients]
     #             },
     #             'tvm': {...}
     #         }
     #     }
     # }
-    newDat = {}
-    if nShotDir is not None:
-        newDat['isolated'] = generatePropertiesNShot(nShotDir)
-    else:
-        for modelName in models:
-            newDat['isolated'][modelName] = {'kaas': {'latency': None}, 'tvm': {'latency': None}}
 
-    if throughputDir is not None:
-        newDat['full'] = generatePropertiesThroughput(throughputDir)
-    else:
-        newDat['full'] = {}
-        for modelName in models:
-            newDat['full'][modelName] = {'kaas': {'throughput': [None]*16},
-                                         'tvm':  {'throughput': [None]*16}}
+    # Create a template for the generate* functions to populate
+    newDat = {}
+    newDat['isolated'] = {}
+    newDat['full'] = {}
+    for modelName in models:
+        newDat['isolated'][modelName] = {'kaas': {'latency': None, 'qps': None},
+                                         'tvm': {'latency': None, 'qps': None}}
+
+        newDat['full'][modelName] = {'kaas': {'throughput': [None]*16},
+                                     'tvm':  {'throughput': [None]*16}}
+
+    if nShotDir is not None:
+        newDat['isolated'] = generatePropertiesNShot(newDat, nShotDir)
+
+    if throughputSingleDir is not None:
+        newDat['isolated'] |= generatePropertiesThroughputSingle(newDat, throughputSingleDir)
+
+    if throughputFullDir is not None:
+        newDat['full'] = generatePropertiesThroughputFull(newDat, throughputFullDir)
 
     if propFile is not None and propFile.exists():
         with open(propFile, 'r') as f:
@@ -616,7 +651,11 @@ def generateProperties(nShotDir, throughputDir, propFile):
 
 
 if __name__ == "__main__":
-    resDir = pathlib.Path(sys.argv[1])
+    # resDir = pathlib.Path(sys.argv[1])
     # pprint(loadAllThroughput(resDir))
-    pprint(generateProperties(pathlib.Path('results/nshot'), pathlib.Path('results/throughput'), pathlib.Path('testProperties.json')))
+    pprint(generateProperties(propFile=pathlib.Path('testProperties.json'),
+                              nShotDir=pathlib.Path('results/nshot'),
+                              throughputSingleDir=pathlib.Path('results/throughput'),
+                              throughputFullDir=pathlib.Path('results/throughput')))
+
     # resPath = pathlib.Path(sys.argv[1])
