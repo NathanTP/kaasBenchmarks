@@ -12,14 +12,14 @@ from infbench import properties
 resultsDir = pathlib.Path("./results")
 
 # nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-# models = ['bert', 'resnet50', 'jacobi', 'complexCutlassGemm']
+# models = ['bert', 'resnet50', 'jacobi', 'cGEMM']
 # modes = ['kaas', 'tvm']
 
 # nReplicas = [1, 4, 5]
 # modes = ['kaas', 'tvm']
 
 nReplicas = [1]
-models = ['bert', 'resnet50', 'jacobi', 'complexCutlassGemm']
+models = ['bert', 'resnet50', 'jacobi', 'cGEMM']
 # models = ['resnet50', 'jacobi']
 modes = ['kaas', 'tvm']
 
@@ -38,7 +38,7 @@ def getTargetRuntime(nReplica, model, mode, fast=False):
             runTime = 800
         elif model == 'resnet50':
             runTime = 600
-        elif model == 'complexCutlassGemm':
+        elif model == 'cGEMM':
             runTime = 800
         else:
             raise RuntimeError("Please configure a target runtime for model: ", model)

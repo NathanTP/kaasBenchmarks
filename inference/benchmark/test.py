@@ -9,7 +9,7 @@ import itertools
 expectedAccuracies = {
     "resnet50": 0.75,
     'bert': 0.90625,
-    'complexCutlassGemm': 1.0,
+    'cGEMM': 1.0,
     'testModel': 1.0
 }
 
@@ -37,7 +37,8 @@ def runBench(model, modelType='kaas', backend='local', experiment='nshot', nRun=
 
 
 def quick():
-    models = ['testModel', 'resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
+    # models = ['testModel', 'resnet50', 'bert', 'cGEMM', 'jacobi']
+    models = ['cGEMM']
     types = ['kaas', 'tvm']
     # backends = ['local', 'ray']
     backends = ['ray']
@@ -68,7 +69,7 @@ def runServerMode(model, modelType='kaas', experiment='nshot', n=1, scale=1.0, r
 
 
 def serverModeQuick():
-    models = ['testModel', 'resnet50', 'bert', 'complexCutlassGemm', 'jacobi']
+    models = ['testModel', 'resnet50', 'bert', 'cGEMM', 'jacobi']
     types = ['kaas', 'tvm']
     configs = itertools.product(models, types)
     for model, modelType in configs:

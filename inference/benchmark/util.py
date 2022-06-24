@@ -92,23 +92,23 @@ def getModelSpec(modelName):
                          modelClass=infbench.jacobi.jacobiKaas,
                          modelType="kaas")
 
-    elif modelName == "complexCutlassGemmKaas":
-        import infbench.complexCutlassGemm
-        return ModelSpec(name="complexCutlassGemm",
-                         loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
+    elif modelName == "cGEMMKaas":
+        import infbench.cGEMM
+        return ModelSpec(name="cGEMM",
+                         loader=infbench.cGEMM.cutlassSgemmLoader,
                          dataDir=modelDir / "complexCutlassGemm",
                          modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
-                         modelClass=infbench.complexCutlassGemm.sgemmKaas,
+                         modelClass=infbench.cGEMM.sgemmKaas,
                          modelType="kaas",
                          cacheInputs=True)
 
-    elif modelName == "complexCutlassGemmTvm":
-        import infbench.complexCutlassGemm
-        return ModelSpec(name="complexCutlassGemm",
-                         loader=infbench.complexCutlassGemm.cutlassSgemmLoader,
+    elif modelName == "cGEMMTvm":
+        import infbench.cGEMM
+        return ModelSpec(name="cGEMM",
+                         loader=infbench.cGEMM.cutlassSgemmLoader,
                          dataDir=modelDir / "complexCutlassGemm",
                          modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
-                         modelClass=infbench.complexCutlassGemm.sgemm,
+                         modelClass=infbench.cGEMM.sgemm,
                          modelType="direct",
                          cacheInputs=True)
 

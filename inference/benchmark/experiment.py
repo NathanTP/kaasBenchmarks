@@ -242,7 +242,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Experiments for the benchmark")
     parser.add_argument("-m", "--model",
-                        choices=['testModel', 'bert', 'resnet50', 'superRes', 'complexCutlassGemm', 'jacobi'],
+                        choices=['testModel', 'bert', 'resnet50', 'superRes', 'cGEMM', 'jacobi'],
                         help="Model to run. Not used in mlperfMulti mode.")
     parser.add_argument("-e", "--experiment",
                         choices=['nshot', 'mlperfOne', 'mlperfMulti', 'throughput'],

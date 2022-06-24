@@ -11,8 +11,7 @@ import shutil
 from pprint import pprint
 
 
-models = ['complexCutlassGemm', 'resnet50', 'testModel', 'bert', 'jacobi']
-modelRenames = {"complexCutlassGemm": "cGEMM"}
+models = ['cGEMM', 'resnet50', 'testModel', 'bert', 'jacobi']
 
 baselineName = "eTask"
 kaasName = "kTask"
@@ -102,11 +101,6 @@ def aggregateModels(fullResults, metric):
         df[kaasName] = kaasSer
 
         resDfs[model] = df
-
-    for oldName, newName in modelRenames.items():
-        if oldName in resDfs:
-            resDfs[newName] = resDfs[oldName]
-            del resDfs[oldName]
 
     return resDfs
 
