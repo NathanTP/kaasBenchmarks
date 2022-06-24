@@ -79,7 +79,6 @@ def aggregateModels(fullResults, metric):
         {modelName: pd.DataFrame()}.
 
     """
-    models = ['resnet50', 'bert', 'jacobi', 'complexCutlassGemm']
     resDfs = {}
     for model in models:
         modelRes = [res for res in fullResults.values() if model in res['config']['model']]
@@ -531,6 +530,7 @@ def generatePropertiesThroughputSingle(dat, throughputDir):
     """Add any results from throughputDir to dat. See generateProperties() for details."""
     throughputRes = loadAllThroughput(throughputDir)
     isolated = dat['isolated']
+    print(throughputRes.keys())
     for modelName in models:
         if modelName in throughputRes:
             modelRes = throughputRes[modelName]
@@ -642,6 +642,10 @@ def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDi
 if __name__ == "__main__":
     # resDir = pathlib.Path(sys.argv[1])
     # pprint(loadAllThroughput(resDir))
+    # generateProperties(propFile=pathlib.Path('testProperties.json'),
+    #                           nShotDir=pathlib.Path('results/nshotFast'),
+    #                           throughputSingleDir=pathlib.Path('results/throughputOne'),
+    #                           throughputFullDir=pathlib.Path('results/throughput'))
     pprint(generateProperties(propFile=pathlib.Path('testProperties.json'),
                               nShotDir=pathlib.Path('results/nshotFast'),
                               throughputSingleDir=pathlib.Path('results/throughputOne'),
