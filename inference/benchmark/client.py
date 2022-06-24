@@ -12,6 +12,7 @@ from pprint import pprint
 import mlperf_loadgen
 
 import infbench
+from infbench import properties
 from kaas import profiling
 import util
 
@@ -187,13 +188,10 @@ class throughputLoop():
         self.loader = modelSpec.loader(modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        gpuType = infbench.getGpuType()
-        maxQps, medianLat = modelSpec.modelClass.getPerfEstimates(gpuType)
-
         # This number is more sensitive than it should be. I'm not sure why but
         # setting it too high really hurts performance, even though the server
         # is throttled. 64 seems to work in practice.
-        self.targetOutstanding = 64
+        self.targetOutstanding = 16
 
         self.targetTime = targetTime
         self.nOutstanding = 0
@@ -337,7 +335,7 @@ class mlperfRunner(threading.Thread):
         self.sutSock = self.zmqContext.socket(zmq.PAIR)
         self.sutSock.connect(sutSockUrl)
 
-        runSettings = self.modelSpec.modelClass.getMlPerfCfg(gpuType, self.benchConfig)
+        runSettings = properties.getMlPerfConfig(self.modelSpec.name, gpuType, self.benchConfig)
 
         logSettings = mlperf_loadgen.LogSettings()
         logSettings.log_output.prefix = self.benchConfig['name'] + "_"

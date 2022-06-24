@@ -1,6 +1,5 @@
 import ray
 import ray.util.queue
-import infbench
 import threading
 import os
 import sys
@@ -19,6 +18,9 @@ import kaas
 import kaas.ray
 import kaas.pool
 from kaas import profiling
+
+import infbench
+from infbench import properties
 
 import util
 
@@ -950,8 +952,8 @@ def mlperfBench(modelSpec, benchConfig):
     """Run the mlperf loadgen version"""
     ray.init(include_dashboard=False)
 
-    gpuType = infbench.getGpuType()
-    settings = modelSpec.modelClass.getMlPerfCfg(gpuType, benchConfig)
+    props = properties.getProperties()
+    settings = props.getMlPerfCfg(modelSpec.name, benchConfig)
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)

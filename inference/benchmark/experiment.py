@@ -13,7 +13,6 @@ import tempfile
 import shutil
 
 import infbench
-import util
 
 
 expRoot = pathlib.Path(__file__).resolve().parent
@@ -226,21 +225,12 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="
 
     runTest('throughput', models, modelType, prefix, expResultsDir, scale=scale, runTime=runTime)
 
-    # Total throughput is queryMS / S. That is, number of ms of actual query
-    # work done per second. Another way of thinking of this is QPS normalized
-    # by workload size. This is based on the median unloaded query latency
-    # rather than direct observation to include any additional overheads the
-    # workload might introduce.
-    results = {'normalizedThroughput': 0}
+    results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
         with open(resultsFile, 'r') as f:
             result = json.load(f)
 
         results[result['config']['name']] = result['metrics_warm']['throughput']['mean']
-
-        modelSpec = util.getModelSpec(result['config']['model'])
-        maxQps, medianLatency = modelSpec.modelClass.getPerfEstimates(infbench.getGpuType())
-        results['normalizedThroughput'] += result['metrics_warm']['throughput']['mean'] * medianLatency
 
     print("Aggregated Results:")
     pprint(results)

@@ -532,8 +532,6 @@ def generatePropertiesNShot(dat, nShotDir):
         if tvmRunName in warmNShot:
             isolated[modelName]['tvm']['latency'] = warmNShot[tvmRunName]['t_e2e']['p50']
 
-    return isolated
-
 
 def generatePropertiesThroughputSingle(dat, throughputDir):
     """Add any results from throughputDir to dat. See generateProperties() for details."""
@@ -544,9 +542,8 @@ def generatePropertiesThroughputSingle(dat, throughputDir):
             modelRes = throughputRes[modelName]
             kQps = modelRes.loc[1, 'kTask']
             eQps = modelRes.loc[1, 'eTask']
-            isolated[modelName] = {'kaas': {'qps': kQps}, 'tvm': {'qps': eQps}}
-
-    return isolated
+            isolated[modelName]['kaas']['qps'] = kQps
+            isolated[modelName]['tvm']['qps'] = eQps
 
 
 def generatePropertiesThroughputFull(dat, throughputDir):
@@ -560,8 +557,6 @@ def generatePropertiesThroughputFull(dat, throughputDir):
             for nClient, row in modelRes.iterrows():
                 full[modelName]['kaas']['throughput'][nClient - 1] = row['kTask']
                 full[modelName]['tvm']['throughput'][nClient - 1] = row['eTask']
-
-    return full
 
 
 def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDir):
@@ -629,13 +624,13 @@ def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDi
                                      'tvm':  {'throughput': [None]*16}}
 
     if nShotDir is not None:
-        newDat['isolated'] = generatePropertiesNShot(newDat, nShotDir)
+        generatePropertiesNShot(newDat, nShotDir)
 
     if throughputSingleDir is not None:
-        newDat['isolated'] |= generatePropertiesThroughputSingle(newDat, throughputSingleDir)
+        generatePropertiesThroughputSingle(newDat, throughputSingleDir)
 
     if throughputFullDir is not None:
-        newDat['full'] = generatePropertiesThroughputFull(newDat, throughputFullDir)
+        generatePropertiesThroughputFull(newDat, throughputFullDir)
 
     if propFile is not None and propFile.exists():
         with open(propFile, 'r') as f:
@@ -654,8 +649,8 @@ if __name__ == "__main__":
     # resDir = pathlib.Path(sys.argv[1])
     # pprint(loadAllThroughput(resDir))
     pprint(generateProperties(propFile=pathlib.Path('testProperties.json'),
-                              nShotDir=pathlib.Path('results/nshot'),
-                              throughputSingleDir=pathlib.Path('results/throughput'),
+                              nShotDir=pathlib.Path('results/nshotFast'),
+                              throughputSingleDir=pathlib.Path('results/throughputOne'),
                               throughputFullDir=pathlib.Path('results/throughput')))
 
     # resPath = pathlib.Path(sys.argv[1])
