@@ -124,7 +124,7 @@ class jacobi(jacobiBase):
 
         return (x_new, d)
 
-    def __del__(self):
+    def shutdown(self):
         self.cudaCtx.detach()
 
 

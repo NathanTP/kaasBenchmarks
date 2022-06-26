@@ -139,7 +139,7 @@ class sgemm(sgemmBase):
         self.getArg, self.getDims = loadAdapter(self.modelDir.parent)
         self.refKern, self.cutlassKern = loadKerns(self.modelDir.parent)
 
-    def __del__(self):
+    def shutdown(self):
         self.cudaCtx.detach()
 
     def run(self, dat, stats=None):

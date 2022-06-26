@@ -347,6 +347,11 @@ class Model(abc.ABC):
         """Return a mlperf settings object for this model"""
         pass
 
+    def shutdown(self):
+        """Implement this method if you'd like something to happen when the
+        model is no longer needed"""
+        pass
+
 
 class tvmModel(Model):
     """A generic tvm model. Should be initialized with a precompiled .so"""

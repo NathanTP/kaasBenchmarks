@@ -110,7 +110,7 @@ class testModelNative(testModel, model.Model):
         self.kern = mod.get_function("sgemm")
         self.kern.prepare(["i", "P", "P", "P"])
 
-    def __del__(self):
+    def shutdown(self):
         if self.dConsts is not None:
             for dConst in self.dConsts:
                 dConst.free()

@@ -250,6 +250,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         if loader.checkAvailable:
             accuracies.append(loader.check(resultVals, idx))
 
+    model.shutdown()
+
     if loader.checkAvailable:
         print("Accuracy = ", sum([int(res) for res in accuracies]) / n)
     else:

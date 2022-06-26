@@ -327,8 +327,9 @@ class runActor(kaas.pool.PoolWorker):
 
         return results
 
-    def terminate(self):
-        ray.actor.exit_actor()
+    def shutdown(self):
+        for modelInfo in self.modelCache.values():
+            modelInfo[0].shutdown()
 
 
 def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
