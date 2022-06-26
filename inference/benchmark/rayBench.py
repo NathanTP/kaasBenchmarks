@@ -224,7 +224,7 @@ class runActor(kaas.pool.PoolWorker):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.modelCache = {}
-        kaas.ray.init()
+        self.kaasReady = False
 
     def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
@@ -314,6 +314,10 @@ class runActor(kaas.pool.PoolWorker):
 
     def runKaas(self, req, queryId=None, completionQ=None, clientID=None):
         profs = self.getProfs()
+
+        if not self.kaasReady:
+            kaas.ray.init()
+            self.kaasReady = True
 
         with profiling.timer('t_model_run', profs):
             results = kaas.ray.invoke(req, profs=profs.mod('kaas'), clientID=clientID)
