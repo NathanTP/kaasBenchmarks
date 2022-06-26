@@ -82,7 +82,8 @@ def getModelSpec(modelName):
                          loader=infbench.jacobi.jacobiLoader,
                          modelPath=modelDir / "jacobi",
                          modelClass=infbench.jacobi.jacobi,
-                         modelType="direct")
+                         modelType="direct",
+                         cacheInputs=True)
 
     elif modelName == "jacobiKaas":
         import infbench.jacobi
@@ -90,7 +91,8 @@ def getModelSpec(modelName):
                          loader=infbench.jacobi.jacobiLoader,
                          modelPath=modelDir / "jacobi" / "jacobi_model.yaml",
                          modelClass=infbench.jacobi.jacobiKaas,
-                         modelType="kaas")
+                         modelType="kaas",
+                         cacheInputs=True)
 
     elif modelName == "cGEMMKaas":
         import infbench.cGEMM
@@ -143,7 +145,8 @@ def getModelSpec(modelName):
                          loader=infbench.resnet50.imageNetLoader,
                          modelPath=modelDir / "resnet50" / "resnet50_model.yaml",
                          modelClass=infbench.resnet50.resnet50Kaas,
-                         modelType="kaas")
+                         modelType="kaas",
+                         cacheInputs=True)
 
     elif modelName == "bertKaas":
         import infbench.bert
@@ -174,7 +177,8 @@ def getModelSpec(modelName):
         return ModelSpec(name="resnet50",
                          loader=infbench.resnet50.imageNetLoader,
                          modelPath=modelDir / "resnet50" / "resnet50.so",
-                         modelClass=infbench.resnet50.resnet50)
+                         modelClass=infbench.resnet50.resnet50,
+                         cacheInputs=True)
 
     elif modelName == "ssdMobileNetTvm":
         import infbench.ssdmobilenet
