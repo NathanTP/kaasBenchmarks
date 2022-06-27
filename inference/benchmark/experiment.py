@@ -105,7 +105,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
     return True
 
 
-def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, runTime=None, nCpy=1, model=None):
+def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None, runTime=None, nCpy=1, model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
 
@@ -173,30 +173,6 @@ def mlperfMulti(modelType, prefix="mlperf_multi", outDir="results", scale=None, 
     return succeedScale
 
 
-def mlperfOne(baseModel, modelType, prefix="mlperfOne", outDir="results", scale=None, runTime=None):
-    if modelType == 'Kaas':
-        policy = 'balance'
-    elif modelType == 'Tvm':
-        policy = 'exclusive'
-    else:
-        raise ValueError("Unrecognized Model Type: " + modelType)
-
-    model = baseModel + modelType
-    if scale is None:
-        runner = launchClient(None, model, prefix, 'mlperf', outDir, runTime=runTime)
-        server = launchServer(outDir, 1, modelType, policy, nGpu=1)
-    else:
-        runner = launchClient(scale, model, prefix, 'mlperf', outDir, runTime=runTime)
-        server = launchServer(outDir, 1, modelType, policy)
-
-    runner.wait()
-    server.send_signal(signal.SIGINT)
-    server.wait()
-
-    if runner.returncode != 0:
-        raise RuntimeError("Run Failed")
-
-
 def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results", model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"nshot_{modelType}_{suffix}"
@@ -245,7 +221,7 @@ if __name__ == "__main__":
                         choices=['testModel', 'bert', 'resnet50', 'superRes', 'cGEMM', 'jacobi'],
                         help="Model to run. Not used in mlperfMulti mode.")
     parser.add_argument("-e", "--experiment",
-                        choices=['nshot', 'mlperfOne', 'mlperfMulti', 'throughput'],
+                        choices=['nshot', 'mlperf', 'throughput'],
                         help="Which experiment to run.")
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
@@ -263,13 +239,9 @@ if __name__ == "__main__":
         print("Starting nshot")
         nShot(int(args.scale), modelType=args.modelType, nCpy=args.nCopy,
               outDir=resultsDir, model=args.model)
-    elif args.experiment == 'mlperfOne':
-        print("Starting mlperfOne")
-        mlperfOne(args.model, args.modelType, outDir=resultsDir,
-                  scale=args.scale, runTime=args.runTime)
-    elif args.experiment == 'mlperfMulti':
-        print("Starting mlperfMulti")
-        mlperfMulti(args.modelType, outDir=resultsDir,
+    elif args.experiment == 'mlperf':
+        print("Starting mlperf")
+        mlperf(args.modelType, outDir=resultsDir,
                     scale=args.scale, runTime=args.runTime,
                     model=args.model, nCpy=args.nCopy)
     elif args.experiment == 'throughput':
