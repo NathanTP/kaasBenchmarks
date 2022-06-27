@@ -188,10 +188,15 @@ class throughputLoop():
         self.loader = modelSpec.loader(modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        # This number is more sensitive than it should be. I'm not sure why but
-        # setting it too high really hurts performance, even though the server
-        # is throttled. 64 seems to work in practice.
-        self.targetOutstanding = 8
+        # The server tries to keep the number of oustanding requests around
+        # this number so that the server is always busy. This has a way bigger
+        # impact on performance than it should. I should revisit it once I get
+        # per-client throttling on the server going.
+        fairShare = int(infbench.getNGpu() / benchConfig['numClient']) + 1
+        self.targetOutstanding = max(fairShare, 2)
+
+        # Are we at targetOutstanding (and therefore not submitting requests)?
+        self.qFull = False
 
         self.targetTime = targetTime
         self.nOutstanding = 0
@@ -231,6 +236,8 @@ class throughputLoop():
             self.nextIdx += 1
             self.nOutstanding += 1
 
+        self.qFull = True
+
     def handleServer(self, msg):
         """Handle responses from the server"""
         # If we're done, we need to wait for any outstanding requests to
@@ -247,11 +254,22 @@ class throughputLoop():
         self.nOutstanding -= 1
         self.nCompleted += 1
 
+        if self.nOutstanding == 0:
+            self.targetOutstanding += 1
+
         if time.time() - self.startTime >= self.targetTime:
             print("Test complete, shutting down")
             self.runTime = time.time() - self.startTime
             self.done = True
-        elif self.nOutstanding < (self.targetOutstanding / 2):
+            if self.nOutstanding == 0:
+                self.serverStream.stop_on_recv()
+                IOLoop.instance().stop()
+
+        elif self.nOutstanding < self.targetOutstanding and self.qFull:
+            # qFull is needed because we might get multiple responses before
+            # the submitReqs callback gets scheduled and we don't want to
+            # submit multiple submitReqs callbacks.
+            self.qFull = False
             self.loop.add_callback(self.submitReqs)
 
     def reportMetrics(self):
