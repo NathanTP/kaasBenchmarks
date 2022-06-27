@@ -42,11 +42,12 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
-def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1):
+def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1, nClient=1):
     cmd = [(expRoot / "benchmark.py"),
            "-e", test,
            "--numRun=" + str(nRun),
            "-b", "client",
+           "--numClient", str(nClient),
            "--name=" + name,
            "-m", model]
 
@@ -60,6 +61,16 @@ def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1):
 
 
 def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, runTime=None, nRun=1):
+    """Run a single test in client-server mode.
+        modelNames: Models to run. At least one copy of these models will run
+        nCpy: Number of copies of modelNames to run. len(modelNames)*nCpy clients will run
+        modelType: Kaas or Tvm (note capital letter, I'm lazy)
+        prefix: Used to name the run
+        resultsDir: Where to output all results from this test
+        scale: For tests that use the --scale parameter (mlperf)
+        runTime: Target runtime of experiment
+        nRun: For models that use the nRun parameter (nshot)
+    """
     if modelType == 'Kaas':
         policy = 'balance'
     elif modelType == 'Tvm':
@@ -73,7 +84,8 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
             instanceName = f"{prefix}_{modelName}_{j}_{i}"
             runners[instanceName] = launchClient(
                 scale, modelName + modelType, instanceName,
-                test, resultsDir, runTime=runTime, nRun=nRun)
+                test, resultsDir, runTime=runTime, nRun=nRun,
+                nClient=nCpy*len(modelNames))
 
     server = launchServer(resultsDir, len(runners), modelType, policy)
 
@@ -179,11 +191,9 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results", model=N
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    models = [model]*nCpy
-
     prefix = f"{prefix}_{modelType}"
 
-    runTest('nshot', models, modelType, prefix, expResultsDir, nRun=n)
+    runTest('nshot', [model], modelType, prefix, expResultsDir, nRun=n, nCpy=nCpy)
 
 
 def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="results", nCpy=1, model=None):
@@ -192,14 +202,13 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    models = [model]*nCpy
-
     if scale is None:
-        scale = ((1 / len(models)) * infbench.getNGpu())
+        scale = ((1 / nCpy) * infbench.getNGpu())
 
     prefix = f"{prefix}_{modelType}"
 
-    runTest('throughput', models, modelType, prefix, expResultsDir, scale=scale, runTime=runTime)
+    runTest('throughput', [model], modelType, prefix, expResultsDir,
+            scale=scale, runTime=runTime, nCpy=nCpy)
 
     results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
