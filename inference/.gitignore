@@ -4,3 +4,4 @@ mlperf_log_*
 *.swp
 modelCache
 benchmark/results
+*.ptx
