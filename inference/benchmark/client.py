@@ -191,7 +191,7 @@ class throughputLoop():
         # This number is more sensitive than it should be. I'm not sure why but
         # setting it too high really hurts performance, even though the server
         # is throttled. 64 seems to work in practice.
-        self.targetOutstanding = 16
+        self.targetOutstanding = 8
 
         self.targetTime = targetTime
         self.nOutstanding = 0
@@ -335,7 +335,8 @@ class mlperfRunner(threading.Thread):
         self.sutSock = self.zmqContext.socket(zmq.PAIR)
         self.sutSock.connect(sutSockUrl)
 
-        runSettings = properties.getMlPerfConfig(self.modelSpec.name, gpuType, self.benchConfig)
+        props = properties.getProperties()
+        runSettings = props.getMlPerfConfig(self.modelSpec.name, self.benchConfig, gpuType)
 
         logSettings = mlperf_loadgen.LogSettings()
         logSettings.log_output.prefix = self.benchConfig['name'] + "_"

@@ -632,27 +632,6 @@ class bertModelBase(model.Model):
         pred = interpret(startLogits, endLogits, example, feature)
         return (pred.encode('utf-8'),)
 
-    @staticmethod
-    def getPerfEstimates(gpuType):
-        if gpuType == "Tesla K20c":
-            # KaaS is really 0.9/0.96, tvm is 0.9/0.98
-            maxQps = 0.9
-            medianLatency = 0.98  # used to keep exp consistent
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 8.76  # tvm is ~= 9.8, high variablity for some reason...
-            medianLatency = 0.150  # tvm is .146
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        return (maxQps, medianLatency)
-
-    @classmethod
-    def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
-        return settings
-
 
 class bertModel(bertModelBase, model.tvmModel):
     pass

@@ -25,11 +25,6 @@ from infbench import properties
 import util
 
 
-# There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
-# a bit slower for unknown reasons, but it's easier to implement policies so
-# we're sticking with it for now
-maxOutstanding = 32
-
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
 PROF_LEVEL = 1  # minimal performance impact
@@ -661,7 +656,7 @@ class throughputLoop():
 
         # This info is only used to get performance estimates
         gpuType = infbench.getGpuType()
-        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
+        maxQps = properties.getProperties().throughputSingle(modelSpec.name, gpuType)
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -958,7 +953,7 @@ def mlperfBench(modelSpec, benchConfig):
     ray.init(include_dashboard=False)
 
     props = properties.getProperties()
-    settings = props.getMlPerfCfg(modelSpec.name, benchConfig)
+    settings = props.getMlPerfConfig(modelSpec.name, benchConfig)
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
@@ -1121,7 +1116,7 @@ class serverLoop():
         self.nOutstanding -= 1
         # Start accepting work again once we get below our max (plus some
         # hysteresis)
-        if self.overwhelmed and self.nOutstanding < (maxOutstanding * 0.8):
+        if self.overwhelmed and self.nOutstanding < (kaas.pool.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
     def handleClients(self, msg):
@@ -1142,7 +1137,7 @@ class serverLoop():
             self.nOutstanding += 1
             # Too many outstanding queries can overwhelm Ray and hurt
             # throughput.
-            if self.nOutstanding > maxOutstanding:
+            if self.nOutstanding > kaas.pool.maxOutstanding:
                 self.clientStream.stop_on_recv()
                 self.overwhelmed = True
 

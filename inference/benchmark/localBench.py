@@ -10,6 +10,7 @@ import pathlib
 import kaas
 import kaas.local
 from kaas import profiling
+from kaas import properties
 
 # for cuda profiling
 import pycuda.driver as cuda
@@ -364,7 +365,8 @@ def mlperfBench(modelSpec, benchConfig):
     qsl = mlperf_loadgen.ConstructQSL(
         loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
-    settings = model.getMlPerfCfg(gpuType, benchConfig)
+    props = properties.getProperties()
+    settings = props.getMlPerfConfig(modelSpec.name, benchConfig, gpuType)
     mlperf_loadgen.StartTest(sut, qsl, settings)
 
     mlperf_loadgen.DestroyQSL(qsl)
