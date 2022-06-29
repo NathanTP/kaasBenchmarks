@@ -25,11 +25,6 @@ from infbench import properties
 import util
 
 
-# There are tradeoffs to using asyncio vs thread pools for policies. Asyncio is
-# a bit slower for unknown reasons, but it's easier to implement policies so
-# we're sticking with it for now
-maxOutstanding = 32
-
 # Prof levels control the level of detail recorded, higher levels may have an
 # impact on performance.
 PROF_LEVEL = 1  # minimal performance impact
@@ -104,7 +99,7 @@ def maybeDereference(res):
         return res
 
 
-@ray.remote
+@kaas.pool.remote_with_confirmation()
 def pre(modelSpec, *inputs):
     mClass = modelSpec.modelClass
     constants, data = _unMarshalArgs(mClass.preMap, inputs)
@@ -169,7 +164,7 @@ def runTask(modelSpec, modelArg, *inputs, completionQ=None, queryId=None, cacheM
     return _run(model, inputs, completionQ, queryId)
 
 
-@ray.remote
+@kaas.pool.remote_with_confirmation()
 def post(modelSpec, *inputs, completionQ=None, queryId=None):
     mClass = modelSpec.modelClass
     constants, rawData = _unMarshalArgs(mClass.postMap, inputs)
@@ -363,23 +358,25 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         # Pre
         if mClass.noPre:
             preOut = inputRefs
+            dynInp = []
+            if PROF_LEVEL > 1 and stats is not None:
+                stats["t_pre"].increment(0)
+
         else:
             preInp = util.packInputs(mClass.preMap, const=constRefs, inp=inputRefs)
 
-            preOut = pre.options(num_returns=mClass.nOutPre).remote(specRef, *preInp)
-            if mClass.nOutPre == 1:
-                preOut = [preOut]
+            preOut = pre.options(num_returns=mClass.nOutPre + 1).remote(specRef, *preInp)
+            preConfirm = preOut[0]
+            preOut = preOut[1:]
+
+            dynInp = [preConfirm]
 
             if PROF_LEVEL > 1:
                 with profiling.timer("t_pre", stats):
-                    ray.wait(preOut, fetch_local=False)
+                    ray.wait(dynInp, fetch_local=False)
 
         # Run
         runInp = util.packInputs(mClass.runMap, const=constRefs, inp=inputRefs, pre=preOut)
-        # These are the only inputs that change from run to run, so we pass
-        # them to the scheduler to determine readiness. We assume the consts
-        # are always ready.
-        dynInp = util.packInputs(mClass.runMap, inp=inputRefs, pre=preOut)
 
         if modelSpec.modelType == "kaas":
             model = modelArg
@@ -424,18 +421,20 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
         # Post
         if mClass.noPost:
             postOut = runOut
+            if PROF_LEVEL > 1 and stats is not None:
+                stats["t_post"].increment(0)
         else:
             postInp = util.packInputs(mClass.postMap, const=constRefs,
                                       inp=inputRefs, pre=preOut, run=runOut)
-            postOut = post.options(num_returns=mClass.nOutPost) \
+            allOut = post.options(num_returns=mClass.nOutPost + 1) \
                 .remote(specRef, *postInp, completionQ=completionQ, queryId=queryId)
 
-            if mClass.nOutPost == 1:
-                postOut = [postOut]
+            postConfirm = allOut[0]
+            postOut = allOut[1:]
 
             if PROF_LEVEL > 1:
                 with profiling.timer("t_post", stats):
-                    ray.wait(postOut, fetch_local=False)
+                    ray.wait([postConfirm], fetch_local=False)
 
     return postOut
 
@@ -448,7 +447,8 @@ def warmKaas(pool):
     loader.preLoad(0)
 
     inpRefs = [ray.put(val) for val in loader.get(0)]
-    res = ray.get(_runOne(modelSpec, specRef, modelArg, [], inpRefs, runPool=pool))
+    resRefs = _runOne(modelSpec, specRef, modelArg, [], inpRefs, runPool=pool)
+    res = flattenRayRefs(resRefs)
 
     # clear stats after dummy
     pool.getProfile()
@@ -661,7 +661,7 @@ class throughputLoop():
 
         # This info is only used to get performance estimates
         gpuType = infbench.getGpuType()
-        maxQps, _ = modelSpec.modelClass.getPerfEstimates(gpuType)
+        maxQps = properties.getProperties().throughputSingle(modelSpec.name, gpuType)
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -958,7 +958,7 @@ def mlperfBench(modelSpec, benchConfig):
     ray.init(include_dashboard=False)
 
     props = properties.getProperties()
-    settings = props.getMlPerfCfg(modelSpec.name, benchConfig)
+    settings = props.getMlPerfConfig(modelSpec.name, benchConfig)
     loader = modelSpec.loader(modelSpec.dataDir)
 
     constants = modelSpec.modelClass.getConstants(modelSpec.modelPath.parent)
@@ -1088,6 +1088,7 @@ class serverLoop():
         self.rayQ = ray.util.queue.Queue()
 
         self.nOutstanding = 0
+        self.maxOutstanding = kaas.pool.maxOutstanding
         self.overwhelmed = False
 
     def handleBarrier(self, msg):
@@ -1121,7 +1122,7 @@ class serverLoop():
         self.nOutstanding -= 1
         # Start accepting work again once we get below our max (plus some
         # hysteresis)
-        if self.overwhelmed and self.nOutstanding < (maxOutstanding * 0.8):
+        if self.overwhelmed and self.nOutstanding < (self.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
     def handleClients(self, msg):
@@ -1142,7 +1143,7 @@ class serverLoop():
             self.nOutstanding += 1
             # Too many outstanding queries can overwhelm Ray and hurt
             # throughput.
-            if self.nOutstanding > maxOutstanding:
+            if self.nOutstanding > self.maxOutstanding:
                 self.clientStream.stop_on_recv()
                 self.overwhelmed = True
 

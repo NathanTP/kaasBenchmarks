@@ -19,48 +19,27 @@ def loadKerns(modelDir):
 
 
 class jacobiBase(model.Model):
+    nOutPost = None
     noPost = True
+    nOutPre = None
+    noPre = True
     preMap = model.inputMap(inp=(0, 1))
     runMap = model.inputMap(pre=(0, 1))
     postMap = model.inputMap(run=(0, 1))
     nOutRun = 2
-    nOutPre = 2
-    nOutPost = 2
     nConst = 0
 
     @staticmethod
-    def pre(bufs):
-        return bufs
+    def pre(args):
+        raise RuntimeError("Jacobi has no preprocessing step")
 
     @staticmethod
-    def post(label):
-        raise AttributeError("cutlass sgemm has no post-processing")
+    def post(args):
+        raise RuntimeError("Jacobi has no postprocessing step")
 
     @staticmethod
     def getConstants(modelDir):
         return None
-
-    @staticmethod
-    def getPerfEstimates(gpuType):
-        if gpuType == "Tesla K20c":
-            maxQps = 0
-            medianLatency = 0.07
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            # XXX These numbers are really bad, there are some serious
-            # performance issues with jacobi that I swear didn't used to be
-            # there. Anyway, we really need to figure this out before doing
-            # more experiments with it.
-            maxQps = 3
-            medianLatency = 0.5
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        return maxQps, medianLatency
-
-    @classmethod
-    def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
-        return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
 
 
 class jacobi(jacobiBase):

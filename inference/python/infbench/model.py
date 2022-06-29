@@ -330,23 +330,6 @@ class Model(abc.ABC):
         """Postprocess data and return nOutputPost bytes objects"""
         pass
 
-    @staticmethod
-    @abc.abstractmethod
-    def getPerfEstimates(gpuType):
-        """Return estimated (maxQps, medianLatency) for this model. Estimates
-        are based on single-model experiments with one GPU using the remote
-        client mode (experiment.py). If different variations of a model have
-        different numbers, you may return different estimated QPS, though this
-        isn't necessary. medianLatency is reported in seconds and should be
-        from the slowest model variant."""
-        pass
-
-    @classmethod
-    @abc.abstractmethod
-    def getMlPerfCfg(cls, gpuType, benchConfig):
-        """Return a mlperf settings object for this model"""
-        pass
-
     def shutdown(self):
         """Implement this method if you'd like something to happen when the
         model is no longer needed"""
@@ -473,9 +456,10 @@ class kaasModel(Model):
 # MLPERF INFERENCE STUFF
 # =============================================================================
 
-# Use as nquery argument to mlperf_loadgen.ConstructQSL
-# I'm not 100% sure what this does...
-mlperfNquery = 32
+# Used by ConstructQSL: it's the number of samples to hold in memory. I believe
+# the loadgen driver will cache these and otherwise re-query our loaders which
+# all cache anyway.
+mlperfNquery = 128
 
 
 def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):

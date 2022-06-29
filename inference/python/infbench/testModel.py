@@ -64,26 +64,6 @@ class testModel():
 
         return (result,)
 
-    @staticmethod
-    def getPerfEstimates(gpuType):
-        if gpuType == "Tesla K20c":
-            maxQps = 18
-            medianLatency = 0.100
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 125
-            medianLatency = 0.016
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        return maxQps, medianLatency
-
-    @classmethod
-    def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
-        return settings
-
 
 class testModelNative(testModel, model.Model):
     """Calls the GPU kernel natively instead of using KaaS"""

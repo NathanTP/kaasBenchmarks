@@ -104,24 +104,6 @@ class sgemmBase(model.Model):
 
         return [b.ravel(order='K'), d.ravel(order='K')]
 
-    @staticmethod
-    def getPerfEstimates(gpuType):
-        if gpuType == "Tesla K20c":
-            maxQps = None
-            medianLatency = None
-        elif gpuType == "Tesla V100-SXM2-16GB":
-            maxQps = 22
-            medianLatency = 0.46
-        else:
-            raise ValueError("Unrecoginzied GPU Type" + gpuType)
-
-        return maxQps, medianLatency
-
-    @classmethod
-    def getMlPerfCfg(cls, gpuType, benchConfig):
-        maxQps, medianLatency = cls.getPerfEstimates(gpuType)
-        return model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
-
 
 class sgemm(sgemmBase):
     def __init__(self, modelArgs):

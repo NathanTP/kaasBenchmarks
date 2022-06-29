@@ -7,7 +7,7 @@ from . import util
 perfData = None
 
 
-class _Properties():
+class Properties():
     def __init__(self, propFile=None):
         if propFile is None:
             self.propFile = pathlib.Path(__file__).parent / 'properties.json'
@@ -55,8 +55,9 @@ class _Properties():
         if gpuType is None:
             gpuType = util.getGpuType()
 
-        maxQps, medianLatency = self.getPerfEstimates(modelName, gpuType)
-        settings = model.getDefaultMlPerfCfg(maxQps, medianLatency, benchConfig)
+        maxQps = self.throughputSingle(modelName, gpuType)
+        latency = self.latency(modelName, gpuType)
+        settings = model.getDefaultMlPerfCfg(maxQps, latency, benchConfig)
 
         return settings
 
@@ -64,6 +65,6 @@ class _Properties():
 def getProperties():
     global perfData
     if perfData is None:
-        perfData = _Properties()
+        perfData = Properties()
 
     return perfData

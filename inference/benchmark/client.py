@@ -188,10 +188,17 @@ class throughputLoop():
         self.loader = modelSpec.loader(modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        # This number is more sensitive than it should be. I'm not sure why but
-        # setting it too high really hurts performance, even though the server
-        # is throttled. 64 seems to work in practice.
-        self.targetOutstanding = 16
+        # This number needs to be big enough to ensure that there's always
+        # enough work on the server to get full bandwidth. It can't be too big
+        # though because then the server will throttle everyone in order to
+        # keep the pool happy, this might hurt load balancing. This isn't too
+        # sensitive so long as it's reasonably large (nGPU*2 seems to work
+        # well). Also, when nClient >> nGPU, load balancing isn't really an
+        # issue anyway.
+        self.targetOutstanding = infbench.getNGpu() * 2
+
+        # Are we at targetOutstanding (and therefore not submitting requests)?
+        self.qFull = False
 
         self.targetTime = targetTime
         self.nOutstanding = 0
@@ -231,6 +238,8 @@ class throughputLoop():
             self.nextIdx += 1
             self.nOutstanding += 1
 
+        self.qFull = True
+
     def handleServer(self, msg):
         """Handle responses from the server"""
         # If we're done, we need to wait for any outstanding requests to
@@ -247,11 +256,24 @@ class throughputLoop():
         self.nOutstanding -= 1
         self.nCompleted += 1
 
+        # This is unlikely to trigger unless I did something wrong, especially
+        # if targetOutstanding is way too low.
+        if self.nOutstanding == 0:
+            self.targetOutstanding += 1
+
         if time.time() - self.startTime >= self.targetTime:
             print("Test complete, shutting down")
             self.runTime = time.time() - self.startTime
             self.done = True
-        elif self.nOutstanding < (self.targetOutstanding / 2):
+            if self.nOutstanding == 0:
+                self.serverStream.stop_on_recv()
+                IOLoop.instance().stop()
+
+        elif self.nOutstanding < self.targetOutstanding and self.qFull:
+            # qFull is needed because we might get multiple responses before
+            # the submitReqs callback gets scheduled and we don't want to
+            # submit multiple submitReqs callbacks.
+            self.qFull = False
             self.loop.add_callback(self.submitReqs)
 
     def reportMetrics(self):
@@ -335,7 +357,8 @@ class mlperfRunner(threading.Thread):
         self.sutSock = self.zmqContext.socket(zmq.PAIR)
         self.sutSock.connect(sutSockUrl)
 
-        runSettings = properties.getMlPerfConfig(self.modelSpec.name, gpuType, self.benchConfig)
+        props = properties.getProperties()
+        runSettings = props.getMlPerfConfig(self.modelSpec.name, self.benchConfig, gpuType)
 
         logSettings = mlperf_loadgen.LogSettings()
         logSettings.log_output.prefix = self.benchConfig['name'] + "_"
