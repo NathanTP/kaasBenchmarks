@@ -37,11 +37,9 @@ def runBench(model, modelType='kaas', backend='local', experiment='nshot', nRun=
 
 
 def quick():
-    # models = ['testModel', 'resnet50', 'bert', 'cGEMM', 'jacobi']
-    models = ['cGEMM']
+    models = ['testModel', 'resnet50', 'bert', 'cGEMM', 'jacobi']
     types = ['kaas', 'tvm']
-    # backends = ['local', 'ray']
-    backends = ['ray']
+    backends = ['local', 'ray']
     configs = itertools.product(models, types, backends)
     for model, modelType, backend in configs:
         print(f"Running: {model}:{modelType} {backend}")

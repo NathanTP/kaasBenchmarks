@@ -18,22 +18,22 @@ resultsDir = pathlib.Path("./results")
 # nReplicas = [1, 4, 5]
 # modes = ['kaas', 'tvm']
 
-nReplicas = [1]
-models = ['bert', 'resnet50', 'jacobi', 'cGEMM']
-# models = ['resnet50', 'jacobi']
-modes = ['kaas', 'tvm']
+nReplicas = [1, 3, 4]
+models = ['resnet50']
+# models = ['bert']
+modes = ['tvm']
 
 
 def getTargetRuntime(nReplica, model, mode, fast=False):
     if fast:
-        return 30
+        return 180
 
     # After 4 replicas, TVM is so slow that we need lots of time to get a good
     # measurement. How much longer we need depends on the model, though longer
     # is always better.
     if nReplica > 4:
         if model == 'bert':
-            runTime = 1500
+            runTime = 800
         elif model == 'jacobi':
             runTime = 800
         elif model == 'resnet50':
@@ -48,7 +48,7 @@ def getTargetRuntime(nReplica, model, mode, fast=False):
     return runTime
 
 
-def mlperfMulti(configs, suiteOutDir, fast=False):
+def mlperf(configs, suiteOutDir, fast=False):
     if fast:
         scaleArg = ['-s', '0.1']
     else:
@@ -130,7 +130,7 @@ def latDistribution(configs, suiteOutDir, independent=False, fast=False):
 
         name = f"{model}_{mode}_{nReplica}"
         print("\nStarting test: ", name)
-        cmd = ['./experiment.py', '-e', 'mlperfMulti', '-n', str(nReplica),
+        cmd = ['./experiment.py', '-e', 'mlperf', '-n', str(nReplica),
                '-s', str(scale), f'--runTime={runTime}', '-t', mode, '-m', model]
         sp.run(cmd)
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     elif args.experiment == 'lat':
         latDistribution(configs, outDir, independent=args.independent, fast=args.fast)
     elif args.experiment == 'mlperf':
-        mlperfMulti(configs, outDir, fast=args.fast)
+        mlperf(configs, outDir, fast=args.fast)
     elif args.experiment == 'nshot':
         nShot(configs, outDir)
     else:

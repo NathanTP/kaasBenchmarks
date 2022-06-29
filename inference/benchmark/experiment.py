@@ -117,7 +117,8 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
     return True
 
 
-def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None, runTime=None, nCpy=1, model=None):
+def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
+           runTime=None, nCpy=1, model=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
 

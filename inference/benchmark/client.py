@@ -188,12 +188,14 @@ class throughputLoop():
         self.loader = modelSpec.loader(modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        # The server tries to keep the number of oustanding requests around
-        # this number so that the server is always busy. This has a way bigger
-        # impact on performance than it should. I should revisit it once I get
-        # per-client throttling on the server going.
-        fairShare = int(infbench.getNGpu() / benchConfig['numClient']) + 1
-        self.targetOutstanding = max(fairShare, 2)
+        # This number needs to be big enough to ensure that there's always
+        # enough work on the server to get full bandwidth. It can't be too big
+        # though because then the server will throttle everyone in order to
+        # keep the pool happy, this might hurt load balancing. This isn't too
+        # sensitive so long as it's reasonably large (nGPU*2 seems to work
+        # well). Also, when nClient >> nGPU, load balancing isn't really an
+        # issue anyway.
+        self.targetOutstanding = infbench.getNGpu() * 2
 
         # Are we at targetOutstanding (and therefore not submitting requests)?
         self.qFull = False
@@ -254,6 +256,8 @@ class throughputLoop():
         self.nOutstanding -= 1
         self.nCompleted += 1
 
+        # This is unlikely to trigger unless I did something wrong, especially
+        # if targetOutstanding is way too low.
         if self.nOutstanding == 0:
             self.targetOutstanding += 1
 

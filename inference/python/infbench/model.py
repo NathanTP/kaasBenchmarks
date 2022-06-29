@@ -456,9 +456,10 @@ class kaasModel(Model):
 # MLPERF INFERENCE STUFF
 # =============================================================================
 
-# Use as nquery argument to mlperf_loadgen.ConstructQSL
-# I'm not 100% sure what this does...
-mlperfNquery = 32
+# Used by ConstructQSL: it's the number of samples to hold in memory. I believe
+# the loadgen driver will cache these and otherwise re-query our loaders which
+# all cache anyway.
+mlperfNquery = 128
 
 
 def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):

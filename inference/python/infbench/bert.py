@@ -617,7 +617,7 @@ class bertModelBase(model.Model):
         inputMask = np.array(inputMask).astype(np.int64)[np.newaxis, :].tobytes()
         segmentIds = np.array(segmentIds).astype(np.int64)[np.newaxis, :].tobytes()
 
-        return [inputIds, inputMask, segmentIds, otherFeature]
+        return (inputIds, inputMask, segmentIds, otherFeature)
 
     @staticmethod
     def post(inputs):

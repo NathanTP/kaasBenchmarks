@@ -19,22 +19,23 @@ def loadKerns(modelDir):
 
 
 class jacobiBase(model.Model):
+    nOutPost = None
     noPost = True
+    nOutPre = None
+    noPre = True
     preMap = model.inputMap(inp=(0, 1))
     runMap = model.inputMap(pre=(0, 1))
     postMap = model.inputMap(run=(0, 1))
     nOutRun = 2
-    nOutPre = 2
-    nOutPost = 2
     nConst = 0
 
     @staticmethod
-    def pre(bufs):
-        return bufs
+    def pre(args):
+        raise RuntimeError("Jacobi has no preprocessing step")
 
     @staticmethod
-    def post(label):
-        raise AttributeError("cutlass sgemm has no post-processing")
+    def post(args):
+        raise RuntimeError("Jacobi has no postprocessing step")
 
     @staticmethod
     def getConstants(modelDir):
