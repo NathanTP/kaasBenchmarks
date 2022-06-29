@@ -252,8 +252,8 @@ if __name__ == "__main__":
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
         mlperf(args.modelType, outDir=resultsDir,
-                    scale=args.scale, runTime=args.runTime,
-                    model=args.model, nCpy=args.nCopy)
+               scale=args.scale, runTime=args.runTime,
+               model=args.model, nCpy=args.nCopy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
         throughput(args.modelType, outDir=resultsDir,
