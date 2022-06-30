@@ -21,12 +21,12 @@ pushd dependencies/tvm
     popd
 
     pushd python
-        python3 setup.py install
+        pip install -e .
     popd
 popd
 
 pushd dependencies/kaas/python
-    python3 setup.py develop
+    pip install -e .
 popd
 
 pushd dependencies/mlperf/loadgen
@@ -39,7 +39,7 @@ pushd inference
     pip install -r requirements.txt
 
     pushd python
-        python3 setup.py develop
+        pip install -e .
     popd
 
     pushd tools
