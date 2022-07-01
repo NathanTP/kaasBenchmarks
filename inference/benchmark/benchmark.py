@@ -32,7 +32,7 @@ def main():
                         help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("-p", "--policy",
-                        choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default='balance',
+                        choices=['exclusive', 'balance', 'static'], default='balance',
                         help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--force-cold", action="store_true", dest='forceCold',
                         help="Force cold starts if possible (this is only valid in some configurations)")
@@ -64,6 +64,8 @@ def main():
         policy = policies.BALANCE
     elif args.policy == 'exclusive':
         policy = policies.EXCLUSIVE
+    elif args.policy == 'static':
+        policy = policies.STATIC
     else:
         raise ValueError("Unsupported policy: ", args.policy)
 

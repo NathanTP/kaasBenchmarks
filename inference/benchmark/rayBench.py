@@ -1125,6 +1125,13 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (self.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
+    def registerClient(self, modelName, clientID):
+        # Registration
+        print("Registering ", clientID)
+        cState = clientState(modelName)
+        clients[clientID] = cState
+        self.pool.registerGroup(clientID, runActor)
+
     def handleClients(self, msg):
         clientID = msg[0].decode('utf-8')
         reqID = msg[1]
@@ -1133,12 +1140,8 @@ class serverLoop():
         cState = clients.get(clientID, None)
 
         if cState is None:
-            # Registration
-            print("Registering ", clientID)
             modelName = reqID.decode('utf-8')
-            cState = clientState(modelName)
-            clients[clientID] = cState
-            self.pool.registerGroup(clientID, runActor)
+            self.registerClient(modelName, clientID)
         else:
             self.nOutstanding += 1
             # Too many outstanding queries can overwhelm Ray and hurt
