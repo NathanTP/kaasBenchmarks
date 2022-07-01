@@ -10,6 +10,8 @@ import tvm
 import tvm.relay as relay
 
 from resnet50 import createReq
+#XXX
+import infbench
 
 modelDir = pathlib.Path.cwd()
 outDir = (modelDir / 'resnet50').resolve()
@@ -58,40 +60,99 @@ def fixOnnxDim(model, inputMap):
 # This function was written with a bit of trial and error. the onnxModel
 # returned by onnx.load is a protobuf structure, you can print it and inspect
 # different parts of it.
-def getOnnxInfo(onnxModel):
-    """Get metadata from an onnx object. Metadata returned includes at least:
-        - inName/outName   : Name of the input/output node
-        - inType/outType   : numpy type of the input/output
-        - inShape/outShape : numpy compatible shape tuple for input/output
+def getOnnxInfo(onnxDesc):
+    """Get metadata from an onnx file or loaded protobuf object. Metadata
+       returned includes at least:
+        - inName   : Name of the input/output node
+        - inType   : numpy type of the input/output
+        - inShape  : numpy compatible shape tuple for input/output
+        - outputs : list of dicts of name, type, shape  for outputs (same keys/meanings as for in*)
     """
+
+    if isinstance(onnxDesc, str) or isinstance(onnxDesc, pathlib.Path):
+        onnxModel = onnx.load(onnxDesc)
+    else:
+        onnxModel = onnxDesc
+
+    initializers = []
+    for node in onnxModel.graph.initializer:
+        initializers.append(node.name)
 
     info = {}
 
     # I assume the model has only one input from the host (the first one). I
     # suppose we could validate this somehow by parsing the graph but we're
     # just gonna assume for now.
-    inNode = onnxModel.graph.input[0]
-    info['inName'] = inNode.name
-    info['inType'] = onnxTypes[inNode.type.tensor_type.elem_type]
+    ins = []
+    for inNode in onnxModel.graph.input:
+        # Some onnx graphs (like superRes) have explicit inputs for
+        # initializers (weights). We only want to record dynamic inputs. Most
+        # models don't do this.
+        if inNode.name in initializers:
+            continue
 
-    info['inShape'] = []
-    for dim in inNode.type.tensor_type.shape.dim:
-        info['inShape'].append(dim.dim_value)
+        inInfo = {}
+        inInfo['name'] = inNode.name
+        inInfo['type'] = onnxTypes[inNode.type.tensor_type.elem_type]
+
+        inInfo['shape'] = []
+        for dim in inNode.type.tensor_type.shape.dim:
+            inInfo['shape'].append(dim.dim_value)
+        ins.append(inInfo)
+    info['inputs'] = ins
 
     outs = []
     for outNode in onnxModel.graph.output:
-        outInfo = {
-            'outName': outNode.name,
-            'outType': onnxTypes[outNode.type.tensor_type.elem_type]}
+        outInfo = {'name': outNode.name,
+                   'type': onnxTypes[outNode.type.tensor_type.elem_type]}
 
-        outInfo['outShape'] = []
+        outInfo['shape'] = []
         for dim in outNode.type.tensor_type.shape.dim:
-            outInfo['outShape'].append(dim.dim_value)
+            outInfo['shape'].append(dim.dim_value)
         outs.append(outInfo)
 
     info['outputs'] = outs
 
     return info
+
+
+# This function was written with a bit of trial and error. the onnxModel
+# returned by onnx.load is a protobuf structure, you can print it and inspect
+# different parts of it.
+# def getOnnxInfo(onnxModel):
+#     """Get metadata from an onnx object. Metadata returned includes at least:
+#         - inName/outName   : Name of the input/output node
+#         - inType/outType   : numpy type of the input/output
+#         - inShape/outShape : numpy compatible shape tuple for input/output
+#     """
+#
+#     info = {}
+#
+#     # I assume the model has only one input from the host (the first one). I
+#     # suppose we could validate this somehow by parsing the graph but we're
+#     # just gonna assume for now.
+#     inNode = onnxModel.graph.input[0]
+#     info['inName'] = inNode.name
+#     info['inType'] = onnxTypes[inNode.type.tensor_type.elem_type]
+#
+#     info['inShape'] = []
+#     for dim in inNode.type.tensor_type.shape.dim:
+#         info['inShape'].append(dim.dim_value)
+#
+#     outs = []
+#     for outNode in onnxModel.graph.output:
+#         outInfo = {
+#             'outName': outNode.name,
+#             'outType': onnxTypes[outNode.type.tensor_type.elem_type]}
+#
+#         outInfo['outShape'] = []
+#         for dim in outNode.type.tensor_type.shape.dim:
+#             outInfo['outShape'].append(dim.dim_value)
+#         outs.append(outInfo)
+#
+#     info['outputs'] = outs
+#
+#     return info
 
 
 def getOnnx(onnxPath, outputDir):
@@ -105,7 +166,9 @@ def getOnnx(onnxPath, outputDir):
     mod, params = relay.frontend.from_onnx(model)
     with tvm.transform.PassContext(opt_level=3):
         module = relay.build(mod, tvm.target.cuda(), params=params)
+    module.export_library(outputDir / "resnet50.so")
 
+    # meta = infbench.model.getOnnxInfo(model)
     meta = getOnnxInfo(model)
     with open(outputDir / f"{modelName}.json", 'w') as f:
         json.dump(meta, f, indent=True)
