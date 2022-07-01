@@ -1,9 +1,9 @@
 import io
 import json
+import yaml
 import pathlib
 import itertools
 import copy
-import sys
 import pandas as pd
 import numpy as np
 import collections
@@ -213,6 +213,7 @@ def getRunDirs(resPath, expNames=None):
 def loadOneThroughput(resDirs):
     resDicts = []
 
+    print("Loading: ", resDirs[0] / "server_stats.json")
     with open(resDirs[0] / "server_stats.json", 'r') as f:
         serverStats = json.load(f)
 
@@ -530,7 +531,6 @@ def generatePropertiesThroughputSingle(dat, throughputDir):
     """Add any results from throughputDir to dat. See generateProperties() for details."""
     throughputRes = loadAllThroughput(throughputDir)
     isolated = dat['isolated']
-    print(throughputRes.keys())
     for modelName in models:
         if modelName in throughputRes:
             modelRes = throughputRes[modelName]
@@ -553,7 +553,9 @@ def generatePropertiesThroughputFull(dat, throughputDir):
                 full[modelName]['tvm']['throughput'][nClient - 1] = row['eTask']
 
 
-def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDir):
+def generateProperties(propFile, nShotDir, throughputSingleDir,
+                       throughputFullDir,
+                       resourceReqFile=pathlib.Path("./resourceReqs.yaml")):
     """Generate a properties.yaml file given a list of nShot and throughput
     results. Missing data will be set to None. If profFile exists, new data
     from nShotDir or throughputDir will be used, but any existing data that
@@ -572,7 +574,8 @@ def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDi
         throughputFullDir:
             Output of "./multiExperiment.py -e throughput" (on the full 8 GPU
             system with all nReplicas and models enabled)
-
+        resourceReqFile:
+            Manually collected resource requirements. See the default file for details.
     Returns:
         The full properties dictionary (same thing written to propFile)
     """
@@ -588,6 +591,10 @@ def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDi
     #                 "qps": peak throughput number,
     #                 # Generated with ./multiExperiment.py -e throughput
     #                 "latency": median latency as reported by nShot
+    #                 # See resourceReqs.yaml for details
+    #                 "mem": peak memory requirement in bytes
+    #                 # See resourceReqs.yaml for details
+    #                 "sm": peak gpu compute utilization (%)
     #             },
     #             'tvm': {...}
     #         }, ...
@@ -611,11 +618,18 @@ def generateProperties(propFile, nShotDir, throughputSingleDir, throughputFullDi
     newDat['isolated'] = {}
     newDat['full'] = {}
     for modelName in models:
-        newDat['isolated'][modelName] = {'kaas': {'latency': None, 'qps': None},
-                                         'tvm': {'latency': None, 'qps': None}}
+        newDat['isolated'][modelName] = {'kaas': {'latency': None, 'qps': None,
+                                                  'mem': None, 'sm': None},
+                                         'tvm': {'latency': None, 'qps': None,
+                                                 'mem': None, 'sm': None}}
 
         newDat['full'][modelName] = {'kaas': {'throughput': [None]*16},
                                      'tvm':  {'throughput': [None]*16}}
+
+    with open(resourceReqFile, 'r') as f:
+        resourceReqs = yaml.safe_load(f)
+
+    newDat['isolated'] |= resourceReqs
 
     if nShotDir is not None:
         generatePropertiesNShot(newDat, nShotDir)
@@ -648,7 +662,7 @@ if __name__ == "__main__":
     #                           throughputFullDir=pathlib.Path('results/throughput'))
     pprint(generateProperties(propFile=pathlib.Path('testProperties.json'),
                               nShotDir=pathlib.Path('results/nshotFast'),
-                              throughputSingleDir=pathlib.Path('results/throughputOne'),
-                              throughputFullDir=pathlib.Path('results/throughput')))
+                              throughputSingleDir=pathlib.Path('../benchmark/results/throughputSingleNew'),
+                              throughputFullDir=pathlib.Path('../benchmark/results/throughputFullNew')))
 
     # resPath = pathlib.Path(sys.argv[1])
