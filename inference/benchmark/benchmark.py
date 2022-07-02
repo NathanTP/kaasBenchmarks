@@ -46,6 +46,9 @@ def main():
                         help="Number of iterations to use in nshot mode")
     parser.add_argument("--numClient", default=1, type=int,
                         help="Expected number of clients in server mode. This is used to implement a barrier.")
+    parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
+                        help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
+    parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
     args = parser.parse_args()
 
     if args.backend == 'local':
@@ -59,6 +62,9 @@ def main():
         backend = client
     else:
         raise ValueError("Unrecognized backend: " + args.backend)
+
+    if args.fractional is not None and args.policy != 'static':
+        raise ValueError("'fractional' can only be used with the static policy")
 
     if args.policy == 'balance':
         policy = policies.BALANCE
@@ -83,7 +89,9 @@ def main():
         "scale": args.scale,
         "runTime": args.runTime,
         "numRun": args.numRun,
-        "numClient": args.numClient
+        "numClient": args.numClient,
+        "fractional": args.fractional,
+        "mig": args.mig
     }
 
     print(f"Starting {args.experiment} experiment")

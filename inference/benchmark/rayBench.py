@@ -6,6 +6,7 @@ import sys
 import signal
 import math
 from pprint import pprint
+import psutil
 
 import time
 
@@ -211,7 +212,12 @@ def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
     return postOut
 
 
-@ray.remote(num_gpus=1)
+# XXX The num_cpus=0 is pretty interesting, we should probably be assigning
+# whole CPUs to GPU workers, but once we introduced fractional GPUs (a la MIG),
+# we actually run out of CPUs. Coincidentally, p3 instances always have
+# nCPU=8*nGPU which means a fully partitioned GPU is guaranteed to run out of
+# CPUs.
+@ray.remote(num_gpus=1, num_cpus=0)
 class runActor(kaas.pool.PoolWorker):
     """A persistent actor for running model requests. Actors will cache models
     as needed and run them natively. It is possible to run out of GPU memory
@@ -1009,10 +1015,24 @@ def mlperfBench(modelSpec, benchConfig):
 # =============================================================================
 # Server Mode
 # =============================================================================
+# Maximum memory (bytes) and SM (percent) that can be allocated from one GPU
+maxMemResource = 16160 * (2**20)
+maxSMResource = 100
+
+
+def roundMIG(frac):
+    # Round to the nearest multiple of 1/8 (granularity of MIG slices)
+    if frac % 0.125 == 0:
+        nSlice = frac / 0.125
+    else:
+        nSlice = int(frac / 0.125) + 1
+
+    return nSlice * 0.125
 
 
 class clientState():
     def __init__(self, modelName):
+        self.modelName = modelName
         self.modelSpec = util.getModelSpec(modelName)
         self.specRef = ray.put(self.modelSpec)
 
@@ -1041,6 +1061,26 @@ class clientState():
             self.modelArg = self.modelSpec.getModelArg(constRefs=runConstRefs)
         else:
             self.modelArg = ray.put(self.modelSpec.getModelArg())
+
+    def getGPUFraction(self, resource: str, mig: bool):
+        """Return the fraction of a GPU this client requires (suitable for
+        Ray's num_gpus argument).
+        Arguments:
+            mig: Emulate MIG by rounding the fraction up to the nearest 1/8
+
+        Returns:
+            (mem, sm) requirements as a fraction of GPU capacity
+        """
+        props = properties.getProperties()
+        reqs = props.resourceReqs(self.modelSpec.name, self.modelSpec.modelType)
+
+        memFrac = reqs['mem'] / maxMemResource
+        smFrac = reqs['sm'] / maxSMResource
+
+        if mig:
+            return (roundMIG(memFrac), roundMIG(smFrac))
+        else:
+            return (memFrac, smFrac)
 
 
 # { clientID -> clientState }
@@ -1080,6 +1120,21 @@ class serverLoop():
         IOLoop.current().add_callback(self.handleWorker)
 
         self.nGpu = infbench.getNGpu()
+
+        if benchConfig['fractional'] is not None:
+            # workers are assumed to consume one CPU (default for Ray). We need to
+            # have at least one CPU free for tasks.
+            self.maxWorkers = psutil.cpu_count() - 1
+            self.nWorkers = 0
+
+            # For static only:
+            # Clients must be given a fair-share of resources. This is for the
+            # resource in benchConfig['fractional']. We also track mem and sm
+            # separately. Mem is particularly important as we must make sure not to
+            # exceed this, even in sm mode.
+            self.clientResourceFrac = self.nGpu / self.benchConfig['numClient']
+            self.memFracConsumed = 0
+            self.smFracConsumed = 0
 
         self.clientStats = profiling.profCollection()
 
@@ -1126,11 +1181,35 @@ class serverLoop():
             self.clientStream.on_recv(self.handleClients)
 
     def registerClient(self, modelName, clientID):
-        # Registration
         print("Registering ", clientID)
         cState = clientState(modelName)
         clients[clientID] = cState
-        self.pool.registerGroup(clientID, runActor)
+
+        if self.benchConfig['fractional'] is None:
+            self.pool.registerGroup(clientID, runActor)
+        else:
+            memFrac, smFrac = cState.getGPUFraction(self.benchConfig['fractional'],
+                                                    mig=self.benchConfig['mig'])
+            self.memFracConsumed += memFrac
+            self.smFracConsumed += smFrac
+            if self.memFracConsumed > self.nGpu:
+                raise RuntimeError("Maximum GPU memory exceeded")
+
+            if self.benchConfig['fractional'] == 'mem':
+                frac = memFrac
+            else:
+                frac = smFrac
+
+            nWorker = int(self.clientResourceFrac / frac)
+            if nWorker == 0:
+                raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {self.clientResourceFrac}")
+            self.nWorkers += nWorker
+            # XXX CPU thing
+            # if self.nWorkers > self.maxWorkers:
+            #     raise RuntimeError("Maximum number of CPUs exceeded")
+
+            self.pool.registerGroup(clientID, runActor.options(num_gpus=frac),
+                                    nWorker=nWorker, workerResources=frac)
 
     def handleClients(self, msg):
         clientID = msg[0].decode('utf-8')

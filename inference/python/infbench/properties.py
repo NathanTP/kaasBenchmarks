@@ -17,13 +17,27 @@ class Properties():
         with open(self.propFile, 'r') as f:
             self.perfData = json.load(f)
 
-    def throughputSingle(self, modelName, gpuType=None):
+    def throughputSingle(self, modelName, modelType=None, gpuType=None, independent=True):
         """Return estimated single-GPU throughput of this model in ms"""
         if gpuType is None:
             gpuType = util.getGpuType()
 
-        modelData = self.perfData['isolated'][modelName]
-        return min((modelData['kaas']['qps'], modelData['tvm']['qps']))
+        if modelType == 'direct':
+            modelType = 'tvm'
+
+        if independent:
+            return self.perfData['isolated'][modelName][modelType]['qps']
+        else:
+            modelData = self.perfData['isolated'][modelName]
+            return min((modelData['kaas']['qps'], modelData['tvm']['qps']))
+
+    def resourceReqs(self, modelName, modelType):
+        """Return resoure requirements for modelName and modelType (kaas or
+        tvm). 'mem' and 'sm'.
+        """
+        if modelType == 'direct':
+            modelType = 'tvm'
+        return self.perfData['isolated'][modelName][modelType]
 
     def latency(self, modelName, gpuType=None):
         """Return the estimated single-GPU latency of this model in ms"""
@@ -35,6 +49,9 @@ class Properties():
 
     def throughputFull(self, modelName, nClient, modelType=None, independent=True):
         """Return throughput for the full 8 GPU experiment"""
+        if modelType == 'direct':
+            modelType = 'tvm'
+
         if independent:
             thpt = self.perfData['full'][modelName][modelType]['throughput']
         else:
@@ -50,13 +67,17 @@ class Properties():
 
         return thpt
 
-    def getMlPerfConfig(self, modelName, benchConfig, gpuType=None):
+    def getMlPerfConfig(self, modelName, benchConfig, gpuType=None, independent=True):
         """Return an mlperf config object for the specified model"""
         if gpuType is None:
             gpuType = util.getGpuType()
 
-        maxQps = self.throughputSingle(modelName, gpuType)
-        latency = self.latency(modelName, gpuType)
+        maxQps = self.throughputSingle(modelName, gpuType,
+                                       modelType=benchConfig['model_type'],
+                                       independent=independent)
+        latency = self.latency(modelName, gpuType,
+                               modelType=benchConfig['model_type'],
+                               independent=independent)
         settings = model.getDefaultMlPerfCfg(maxQps, latency, benchConfig)
 
         return settings
