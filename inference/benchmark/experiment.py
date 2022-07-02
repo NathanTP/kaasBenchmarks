@@ -205,7 +205,8 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
 
 
 def throughput(modelType, scale=1.0, runTime=None, prefix="throughput",
-               outDir="results", nCpy=1, model=None, policy=None):
+               outDir="results", nCpy=1, model=None, policy=None,
+               fractional=None, mig=False):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -217,7 +218,8 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput",
     prefix = f"{prefix}_{modelType}"
 
     runTest('throughput', [model], modelType, prefix, expResultsDir,
-            scale=scale, runTime=runTime, nCpy=nCpy, policy=policy)
+            scale=scale, runTime=runTime, nCpy=nCpy, policy=policy,
+            fractional=fractional, mig=mig)
 
     results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
@@ -278,9 +280,9 @@ if __name__ == "__main__":
                model=args.model, nCpy=args.nCopy, policy=policy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
-        throughput(args.modelType, outDir=resultsDir,
-                   scale=args.scale, runTime=args.runTime,
-                   model=args.model, nCpy=args.nCopy, policy=policy)
+        throughput(args.modelType, outDir=resultsDir, scale=args.scale,
+                   runTime=args.runTime, model=args.model, nCpy=args.nCopy,
+                   policy=policy, fractional=args.fractional, mig=args.mig)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 
