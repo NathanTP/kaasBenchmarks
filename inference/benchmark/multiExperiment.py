@@ -25,8 +25,6 @@ modes = ['kaas', 'static']
 
 
 def getTargetRuntime(nReplica, model, mode, fast=False):
-    #XXX
-    return 300
     if fast:
         return 180
 
@@ -102,12 +100,12 @@ def throughput(configs, suiteOutDir, fast=False):
             policyArg = []
 
         cmd = ['./experiment.py',
-                '-e', 'throughput',
-                '-n', str(nReplica),
-                '-s', str(1 / nReplica),
-                f'--runTime={runTime}',
-                '-t', mode,
-                '-m', model]
+               '-e', 'throughput',
+               '-n', str(nReplica),
+               '-s', str(1 / nReplica),
+               f'--runTime={runTime}',
+               '-t', mode,
+               '-m', model]
 
         cmd += policyArg
 
