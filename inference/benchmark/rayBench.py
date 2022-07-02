@@ -1204,6 +1204,7 @@ class serverLoop():
             if nWorker == 0:
                 raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {self.clientResourceFrac}")
             self.nWorkers += nWorker
+
             # XXX CPU thing
             # if self.nWorkers > self.maxWorkers:
             #     raise RuntimeError("Maximum number of CPUs exceeded")

@@ -222,8 +222,8 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
             nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
 
 
-def throughput(modelType, runTime=None, prefix="throughput",
-               outDir="results", nCpy=1, models=None, policy=None):
+def throughput(modelType, runTime=None, prefix="throughput", outDir="results",
+               nCpy=1, models=None, policy=None, fractional=None, mig=False):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -232,7 +232,8 @@ def throughput(modelType, runTime=None, prefix="throughput",
     prefix = f"{prefix}_{modelType}"
 
     runTest('throughput', models, modelType, prefix, expResultsDir,
-            runTime=runTime, nCpy=nCpy, policy=policy)
+            runTime=runTime, nCpy=nCpy, policy=policy, fractional=fractional,
+            mig=mig)
 
     results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
@@ -301,7 +302,8 @@ if __name__ == "__main__":
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
         throughput(args.modelType, outDir=resultsDir, runTime=args.runTime,
-                   models=args.model, nCpy=args.nCopy, policy=policy)
+                   models=args.model, nCpy=args.nCopy, policy=policy,
+                   fractional=args.fractional, mig=args.mig)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 

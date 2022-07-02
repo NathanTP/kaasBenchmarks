@@ -18,10 +18,10 @@ resultsDir = pathlib.Path("./results")
 # nReplicas = [1, 4, 5]
 # modes = ['kaas', 'tvm']
 
-nReplicas = [1, 3, 4]
-models = ['resnet50']
-# models = ['bert']
-modes = ['tvm']
+# nReplicas = [1]
+nReplicas = [3, 4, 5, 15, 16]
+models = ['cGEMM']
+modes = ['kaas', 'static']
 
 
 def getTargetRuntime(nReplica, model, mode, fast=False):
@@ -90,17 +90,27 @@ def nShot(configs, suiteOutDir):
 
 def throughput(configs, suiteOutDir, fast=False):
     for model, mode, nReplica in configs:
+        name = f"{model}_{mode}_{nReplica}"
         runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
 
-        name = f"{model}_{mode}_{nReplica}"
+        if mode == 'static':
+            mode = 'tvm'
+            policyArg = ['-p', 'static', '--mig', '--fractional', 'mem']
+        else:
+            policyArg = []
+
+        cmd = ['./experiment.py',
+               '-e', 'throughput',
+               '-n', str(nReplica),
+               '-s', str(1 / nReplica),
+               f'--runTime={runTime}',
+               '-t', mode,
+               '-m', model]
+
+        cmd += policyArg
+
         print("\nStarting test: ", name)
-        sp.run(['./experiment.py',
-                '-e', 'throughput',
-                '-n', str(nReplica),
-                '-s', str(1 / nReplica),
-                f'--runTime={runTime}',
-                '-t', mode,
-                '-m', model])
+        sp.run(cmd)
 
         runOutDir = suiteOutDir / name
         shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
@@ -112,7 +122,7 @@ def throughput(configs, suiteOutDir, fast=False):
 def getScale(props, model, mode, nReplica, independent, fast):
     peakThr = props.throughputFull(model, nClient=nReplica, modelType=mode,
                                    independent=independent)
-    baseThr = props.throughputSingle(model)
+    baseThr = props.throughputSingle(model, modelType=mode, independent=independent)
 
     if fast:
         safeThr = 0.2 * peakThr

@@ -101,6 +101,7 @@ def main():
     print("\t Runner Policy: ", args.policy)
     print("\t Force Cold: ", args.forceCold)
     print("\t Inline: ", args.inline)
+    print("\t Fractional: ", args.fractional)
 
     if args.experiment == 'nshot':
         spec = util.getModelSpec(args.model)
