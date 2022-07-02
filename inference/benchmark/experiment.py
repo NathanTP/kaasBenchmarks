@@ -67,7 +67,7 @@ def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1, nClient
     return sp.Popen(cmd, stdout=sys.stdout, cwd=outDir)
 
 
-def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0,
+def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None,
             runTime=None, nRun=1, policy=None, fractional=None, mig=False):
     """Run a single test in client-server mode.
         modelNames: Models to run. At least one copy of these models will run
@@ -81,12 +81,15 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0,
         policy: Scheduling policy to use for this experiment
         fractional, mig: See argparse help for details.
     """
+    if scales is None:
+        scales = [1]*nCpy*len(modelNames)
+
     runners = {}
     for i in range(nCpy):
         for j, modelName in enumerate(modelNames):
             instanceName = f"{prefix}_{modelName}_{j}_{i}"
             runners[instanceName] = launchClient(
-                scale, modelName + modelType, instanceName,
+                scales[j], modelName + modelType, instanceName,
                 test, resultsDir, runTime=runTime, nRun=nRun,
                 nClient=nCpy*len(modelNames))
 
@@ -121,8 +124,27 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0,
     return True
 
 
-def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
+def mlperf(modelType, prefix="mlperf_multi", outDir="results", scales=None,
            runTime=None, nCpy=1, models=None, policy=None):
+    suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+    expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
+    expResultsDir.mkdir(0o700)
+    linkLatest(expResultsDir)
+
+    if scales is None:
+        raise ValueError("mlperf requires explicit scales")
+
+    prefix = f"{prefix}_{modelType}"
+
+    runTest('mlperf', models, modelType, prefix, expResultsDir,
+            scales=scales, runTime=runTime, nCpy=nCpy, policy=policy)
+
+
+# WARNING: This isn't really used for anything in the current experiments and
+# is not maintained. Don't expect it to work the first time if you need it
+# again.
+def mlperfSearch(modelType, prefix="mlperf_multi", outDir="results", scale=None,
+                 runTime=None, nCpy=1, models=None, policy=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
 
@@ -200,20 +222,17 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
             nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
 
 
-def throughput(modelType, scale=1.0, runTime=None, prefix="throughput",
+def throughput(modelType, runTime=None, prefix="throughput",
                outDir="results", nCpy=1, models=None, policy=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    if scale is None:
-        scale = ((1 / nCpy) * infbench.getNGpu())
-
     prefix = f"{prefix}_{modelType}"
 
     runTest('throughput', models, modelType, prefix, expResultsDir,
-            scale=scale, runTime=runTime, nCpy=nCpy, policy=policy)
+            runTime=runTime, nCpy=nCpy, policy=policy)
 
     results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
@@ -239,7 +258,7 @@ if __name__ == "__main__":
                         help="Which experiment to run.")
     parser.add_argument("-t", "--modelType", default='tvm',
                         choices=['kaas', 'tvm'], help="Which model type to use")
-    parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations")
+    parser.add_argument("-s", "--scale", type=float, action='append', help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations. If there are multiple models, multiple scales can be provided for each model (just specify the model and scale in the same order).")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("-n", "--nCopy", type=int, default=1, help="Number of model replicas to use")
     parser.add_argument("-p", "--policy", choices=['exclusive', 'balance', 'static'],
@@ -250,32 +269,38 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.scale is None:
+        args.scale = [1]*len(args.model)
+    elif len(args.scale) == 1:
+        args.scale = args.scale*len(args.model)
+
+    if args.policy is None:
+        if args.modelType == 'kaas':
+            policy = 'balance'
+        elif args.modelType == 'tvm':
+            policy = 'exclusive'
+        else:
+            raise ValueError("Unrecognized model type: ", args.modelType)
+    else:
+        policy = args.policy
+
     # internally we concatenate the modelType to a camel-case string so we need
     # to convert the first character to uppercase.
     args.modelType = args.modelType[:1].upper() + args.modelType[1:]
 
-    if args.policy is None:
-        if args.modelType == 'Kaas':
-            policy = 'balance'
-        elif args.modelType == 'tvm':
-            policy = 'exclusive'
-    else:
-        policy = args.policy
-
     if args.experiment == 'nshot':
         print("Starting nshot")
-        nShot(int(args.scale), modelType=args.modelType, nCpy=args.nCopy,
+        nShot(int(args.scale[0]), modelType=args.modelType, nCpy=args.nCopy,
               outDir=resultsDir, models=args.model, policy=policy,
               fractional=args.fractional, mig=args.mig)
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
         mlperf(args.modelType, outDir=resultsDir,
-               scale=args.scale, runTime=args.runTime,
+               scales=args.scale, runTime=args.runTime,
                models=args.model, nCpy=args.nCopy, policy=policy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
-        throughput(args.modelType, outDir=resultsDir,
-                   scale=args.scale, runTime=args.runTime,
+        throughput(args.modelType, outDir=resultsDir, runTime=args.runTime,
                    models=args.model, nCpy=args.nCopy, policy=policy)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
