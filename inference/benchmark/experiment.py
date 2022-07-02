@@ -25,7 +25,8 @@ def linkLatest(newLatest):
     latestDir.symlink_to(newLatest)
 
 
-def launchServer(outDir, nClient, modelType, policy, nGpu=None):
+def launchServer(outDir, nClient, modelType, policy, nGpu=None,
+                 fractional=None, mig=False):
     """Launch the benchmark server. outDir is the directory where experiment
     outputs should go. Returns a Popen object. If nGpu is none, all gpus are
     used, otherwise we restrict the server to nGpu."""
@@ -38,6 +39,12 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None):
                      '-b', 'ray',
                      '--policy=' + policy,
                      '--numClient=' + str(nClient)]
+
+    if fractional is not None:
+        fracArgs = ['--fractional', fractional]
+        if mig:
+            fracArgs.append('--mig')
+        cmd += fracArgs
 
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
@@ -60,7 +67,8 @@ def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1, nClient
     return sp.Popen(cmd, stdout=sys.stdout, cwd=outDir)
 
 
-def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, runTime=None, nRun=1):
+def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0,
+            runTime=None, nRun=1, policy=None, fractional=None, mig=False):
     """Run a single test in client-server mode.
         modelNames: Models to run. At least one copy of these models will run
         nCpy: Number of copies of modelNames to run. len(modelNames)*nCpy clients will run
@@ -70,14 +78,9 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
         scale: For tests that use the --scale parameter (mlperf)
         runTime: Target runtime of experiment
         nRun: For models that use the nRun parameter (nshot)
+        policy: Scheduling policy to use for this experiment
+        fractional, mig: See argparse help for details.
     """
-    if modelType == 'Kaas':
-        policy = 'balance'
-    elif modelType == 'Tvm':
-        policy = 'exclusive'
-    else:
-        raise ValueError("Unrecognized Model Type: " + modelType)
-
     runners = {}
     for i in range(nCpy):
         for j, modelName in enumerate(modelNames):
@@ -87,7 +90,8 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
                 test, resultsDir, runTime=runTime, nRun=nRun,
                 nClient=nCpy*len(modelNames))
 
-    server = launchServer(resultsDir, len(runners), modelType, policy)
+    server = launchServer(resultsDir, len(runners), modelType, policy,
+                          fractional=fractional, mig=mig)
 
     failed = []
     for name, runner in runners.items():
@@ -118,7 +122,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0, 
 
 
 def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
-           runTime=None, nCpy=1, model=None):
+           runTime=None, nCpy=1, model=None, policy=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
 
@@ -153,8 +157,9 @@ def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
         time.sleep(10)  # ray is bad at cleaning up, gotta wait to be sure
         with tempfile.TemporaryDirectory() as tmpRes:
             tmpRes = pathlib.Path(tmpRes)
-            failure = not runTest('mlperf', models, modelType, prefix,
-                                  tmpRes, nCpy=nCpy, scale=scale, runTime=runTime)
+            failure = not runTest('mlperf', models, modelType, prefix, tmpRes,
+                                  nCpy=nCpy, scale=scale, runTime=runTime,
+                                  policy=policy)
             if failure:
                 failureScale = scale
             else:
@@ -186,7 +191,8 @@ def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
     return succeedScale
 
 
-def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results", model=None):
+def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
+          model=None, policy=None, fractional=None, mig=False):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"nshot_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -194,10 +200,13 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results", model=N
 
     prefix = f"{prefix}_{modelType}"
 
-    runTest('nshot', [model], modelType, prefix, expResultsDir, nRun=n, nCpy=nCpy)
+    runTest('nshot', [model], modelType, prefix, expResultsDir, nRun=n,
+            nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
 
 
-def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="results", nCpy=1, model=None):
+def throughput(modelType, scale=1.0, runTime=None, prefix="throughput",
+               outDir="results", nCpy=1, model=None, policy=None,
+               fractional=None, mig=False):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -209,7 +218,8 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput", outDir="
     prefix = f"{prefix}_{modelType}"
 
     runTest('throughput', [model], modelType, prefix, expResultsDir,
-            scale=scale, runTime=runTime, nCpy=nCpy)
+            scale=scale, runTime=runTime, nCpy=nCpy, policy=policy,
+            fractional=fractional, mig=mig)
 
     results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
@@ -238,6 +248,11 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--scale", type=float, help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("-n", "--nCopy", type=int, default=1, help="Number of model replicas to use")
+    parser.add_argument("-p", "--policy", choices=['exclusive', 'balance', 'static'],
+                        help="Scheduling policy to use. If omitted, the default policy for the model type will be used (Exclusive for TVM, Balance for KaaS)")
+    parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
+                        help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
+    parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
 
     args = parser.parse_args()
 
@@ -245,20 +260,29 @@ if __name__ == "__main__":
     # to convert the first character to uppercase.
     args.modelType = args.modelType[:1].upper() + args.modelType[1:]
 
+    if args.policy is None:
+        if args.modelType == 'Kaas':
+            policy = 'balance'
+        elif args.modelType == 'tvm':
+            policy = 'exclusive'
+    else:
+        policy = args.policy
+
     if args.experiment == 'nshot':
         print("Starting nshot")
         nShot(int(args.scale), modelType=args.modelType, nCpy=args.nCopy,
-              outDir=resultsDir, model=args.model)
+              outDir=resultsDir, model=args.model, policy=policy,
+              fractional=args.fractional, mig=args.mig)
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
         mlperf(args.modelType, outDir=resultsDir,
                scale=args.scale, runTime=args.runTime,
-               model=args.model, nCpy=args.nCopy)
+               model=args.model, nCpy=args.nCopy, policy=policy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
-        throughput(args.modelType, outDir=resultsDir,
-                   scale=args.scale, runTime=args.runTime,
-                   model=args.model, nCpy=args.nCopy)
+        throughput(args.modelType, outDir=resultsDir, scale=args.scale,
+                   runTime=args.runTime, model=args.model, nCpy=args.nCopy,
+                   policy=policy, fractional=args.fractional, mig=args.mig)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 

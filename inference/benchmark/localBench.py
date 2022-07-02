@@ -10,7 +10,7 @@ import pathlib
 import kaas
 import kaas.local
 from kaas import profiling
-from kaas import properties
+from infbench import properties
 
 # for cuda profiling
 import pycuda.driver as cuda

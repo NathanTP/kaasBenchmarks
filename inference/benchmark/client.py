@@ -350,15 +350,13 @@ class mlperfRunner(threading.Thread):
         self.metrics['t_response'] = infbench.processLatencies(self.benchConfig, latencies)
 
     def run(self):
-        gpuType = infbench.getGpuType()
-
         self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
 
         self.sutSock = self.zmqContext.socket(zmq.PAIR)
         self.sutSock.connect(sutSockUrl)
 
         props = properties.getProperties()
-        runSettings = props.getMlPerfConfig(self.modelSpec.name, self.benchConfig, gpuType)
+        runSettings = props.getMlPerfConfig(self.modelSpec.name, self.benchConfig)
 
         logSettings = mlperf_loadgen.LogSettings()
         logSettings.log_output.prefix = self.benchConfig['name'] + "_"

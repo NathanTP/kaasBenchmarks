@@ -1,0 +1,44 @@
+# Peak memory requirement (bytes) and SM utilization (%) of model/mode.
+# Measured manually using: 
+#
+#   "nvidia-smi" and "./benchmark.py -e nshot --numRun 128 -p balance -b ray -m MODEL"
+#
+# For KaaS, this is tricky because it doesn't aggressively free input buffers.
+# I just report the first number I see in nvidia-smi before it starts going up
+# by steady amounts. SM utilization is "GPU-Util", this is typically close to
+# (but a bit higher) than "sm%" reported by "nvidia-smi pmon"
+testModel: 
+    kaas:
+        mem: 384827392
+        sm: 6
+    tvm:
+        mem: 349175808
+        sm: 6
+resnet50: 
+    kaas:
+        mem: 567279616 
+        sm: 16
+    tvm:
+        mem: 470810624
+        sm: 16
+bert: 
+    kaas:
+        mem: 3775922176
+        sm: 68
+    tvm:
+        mem: 1699741696
+        sm: 71
+cGEMM: 
+    kaas:
+        mem: 2406481920
+        sm: 89
+    tvm:
+        mem: 2389704704
+        sm: 88
+jacobi: 
+    kaas:
+        mem: 324009984
+        sm: 87
+    tvm:
+        mem: 321912832
+        sm: 89

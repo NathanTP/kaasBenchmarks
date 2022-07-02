@@ -60,7 +60,7 @@ def getModelSpec(modelName):
     # You must run tools/getModels.py first to get these .so's
     if modelName == "dummyModelKaas":
         import infbench.dummyModel
-        return ModelSpec(name="dummyModelKaas",
+        return ModelSpec(name="dummyModel",
                          loader=infbench.dummyModel.dummyLoader,
                          dataDir=modelDir / "dummy",
                          modelPath=modelDir / "dummy" / "dummy_model.yaml",
@@ -69,7 +69,7 @@ def getModelSpec(modelName):
 
     elif modelName == "testModelKaas":
         import infbench.testModel
-        return ModelSpec(name="testModelKaas",
+        return ModelSpec(name="testModel",
                          loader=infbench.testModel.testLoader,
                          dataDir=modelDir / "sgemm",
                          modelPath=modelDir / "sgemm" / "sgemm_model.yaml",
@@ -87,7 +87,7 @@ def getModelSpec(modelName):
 
     elif modelName == "jacobiKaas":
         import infbench.jacobi
-        return ModelSpec(name="jacobiKaas",
+        return ModelSpec(name="jacobi",
                          loader=infbench.jacobi.jacobiLoader,
                          modelPath=modelDir / "jacobi" / "jacobi_model.yaml",
                          modelClass=infbench.jacobi.jacobiKaas,
@@ -116,7 +116,7 @@ def getModelSpec(modelName):
 
     elif modelName == "cutlassSgemmKaas":
         import infbench.cutlassSgemm
-        return ModelSpec(name="cutlassSgemmKaas",
+        return ModelSpec(name="cutlassSgemm",
                          loader=infbench.cutlassSgemm.cutlassSgemmLoader,
                          modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
                          modelClass=infbench.cutlassSgemm.sgemmKaas,
@@ -133,7 +133,7 @@ def getModelSpec(modelName):
 
     elif modelName == "superResKaas":
         import infbench.superres
-        return ModelSpec(name="superResKaas",
+        return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
                          modelPath=modelDir / "superRes" / "superRes_model.yaml",
                          modelClass=infbench.superres.superResKaas,
@@ -141,7 +141,7 @@ def getModelSpec(modelName):
 
     elif modelName == "resnet50Kaas":
         import infbench.resnet50
-        return ModelSpec(name="resnet50Kaas",
+        return ModelSpec(name="resnet50",
                          loader=infbench.resnet50.imageNetLoader,
                          modelPath=modelDir / "resnet50" / "resnet50_model.yaml",
                          modelClass=infbench.resnet50.resnet50Kaas,
@@ -150,7 +150,7 @@ def getModelSpec(modelName):
 
     elif modelName == "bertKaas":
         import infbench.bert
-        return ModelSpec(name="bertKaas",
+        return ModelSpec(name="bert",
                          loader=infbench.bert.bertLoader,
                          modelClass=infbench.bert.bertModelKaas,
                          modelPath=modelDir / "bert" / "bert_model.yaml",
@@ -158,7 +158,7 @@ def getModelSpec(modelName):
 
     elif modelName == "testModelTvm":
         import infbench.testModel
-        return ModelSpec(name="testModelNative",
+        return ModelSpec(name="testModel",
                          loader=infbench.testModel.testLoader,
                          dataDir=modelDir / "sgemm",
                          modelPath=modelDir / "sgemm" / "sgemm_meta.yaml",

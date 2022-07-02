@@ -32,7 +32,7 @@ def main():
                         help="Which test to run")
     parser.add_argument("--testing", action="store_true", help="Run MLPerf in testing mode")
     parser.add_argument("-p", "--policy",
-                        choices=['rr', 'exclusive', 'affinity', 'balance', 'hedge'], default='balance',
+                        choices=['exclusive', 'balance', 'static'], default='balance',
                         help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--force-cold", action="store_true", dest='forceCold',
                         help="Force cold starts if possible (this is only valid in some configurations)")
@@ -46,6 +46,9 @@ def main():
                         help="Number of iterations to use in nshot mode")
     parser.add_argument("--numClient", default=1, type=int,
                         help="Expected number of clients in server mode. This is used to implement a barrier.")
+    parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
+                        help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
+    parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
     args = parser.parse_args()
 
     if args.backend == 'local':
@@ -60,10 +63,15 @@ def main():
     else:
         raise ValueError("Unrecognized backend: " + args.backend)
 
+    if args.fractional is not None and args.policy != 'static':
+        raise ValueError("'fractional' can only be used with the static policy")
+
     if args.policy == 'balance':
         policy = policies.BALANCE
     elif args.policy == 'exclusive':
         policy = policies.EXCLUSIVE
+    elif args.policy == 'static':
+        policy = policies.STATIC
     else:
         raise ValueError("Unsupported policy: ", args.policy)
 
@@ -81,7 +89,9 @@ def main():
         "scale": args.scale,
         "runTime": args.runTime,
         "numRun": args.numRun,
-        "numClient": args.numClient
+        "numClient": args.numClient,
+        "fractional": args.fractional,
+        "mig": args.mig
     }
 
     print(f"Starting {args.experiment} experiment")
@@ -91,6 +101,7 @@ def main():
     print("\t Runner Policy: ", args.policy)
     print("\t Force Cold: ", args.forceCold)
     print("\t Inline: ", args.inline)
+    print("\t Fractional: ", args.fractional)
 
     if args.experiment == 'nshot':
         spec = util.getModelSpec(args.model)
