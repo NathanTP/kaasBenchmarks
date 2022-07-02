@@ -122,13 +122,9 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scale=1.0,
 
 
 def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
-           runTime=None, nCpy=1, model=None, policy=None):
+           runTime=None, nCpy=1, models=None, policy=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
-
-    # We currently only use homogenous workloads, but we can also make model a
-    # list or just manually override if we want to mix models
-    models = [model]
 
     prefix = f"{prefix}_{modelType}"
 
@@ -192,7 +188,7 @@ def mlperf(modelType, prefix="mlperf_multi", outDir="results", scale=None,
 
 
 def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
-          model=None, policy=None, fractional=None, mig=False):
+          models=None, policy=None, fractional=None, mig=False):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"nshot_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -200,12 +196,12 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
 
     prefix = f"{prefix}_{modelType}"
 
-    runTest('nshot', [model], modelType, prefix, expResultsDir, nRun=n,
+    runTest('nshot', models, modelType, prefix, expResultsDir, nRun=n,
             nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
 
 
 def throughput(modelType, scale=1.0, runTime=None, prefix="throughput",
-               outDir="results", nCpy=1, model=None, policy=None):
+               outDir="results", nCpy=1, models=None, policy=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -216,7 +212,7 @@ def throughput(modelType, scale=1.0, runTime=None, prefix="throughput",
 
     prefix = f"{prefix}_{modelType}"
 
-    runTest('throughput', [model], modelType, prefix, expResultsDir,
+    runTest('throughput', models, modelType, prefix, expResultsDir,
             scale=scale, runTime=runTime, nCpy=nCpy, policy=policy)
 
     results = {}
@@ -235,7 +231,7 @@ if __name__ == "__main__":
         resultsDir.mkdir(0o700)
 
     parser = argparse.ArgumentParser("Experiments for the benchmark")
-    parser.add_argument("-m", "--model",
+    parser.add_argument("-m", "--model", action='append',
                         choices=['testModel', 'bert', 'resnet50', 'superRes', 'cGEMM', 'jacobi'],
                         help="Model to run. Not used in mlperfMulti mode.")
     parser.add_argument("-e", "--experiment",
@@ -269,18 +265,18 @@ if __name__ == "__main__":
     if args.experiment == 'nshot':
         print("Starting nshot")
         nShot(int(args.scale), modelType=args.modelType, nCpy=args.nCopy,
-              outDir=resultsDir, model=args.model, policy=policy,
+              outDir=resultsDir, models=args.model, policy=policy,
               fractional=args.fractional, mig=args.mig)
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
         mlperf(args.modelType, outDir=resultsDir,
                scale=args.scale, runTime=args.runTime,
-               model=args.model, nCpy=args.nCopy, policy=policy)
+               models=args.model, nCpy=args.nCopy, policy=policy)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
         throughput(args.modelType, outDir=resultsDir,
                    scale=args.scale, runTime=args.runTime,
-                   model=args.model, nCpy=args.nCopy, policy=policy)
+                   models=args.model, nCpy=args.nCopy, policy=policy)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 
