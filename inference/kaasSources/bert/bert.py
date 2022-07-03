@@ -6149,7 +6149,9 @@ def createReq(params, cubinPath, mode='direct'):
 
     # 1123. fused_squeeze_1
     # kernel 0
-    arguments = [(nodes[17], 'o'), (nodes["7_1"], 'i')]
+    output_size = 1536
+    nodes[401] = kaas.bufferSpec('401', output_size, const=False, ephemeral=True)
+    arguments = [(nodes[401], 'o'), (nodes["7_1"], 'i')]
     shapes = [(1, 1, 1),  (384, 1, 1)]
     kerns.append(makeKern('fused_squeeze_1_kernel0', path, shapes, arguments))
 
