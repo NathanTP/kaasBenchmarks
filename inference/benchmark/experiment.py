@@ -139,6 +139,20 @@ def mlperf(modelType, prefix="mlperf_multi", outDir="results", scales=None,
     runTest('mlperf', models, modelType, prefix, expResultsDir,
             scales=scales, runTime=runTime, nCpy=nCpy, policy=policy)
 
+    p50s = {}
+    p90s = {}
+    for resultsFile in expResultsDir.glob("**/mlperf*_results.json"):
+        with open(resultsFile, 'r') as f:
+            result = json.load(f)
+
+        p50s[result['config']['name']] = result['metrics_warm']['t_response']['p50']
+        p90s[result['config']['name']] = result['metrics_warm']['t_response']['p90']
+
+    print("p50s:")
+    pprint(p50s)
+    print("p90s:")
+    pprint(p90s)
+
 
 # WARNING: This isn't really used for anything in the current experiments and
 # is not maintained. Don't expect it to work the first time if you need it

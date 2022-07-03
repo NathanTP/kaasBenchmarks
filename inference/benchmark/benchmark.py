@@ -51,6 +51,15 @@ def main():
     parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
     args = parser.parse_args()
 
+    print(f"Starting {args.experiment} experiment")
+    print("\t Model: ", args.model)
+    print("\t Backend: ", args.backend)
+    print("\t Testing: ", args.testing)
+    print("\t Runner Policy: ", args.policy)
+    print("\t Force Cold: ", args.forceCold)
+    print("\t Inline: ", args.inline)
+    print("\t Fractional: ", args.fractional)
+
     if args.backend == 'local':
         import localBench
         backend = localBench
@@ -93,15 +102,6 @@ def main():
         "fractional": args.fractional,
         "mig": args.mig
     }
-
-    print(f"Starting {args.experiment} experiment")
-    print("\t Model: ", args.model)
-    print("\t Backend: ", args.backend)
-    print("\t Testing: ", args.testing)
-    print("\t Runner Policy: ", args.policy)
-    print("\t Force Cold: ", args.forceCold)
-    print("\t Inline: ", args.inline)
-    print("\t Fractional: ", args.fractional)
 
     if args.experiment == 'nshot':
         spec = util.getModelSpec(args.model)

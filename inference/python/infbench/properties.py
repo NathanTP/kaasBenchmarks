@@ -39,13 +39,13 @@ class Properties():
             modelType = 'tvm'
         return self.perfData['isolated'][modelName][modelType]
 
-    def latency(self, modelName, gpuType=None):
+    def latency(self, modelName, modelType=None, independent=True):
         """Return the estimated single-GPU latency of this model in ms"""
-        if gpuType is None:
-            gpuType = util.getGpuType()
-
         modelData = self.perfData['isolated'][modelName]
-        return min((modelData['kaas']['latency'], modelData['tvm']['latency']))
+        if independent:
+            return modelData[modelType]['latency']
+        else:
+            return min((modelData['kaas']['latency'], modelData['tvm']['latency']))
 
     def throughputFull(self, modelName, nClient, modelType=None, independent=True):
         """Return throughput for the full 8 GPU experiment"""
@@ -72,12 +72,13 @@ class Properties():
         if gpuType is None:
             gpuType = util.getGpuType()
 
-        maxQps = self.throughputSingle(modelName, gpuType,
+        maxQps = self.throughputSingle(modelName,
                                        modelType=benchConfig['model_type'],
                                        independent=independent)
-        latency = self.latency(modelName, gpuType,
-                               modelType=benchConfig['model_type'],
+
+        latency = self.latency(modelName, modelType=benchConfig['model_type'],
                                independent=independent)
+
         settings = model.getDefaultMlPerfCfg(maxQps, latency, benchConfig)
 
         return settings
