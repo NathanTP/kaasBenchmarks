@@ -46,6 +46,21 @@ level2Stats = {
 }
 
 
+# Maximum memory (bytes) and SM (percent) that can be allocated from one GPU
+maxMemResource = 16160 * (2**20)
+maxSMResource = 100
+
+
+def roundMIG(frac):
+    # Round to the nearest multiple of 1/8 (granularity of MIG slices)
+    if frac % 0.125 == 0:
+        nSlice = frac / 0.125
+    else:
+        nSlice = int(frac / 0.125) + 1
+
+    return nSlice * 0.125
+
+
 # All steps (pre/run/post) take in multiple arguments (even if there's one
 # argument, it's passed as a tuple). If we passed a list of futures, we would
 # need to ray.get() each one seperately. This would prevent Ray from doing full
@@ -54,8 +69,6 @@ level2Stats = {
 # pass each input directly as an argument using the *batch syntax (this groups
 # remaining function arguments into a list). This way Ray waits until all
 # inputs are ready before instantiating the function.
-
-
 def _unMarshalArgs(argMap, args):
     """Due to Ray's requirement that all references be passed as arguments, we
     are forced to marshal all variable-length arguments into a single list.
@@ -522,6 +535,39 @@ def _nShotSync(n, loader, modelSpec, specRef, modelArg, constRefs, pool, benchCo
     return results
 
 
+def nShotRegister(pool, modelSpec, benchConfig):
+    if benchConfig['fractional'] is None:
+        pool.registerGroup(benchConfig['name'], runActor)
+    else:
+        nGpu = infbench.getNGpu()
+        props = properties.getProperties()
+        reqs = props.resourceReqs(modelSpec.name, modelSpec.modelType)
+
+        memFrac = roundMIG(reqs['mem'] / maxMemResource)
+        smFrac = roundMIG(reqs['sm'] / maxSMResource)
+
+        if memFrac > nGpu:
+            raise RuntimeError("Maximum GPU memory exceeded")
+
+        if benchConfig['fractional'] == 'mem':
+            frac = memFrac
+        else:
+            frac = smFrac
+
+        nWorkers = nGpu / frac
+        if nWorkers == 0:
+            raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {nGpu}")
+
+        # We need at least one CPU for the pool and one more to execute tasks
+        maxWorkers = psutil.cpu_count() - 2
+        if nWorkers > maxWorkers:
+            print(f"Warning: Maximum number of CPUs exceeded, reducing allocation from {nWorkers} to {maxWorkers}")
+            nWorkers = maxWorkers
+
+        pool.registerGroup(benchConfig['name'], runActor.options(num_gpus=frac),
+                           nWorker=nWorkers, workerResources=frac)
+
+
 def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     ray.init(include_dashboard=False)
 
@@ -557,11 +603,9 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
     nGpu = infbench.getNGpu()
     pool = kaas.pool.Pool(nGpu, policy=benchConfig['policy'])
 
+    nShotRegister(pool, modelSpec, benchConfig)
     if modelSpec.modelType == 'kaas':
-        pool.registerGroup('kaasExecutor', runActor)
         warmKaas(pool)
-    else:
-        pool.registerGroup(benchConfig['name'], runActor)
 
     # Cold start metrics collection
     results = _nShotSync(1, loader, modelSpec, specRef, modelArg, constRefs, pool, benchConfig, coldStats)
@@ -1009,21 +1053,6 @@ def mlperfBench(modelSpec, benchConfig):
 # =============================================================================
 # Server Mode
 # =============================================================================
-# Maximum memory (bytes) and SM (percent) that can be allocated from one GPU
-maxMemResource = 16160 * (2**20)
-maxSMResource = 100
-
-
-def roundMIG(frac):
-    # Round to the nearest multiple of 1/8 (granularity of MIG slices)
-    if frac % 0.125 == 0:
-        nSlice = frac / 0.125
-    else:
-        nSlice = int(frac / 0.125) + 1
-
-    return nSlice * 0.125
-
-
 class clientState():
     def __init__(self, modelName, modelType):
         self.modelName = modelName
