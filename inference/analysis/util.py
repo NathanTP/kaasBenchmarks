@@ -10,11 +10,11 @@ import collections
 import shutil
 from pprint import pprint
 
-
 models = ['cGEMM', 'resnet50', 'testModel', 'bert', 'jacobi']
 
 baselineName = "eTask"
 kaasName = "kTask"
+staticName = "static"
 
 
 def updateThroughputRes(resDict):
@@ -89,15 +89,23 @@ def aggregateModels(fullResults, metric):
         fullIndex = list(range(1, maxNReplica+1))
         df = pd.DataFrame(index=fullIndex)
 
-        tvmRes = [res for res in modelRes if res['config']['model_type'] in ['tvm', 'direct']]
-        tvmSer = pd.Series([res[metric] for res in tvmRes], index=[res['config']['numClient'] for res in tvmRes])
-        tvmSer = tvmSer.reindex(fullIndex)
-        df[baselineName] = tvmSer
+        expResults = {staticName: [], baselineName: [], kaasName: []}
+        for res in modelRes:
+            config = res['config']
+            # The 3 is a legacy thing from before I switched to a string Enum.
+            # You can remove it after re-running all the results
+            if config['policy'] == 'static' or config['policy'] == 3:
+                expResults[staticName].append(res)
+            elif config['model_type'] in ['tvm', 'direct']:
+                expResults[baselineName].append(res)
+            elif config['model_type'] in ['kaas']:
+                expResults[kaasName].append(res)
 
-        kaasRes = [res for res in modelRes if res['config']['model_type'] == "kaas"]
-        kaasSer = pd.Series([res[metric] for res in kaasRes], index=[res['config']['numClient'] for res in kaasRes])
-        kaasSer = kaasSer.reindex(fullIndex)
-        df[kaasName] = kaasSer
+        for name, expRes in expResults.items():
+            ser = pd.Series([res[metric] for res in expRes], dtype='float64',
+                            index=[res['config']['numClient'] for res in expRes])
+            ser = ser.reindex(fullIndex)
+            df[name] = ser
 
         resDfs[model] = df
 
@@ -213,7 +221,6 @@ def getRunDirs(resPath, expNames=None):
 def loadOneThroughput(resDirs):
     resDicts = []
 
-    print("Loading: ", resDirs[0] / "server_stats.json")
     with open(resDirs[0] / "server_stats.json", 'r') as f:
         serverStats = json.load(f)
 
@@ -226,8 +233,10 @@ def loadOneThroughput(resDirs):
     aggDict['config'] = resDicts[0]['config']
 
     # The per-client configs think they only have one client, but the server
-    # knows the real number.
+    # knows the real number. Same for the scheduling policy, only the server
+    # has the real answer.
     aggDict['config']['numClient'] = serverStats['config']['numClient']
+    aggDict['config']['policy'] = serverStats['config']['policy']
 
     aggDict['throughput'] = sum([d['metrics_warm']['throughput']['mean'] for d in resDicts]) / len(resDirs)
 
@@ -551,6 +560,7 @@ def generatePropertiesThroughputFull(dat, throughputDir):
             for nClient, row in modelRes.iterrows():
                 full[modelName]['kaas']['throughput'][nClient - 1] = row['kTask']
                 full[modelName]['tvm']['throughput'][nClient - 1] = row['eTask']
+                full[modelName]['static']['throughput'][nClient - 1] = row['static']
 
 
 def generateProperties(propFile, nShotDir, throughputSingleDir,
@@ -596,7 +606,8 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
     #                 # See resourceReqs.yaml for details
     #                 "sm": peak gpu compute utilization (%)
     #             },
-    #             'tvm': {...}
+    #             'tvm': {...},
+    #             'static': {...}
     #         }, ...
     #     },
     #     # measurements from full suite of runs on 8 GPU system.
@@ -624,7 +635,8 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
                                                  'mem': None, 'sm': None}}
 
         newDat['full'][modelName] = {'kaas': {'throughput': [None]*16},
-                                     'tvm':  {'throughput': [None]*16}}
+                                     'tvm':  {'throughput': [None]*16},
+                                     'static':  {'throughput': [None]*16}}
 
     with open(resourceReqFile, 'r') as f:
         resourceReqs = yaml.safe_load(f)
@@ -655,14 +667,10 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
 
 if __name__ == "__main__":
     # resDir = pathlib.Path(sys.argv[1])
-    # pprint(loadAllThroughput(resDir))
-    # generateProperties(propFile=pathlib.Path('testProperties.json'),
-    #                           nShotDir=pathlib.Path('results/nshotFast'),
-    #                           throughputSingleDir=pathlib.Path('results/throughputOne'),
-    #                           throughputFullDir=pathlib.Path('results/throughput'))
-    pprint(generateProperties(propFile=pathlib.Path('testProperties.json'),
-                              nShotDir=pathlib.Path('results/nshotFast'),
-                              throughputSingleDir=pathlib.Path('../benchmark/results/throughputSingleNew'),
-                              throughputFullDir=pathlib.Path('../benchmark/results/throughputFullNew')))
+    # pprint(loadAllThroughput(resDir)['cGEMM'])
 
-    # resPath = pathlib.Path(sys.argv[1])
+    props = generateProperties(propFile=pathlib.Path('testProperties.json'),
+                               nShotDir=pathlib.Path('results/nshotFast'),
+                               throughputSingleDir=pathlib.Path('../benchmark/results/throughputSingleNew'),
+                               throughputFullDir=pathlib.Path('./results/throughputFull'))
+    pprint(props)
