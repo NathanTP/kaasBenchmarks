@@ -212,12 +212,7 @@ def runInline(modelSpec, modelArg, *refs, completionQ=None, queryId=None):
     return postOut
 
 
-# XXX The num_cpus=0 is pretty interesting, we should probably be assigning
-# whole CPUs to GPU workers, but once we introduced fractional GPUs (a la MIG),
-# we actually run out of CPUs. Coincidentally, p3 instances always have
-# nCPU=8*nGPU which means a fully partitioned GPU is guaranteed to run out of
-# CPUs.
-@ray.remote(num_gpus=1, num_cpus=0)
+@ray.remote(num_gpus=1)
 class runActor(kaas.pool.PoolWorker):
     """A persistent actor for running model requests. Actors will cache models
     as needed and run them natively. It is possible to run out of GPU memory
@@ -446,7 +441,7 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
 
 
 def warmKaas(pool):
-    modelSpec = util.getModelSpec("dummyModelKaas")
+    modelSpec = util.getModelSpec("dummyModel", "kaas")
     specRef = ray.put(modelSpec)
     modelArg = modelSpec.getModelArg()
     loader = modelSpec.loader(modelSpec.dataDir)
@@ -666,8 +661,7 @@ class throughputLoop():
         self.pool.registerGroup("throughputGroup", runActor)
 
         # This info is only used to get performance estimates
-        gpuType = infbench.getGpuType()
-        maxQps = properties.getProperties().throughputSingle(modelSpec.name, gpuType)
+        maxQps = properties.getProperties().throughputSingle(modelSpec.name, modelSpec.modelType)
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -1031,9 +1025,9 @@ def roundMIG(frac):
 
 
 class clientState():
-    def __init__(self, modelName):
+    def __init__(self, modelName, modelType):
         self.modelName = modelName
-        self.modelSpec = util.getModelSpec(modelName)
+        self.modelSpec = util.getModelSpec(modelName, modelType)
         self.specRef = ray.put(self.modelSpec)
 
         # This is a work-around for Ray's immutable object store that can fill
@@ -1180,9 +1174,9 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (self.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
-    def registerClient(self, modelName, clientID):
+    def registerClient(self, modelName, modelType, clientID):
         print("Registering ", clientID)
-        cState = clientState(modelName)
+        cState = clientState(modelName, modelType)
         clients[clientID] = cState
 
         if self.benchConfig['fractional'] is None:
@@ -1205,9 +1199,8 @@ class serverLoop():
                 raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {self.clientResourceFrac}")
             self.nWorkers += nWorker
 
-            # XXX CPU thing
-            # if self.nWorkers > self.maxWorkers:
-            #     raise RuntimeError("Maximum number of CPUs exceeded")
+            if self.nWorkers > self.maxWorkers:
+                raise RuntimeError("Maximum number of CPUs exceeded")
 
             self.pool.registerGroup(clientID, runActor.options(num_gpus=frac),
                                     nWorker=nWorker, workerResources=frac)
@@ -1221,7 +1214,8 @@ class serverLoop():
 
         if cState is None:
             modelName = reqID.decode('utf-8')
-            self.registerClient(modelName, clientID)
+            modelType = data[0].decode('utf-8')
+            self.registerClient(modelName, modelType, clientID)
         else:
             self.nOutstanding += 1
             # Too many outstanding queries can overwhelm Ray and hurt

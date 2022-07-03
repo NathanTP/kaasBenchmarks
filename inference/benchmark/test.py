@@ -14,9 +14,9 @@ expectedAccuracies = {
 }
 
 
-def runBench(model, modelType='kaas', backend='local', experiment='nshot', nRun=1):
+def runBench(model, modelType='kaas', backend='local', experiment='nshot', scale=1):
     modelType = modelType.capitalize()
-    cmd = ["./benchmark.py", "-m", model + modelType, '-b', backend, '-e', experiment, '--numRun', str(nRun)]
+    cmd = ["./benchmark.py", "-m", model, '-t', modelType, '-b', backend, '-e', experiment, '--scale', str(scale)]
     print("Running Command: ", " ".join(cmd))
     proc = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
     if proc.returncode != 0:
@@ -38,12 +38,12 @@ def runBench(model, modelType='kaas', backend='local', experiment='nshot', nRun=
 
 def quick():
     models = ['testModel', 'resnet50', 'bert', 'cGEMM', 'jacobi']
-    types = ['kaas', 'tvm']
+    types = ['kaas', 'native']
     backends = ['local', 'ray']
     configs = itertools.product(models, types, backends)
     for model, modelType, backend in configs:
         print(f"Running: {model}:{modelType} {backend}")
-        if not runBench(model, modelType=modelType, nRun=32, backend=backend):
+        if not runBench(model, modelType=modelType, scale=32, backend=backend):
             print(f"Test Failed: {backend} {model}{modelType}")
             return False
         else:
@@ -68,7 +68,7 @@ def runServerMode(model, modelType='kaas', experiment='nshot', n=1, scale=1.0, r
 
 def serverModeQuick():
     models = ['testModel', 'resnet50', 'bert', 'cGEMM', 'jacobi']
-    types = ['kaas', 'tvm']
+    types = ['kaas', 'native']
     configs = itertools.product(models, types)
     for model, modelType in configs:
         print(f"Running: {model}:{modelType}")
@@ -82,7 +82,7 @@ def serverModeQuick():
 
 def runMlperf(model, modelType, mode, runTime=30, scale=0.5):
     if mode == 'direct':
-        cmd = ["./benchmark.py", "-m", model + modelType.capitalize(), '-b', 'ray',
+        cmd = ["./benchmark.py", "-m", model, "-t", modelType, '-b', 'ray',
                '-e', 'mlperf', '--runTime', str(runTime), '--scale', str(scale)]
     elif mode == 'server':
         cmd = ["./experiment.py", "-m", model, '-t', modelType,
@@ -102,7 +102,7 @@ def runMlperf(model, modelType, mode, runTime=30, scale=0.5):
 
 def mlperfQuick():
     models = ['testModel']
-    types = ['kaas', 'tvm']
+    types = ['kaas', 'native']
     modes = ['server', 'direct']
 
     configs = itertools.product(models, types, modes)
@@ -118,17 +118,17 @@ def mlperfQuick():
 
 def smoke():
     models = ['testModel']
-    types = ['kaas', 'tvm']
+    types = ['kaas', 'native']
     configs = itertools.product(models, types)
     for model, modelType in configs:
         print(f"\nRunning nshot tests ({modelType}:")
-        if not runBench(model, modelType=modelType, experiment='nshot', nRun=32, backend='local'):
+        if not runBench(model, modelType=modelType, experiment='nshot', scale=32, backend='local'):
             print(f"Test Failed: local {model}{modelType}")
             return False
         else:
             print(f"Test Success: local {model}{modelType}")
 
-        if not runBench(model, modelType=modelType, experiment='nshot', nRun=32, backend='ray'):
+        if not runBench(model, modelType=modelType, experiment='nshot', scale=32, backend='ray'):
             print(f"Test Failed: ray {model}{modelType}")
             return False
         else:

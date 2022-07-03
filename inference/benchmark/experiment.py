@@ -25,8 +25,8 @@ def linkLatest(newLatest):
     latestDir.symlink_to(newLatest)
 
 
-def launchServer(outDir, nClient, modelType, policy, nGpu=None,
-                 fractional=None, mig=False):
+def launchServer(outDir, nClient, policy, nGpu=None, fractional=None,
+                 mig=False):
     """Launch the benchmark server. outDir is the directory where experiment
     outputs should go. Returns a Popen object. If nGpu is none, all gpus are
     used, otherwise we restrict the server to nGpu."""
@@ -49,14 +49,14 @@ def launchServer(outDir, nClient, modelType, policy, nGpu=None,
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
-def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1, nClient=1):
+def launchClient(scale, model, modelType, name, test, outDir, runTime=None, nClient=1):
     cmd = [(expRoot / "benchmark.py"),
            "-e", test,
-           "--numRun=" + str(nRun),
            "-b", "client",
            "--numClient", str(nClient),
            "--name=" + name,
-           "-m", model]
+           "-m", model,
+           "--modelType", modelType]
 
     if scale is not None:
         cmd.append("--scale=" + str(scale))
@@ -68,16 +68,15 @@ def launchClient(scale, model, name, test, outDir, runTime=None, nRun=1, nClient
 
 
 def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None,
-            runTime=None, nRun=1, policy=None, fractional=None, mig=False):
+            runTime=None, policy=None, fractional=None, mig=False):
     """Run a single test in client-server mode.
         modelNames: Models to run. At least one copy of these models will run
         nCpy: Number of copies of modelNames to run. len(modelNames)*nCpy clients will run
-        modelType: Kaas or Tvm (note capital letter, I'm lazy)
+        modelType: kaas or native
         prefix: Used to name the run
         resultsDir: Where to output all results from this test
-        scale: For tests that use the --scale parameter (mlperf)
+        scale: For tests that use the --scale parameter (mlperf, nshot)
         runTime: Target runtime of experiment
-        nRun: For models that use the nRun parameter (nshot)
         policy: Scheduling policy to use for this experiment
         fractional, mig: See argparse help for details.
     """
@@ -89,11 +88,10 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
         for j, modelName in enumerate(modelNames):
             instanceName = f"{prefix}_{modelName}_{j}_{i}"
             runners[instanceName] = launchClient(
-                scales[j], modelName + modelType, instanceName,
-                test, resultsDir, runTime=runTime, nRun=nRun,
-                nClient=nCpy*len(modelNames))
+                scales[j], modelName, modelType, instanceName,
+                test, resultsDir, runTime=runTime, nClient=nCpy*len(modelNames))
 
-    server = launchServer(resultsDir, len(runners), modelType, policy,
+    server = launchServer(resultsDir, len(runners), policy,
                           fractional=fractional, mig=mig)
 
     failed = []
@@ -232,7 +230,7 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
 
     prefix = f"{prefix}_{modelType}"
 
-    runTest('nshot', models, modelType, prefix, expResultsDir, nRun=n,
+    runTest('nshot', models, modelType, prefix, expResultsDir, scales=[n]*len(models),
             nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
 
 
@@ -271,13 +269,13 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--experiment",
                         choices=['nshot', 'mlperf', 'throughput'],
                         help="Which experiment to run.")
-    parser.add_argument("-t", "--modelType", default='tvm',
-                        choices=['kaas', 'tvm'], help="Which model type to use")
+    parser.add_argument("-t", "--modelType", default='native',
+                        choices=['kaas', 'native'], help="Which model type to use")
     parser.add_argument("-s", "--scale", type=float, action='append', help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations. If there are multiple models, multiple scales can be provided for each model (just specify the model and scale in the same order).")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("-n", "--nCopy", type=int, default=1, help="Number of model replicas to use")
     parser.add_argument("-p", "--policy", choices=['exclusive', 'balance', 'static'],
-                        help="Scheduling policy to use. If omitted, the default policy for the model type will be used (Exclusive for TVM, Balance for KaaS)")
+                        help="Scheduling policy to use. If omitted, the default policy for the model type will be used (Exclusive for native, Balance for kaas)")
     parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
                         help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
     parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
@@ -292,16 +290,12 @@ if __name__ == "__main__":
     if args.policy is None:
         if args.modelType == 'kaas':
             policy = 'balance'
-        elif args.modelType == 'tvm':
+        elif args.modelType == 'native':
             policy = 'exclusive'
         else:
             raise ValueError("Unrecognized model type: ", args.modelType)
     else:
         policy = args.policy
-
-    # internally we concatenate the modelType to a camel-case string so we need
-    # to convert the first character to uppercase.
-    args.modelType = args.modelType[:1].upper() + args.modelType[1:]
 
     if args.experiment == 'nshot':
         print("Starting nshot")
