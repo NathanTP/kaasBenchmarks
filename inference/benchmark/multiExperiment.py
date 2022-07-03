@@ -90,7 +90,7 @@ def throughput(configs, suiteOutDir, fast=False):
 
         if mode == 'static':
             mode = 'native'
-            policyArg = ['-p', 'static', '--mig', '--fractional', 'mem']
+            policyArg = ['-p', 'static', '--fractional', 'mem']
         else:
             policyArg = []
 

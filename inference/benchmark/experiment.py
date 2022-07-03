@@ -25,7 +25,7 @@ def linkLatest(newLatest):
     latestDir.symlink_to(newLatest)
 
 
-def launchServer(outDir, nClient, policy, nGpu=None, fractional=None, mig=False):
+def launchServer(outDir, nClient, policy, nGpu=None, fractional=None):
     """Launch the benchmark server. outDir is the directory where experiment
     outputs should go. Returns a Popen object. If nGpu is none, all gpus are
     used, otherwise we restrict the server to nGpu."""
@@ -41,21 +41,24 @@ def launchServer(outDir, nClient, policy, nGpu=None, fractional=None, mig=False)
 
     if fractional is not None:
         fracArgs = ['--fractional', fractional]
-        if mig:
-            fracArgs.append('--mig')
         cmd += fracArgs
 
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
+# There are a lot of parameters to the clients that don't make a functional
+# difference since only the server uses them (e.g. fractional, policy, etc.).
+# However, we include them so that the client logs can include the full
+# configuration information.
 def launchClient(scale, model, modelType, name, test, outDir, runTime=None,
-                 nClient=1, fractional=None, mig=False):
+                 nClient=1, fractional=None, policy=None):
     cmd = [(expRoot / "benchmark.py"),
            "-e", test,
            "-b", "client",
            "--numClient", str(nClient),
            "--name=" + name,
            "-m", model,
+           "-p", policy,
            "--modelType", modelType]
 
     if scale is not None:
@@ -66,15 +69,13 @@ def launchClient(scale, model, modelType, name, test, outDir, runTime=None,
 
     if fractional is not None:
         fracArgs = ['--fractional', fractional]
-        if mig:
-            fracArgs.append('--mig')
         cmd += fracArgs
 
     return sp.Popen(cmd, stdout=sys.stdout, cwd=outDir)
 
 
 def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None,
-            runTime=None, policy=None, fractional=None, mig=False):
+            runTime=None, policy=None, fractional=None):
     """Run a single test in client-server mode.
         modelNames: Models to run. At least one copy of these models will run
         nCpy: Number of copies of modelNames to run. len(modelNames)*nCpy clients will run
@@ -84,7 +85,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
         scale: For tests that use the --scale parameter (mlperf, nshot)
         runTime: Target runtime of experiment
         policy: Scheduling policy to use for this experiment
-        fractional, mig: See argparse help for details.
+        fractional: See argparse help for details.
     """
     if scales is None:
         scales = [1]*nCpy*len(modelNames)
@@ -93,12 +94,14 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
     for i in range(nCpy):
         for j, modelName in enumerate(modelNames):
             instanceName = f"{prefix}_{modelName}_{j}_{i}"
-            runners[instanceName] = launchClient(
-                scales[j], modelName, modelType, instanceName,
-                test, resultsDir, runTime=runTime, nClient=nCpy*len(modelNames))
+            runners[instanceName] = launchClient(scales[j], modelName,
+                                                 modelType, instanceName, test,
+                                                 resultsDir, runTime=runTime,
+                                                 nClient=nCpy*len(modelNames),
+                                                 fractional=fractional, policy=policy)
 
     server = launchServer(resultsDir, len(runners), policy,
-                          fractional=fractional, mig=mig)
+                          fractional=fractional)
 
     failed = []
     for name, runner in runners.items():
@@ -234,7 +237,7 @@ def mlperfSearch(modelType, prefix="mlperf_multi", outDir="results", scale=None,
 
 
 def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
-          models=None, policy=None, fractional=None, mig=False):
+          models=None, policy=None, fractional=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
     expResultsDir = outDir / f"nshot_{modelType}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -246,11 +249,11 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
         prefix = f"{prefix}_{modelType}"
 
     runTest('nshot', models, modelType, prefix, expResultsDir, scales=[n]*len(models),
-            nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
+            nCpy=nCpy, policy=policy, fractional=fractional)
 
 
 def throughput(modelType, runTime=None, prefix="throughput", outDir="results",
-               nCpy=1, models=None, policy=None, fractional=None, mig=False):
+               nCpy=1, models=None, policy=None, fractional=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
 
     if policy == 'static':
@@ -263,8 +266,7 @@ def throughput(modelType, runTime=None, prefix="throughput", outDir="results",
     linkLatest(expResultsDir)
 
     runTest('throughput', models, modelType, prefix, expResultsDir,
-            runTime=runTime, nCpy=nCpy, policy=policy, fractional=fractional,
-            mig=mig)
+            runTime=runTime, nCpy=nCpy, policy=policy, fractional=fractional)
 
     results = {}
     for resultsFile in expResultsDir.glob("throughput_*_results.json"):
@@ -297,7 +299,6 @@ if __name__ == "__main__":
                         help="Scheduling policy to use. If omitted, the default policy for the model type will be used (Exclusive for native, Balance for kaas)")
     parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
                         help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
-    parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
 
     args = parser.parse_args()
 
@@ -320,7 +321,7 @@ if __name__ == "__main__":
         print("Starting nshot")
         nShot(int(args.scale[0]), modelType=args.modelType, nCpy=args.nCopy,
               outDir=resultsDir, models=args.model, policy=policy,
-              fractional=args.fractional, mig=args.mig)
+              fractional=args.fractional)
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
         mlperf(args.modelType, outDir=resultsDir,
@@ -330,7 +331,7 @@ if __name__ == "__main__":
         print("Starting Throughput Test")
         throughput(args.modelType, outDir=resultsDir, runTime=args.runTime,
                    models=args.model, nCpy=args.nCopy, policy=policy,
-                   fractional=args.fractional, mig=args.mig)
+                   fractional=args.fractional)
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 

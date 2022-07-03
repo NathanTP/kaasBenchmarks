@@ -47,7 +47,6 @@ def main():
                         help="Expected number of clients in server mode. This is used to implement a barrier.")
     parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
                         help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
-    parser.add_argument("--mig", default=False, action="store_true", help="Emulate MIG (only valid for the static policy and with --fractional set)")
     parser.add_argument("--name", default="test", help="Name to use internally and when saving results")
 
     args = parser.parse_args()
@@ -98,8 +97,7 @@ def main():
         "scale": args.scale,
         "runTime": args.runTime,
         "numClient": args.numClient,
-        "fractional": args.fractional,
-        "mig": args.mig
+        "fractional": args.fractional
     }
 
     if args.experiment != "server":

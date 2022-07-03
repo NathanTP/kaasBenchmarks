@@ -1056,11 +1056,9 @@ class clientState():
         else:
             self.modelArg = ray.put(self.modelSpec.getModelArg())
 
-    def getGPUFraction(self, resource: str, mig: bool):
+    def getGPUFraction(self):
         """Return the fraction of a GPU this client requires (suitable for
         Ray's num_gpus argument).
-        Arguments:
-            mig: Emulate MIG by rounding the fraction up to the nearest 1/8
 
         Returns:
             (mem, sm) requirements as a fraction of GPU capacity
@@ -1071,10 +1069,7 @@ class clientState():
         memFrac = reqs['mem'] / maxMemResource
         smFrac = reqs['sm'] / maxSMResource
 
-        if mig:
-            return (roundMIG(memFrac), roundMIG(smFrac))
-        else:
-            return (memFrac, smFrac)
+        return (roundMIG(memFrac), roundMIG(smFrac))
 
 
 # { clientID -> clientState }
@@ -1182,8 +1177,7 @@ class serverLoop():
         if self.benchConfig['fractional'] is None:
             self.pool.registerGroup(clientID, runActor)
         else:
-            memFrac, smFrac = cState.getGPUFraction(self.benchConfig['fractional'],
-                                                    mig=self.benchConfig['mig'])
+            memFrac, smFrac = cState.getGPUFraction()
             self.memFracConsumed += memFrac
             self.smFracConsumed += smFrac
             if self.memFracConsumed > self.nGpu:
