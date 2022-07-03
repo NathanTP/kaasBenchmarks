@@ -96,7 +96,7 @@ def aggregateModels(fullResults, metric):
             # You can remove it after re-running all the results
             if config['policy'] == 'static' or config['policy'] == 3:
                 expResults[staticName].append(res)
-            elif config['model_type'] in ['tvm', 'direct']:
+            elif config['model_type'] in ['native', 'direct']:
                 expResults[baselineName].append(res)
             elif config['model_type'] in ['kaas']:
                 expResults[kaasName].append(res)
@@ -527,13 +527,17 @@ def generatePropertiesNShot(dat, nShotDir):
     isolated = dat['isolated']
     for modelName in models:
         kaasRunName = f"{modelName}_kaas_1"
-        tvmRunName = f"{modelName}_tvm_1"
+        natRunName = f"{modelName}_native_1"
+        staticRunName = f"{modelName}_static_1"
 
         if kaasRunName in warmNShot:
             isolated[modelName]['kaas']['latency'] = warmNShot[kaasRunName]['t_e2e']['p50']
 
-        if tvmRunName in warmNShot:
-            isolated[modelName]['tvm']['latency'] = warmNShot[tvmRunName]['t_e2e']['p50']
+        if natRunName in warmNShot:
+            isolated[modelName]['native']['latency'] = warmNShot[natRunName]['t_e2e']['p50']
+
+        if staticRunName in warmNShot:
+            isolated[modelName]['static']['latency'] = warmNShot[natRunName]['t_e2e']['p50']
 
 
 def generatePropertiesThroughputSingle(dat, throughputDir):
@@ -545,8 +549,10 @@ def generatePropertiesThroughputSingle(dat, throughputDir):
             modelRes = throughputRes[modelName]
             kQps = modelRes.loc[1, 'kTask']
             eQps = modelRes.loc[1, 'eTask']
+            sQps = modelRes.loc[1, 'static']
             isolated[modelName]['kaas']['qps'] = kQps
-            isolated[modelName]['tvm']['qps'] = eQps
+            isolated[modelName]['native']['qps'] = eQps
+            isolated[modelName]['static']['qps'] = sQps
 
 
 def generatePropertiesThroughputFull(dat, throughputDir):
@@ -559,7 +565,7 @@ def generatePropertiesThroughputFull(dat, throughputDir):
             modelRes = throughputRes[modelName]
             for nClient, row in modelRes.iterrows():
                 full[modelName]['kaas']['throughput'][nClient - 1] = row['kTask']
-                full[modelName]['tvm']['throughput'][nClient - 1] = row['eTask']
+                full[modelName]['native']['throughput'][nClient - 1] = row['eTask']
                 full[modelName]['static']['throughput'][nClient - 1] = row['static']
 
 
@@ -606,7 +612,7 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
     #                 # See resourceReqs.yaml for details
     #                 "sm": peak gpu compute utilization (%)
     #             },
-    #             'tvm': {...},
+    #             'native': {...},
     #             'static': {...}
     #         }, ...
     #     },
@@ -619,7 +625,7 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
     #                 # Use ./multiExperiment.py -e throughput
     #                 'throughput': [throughput for 1 client, 2 clients, ..., 16 clients]
     #             },
-    #             'tvm': {...}
+    #             'native': {...}
     #         }
     #     }
     # }
@@ -631,11 +637,13 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
     for modelName in models:
         newDat['isolated'][modelName] = {'kaas': {'latency': None, 'qps': None,
                                                   'mem': None, 'sm': None},
-                                         'tvm': {'latency': None, 'qps': None,
-                                                 'mem': None, 'sm': None}}
+                                         'native': {'latency': None, 'qps': None,
+                                                    'mem': None, 'sm': None},
+                                         'static': {'latency': None, 'qps': None,
+                                                    'mem': None, 'sm': None}}
 
         newDat['full'][modelName] = {'kaas': {'throughput': [None]*16},
-                                     'tvm':  {'throughput': [None]*16},
+                                     'native':  {'throughput': [None]*16},
                                      'static':  {'throughput': [None]*16}}
 
     with open(resourceReqFile, 'r') as f:
