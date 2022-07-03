@@ -25,8 +25,7 @@ def linkLatest(newLatest):
     latestDir.symlink_to(newLatest)
 
 
-def launchServer(outDir, nClient, policy, nGpu=None, fractional=None,
-                 mig=False):
+def launchServer(outDir, nClient, policy, nGpu=None, fractional=None, mig=False):
     """Launch the benchmark server. outDir is the directory where experiment
     outputs should go. Returns a Popen object. If nGpu is none, all gpus are
     used, otherwise we restrict the server to nGpu."""
@@ -49,7 +48,8 @@ def launchServer(outDir, nClient, policy, nGpu=None, fractional=None,
     return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
 
 
-def launchClient(scale, model, modelType, name, test, outDir, runTime=None, nClient=1):
+def launchClient(scale, model, modelType, name, test, outDir, runTime=None,
+                 nClient=1, fractional=None, mig=False):
     cmd = [(expRoot / "benchmark.py"),
            "-e", test,
            "-b", "client",
@@ -63,6 +63,12 @@ def launchClient(scale, model, modelType, name, test, outDir, runTime=None, nCli
 
     if runTime is not None:
         cmd.append("--runTime=" + str(runTime))
+
+    if fractional is not None:
+        fracArgs = ['--fractional', fractional]
+        if mig:
+            fracArgs.append('--mig')
+        cmd += fracArgs
 
     return sp.Popen(cmd, stdout=sys.stdout, cwd=outDir)
 
@@ -122,10 +128,16 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
     return True
 
 
-def mlperf(modelType, prefix="mlperf_multi", outDir="results", scales=None,
+def mlperf(modelType, prefix="mlperf", outDir="results", scales=None,
            runTime=None, nCpy=1, models=None, policy=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
+
+    if policy == 'static':
+        prefix = f"{prefix}_static"
+    else:
+        prefix = f"{prefix}_{modelType}"
+
+    expResultsDir = outDir / f"{prefix}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
@@ -228,7 +240,10 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    prefix = f"{prefix}_{modelType}"
+    if policy == 'static':
+        prefix = f"{prefix}_static"
+    else:
+        prefix = f"{prefix}_{modelType}"
 
     runTest('nshot', models, modelType, prefix, expResultsDir, scales=[n]*len(models),
             nCpy=nCpy, policy=policy, fractional=fractional, mig=mig)
@@ -237,11 +252,15 @@ def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
 def throughput(modelType, runTime=None, prefix="throughput", outDir="results",
                nCpy=1, models=None, policy=None, fractional=None, mig=False):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    expResultsDir = outDir / f"throughput_{modelType}_{suffix}"
+
+    if policy == 'static':
+        prefix = f"{prefix}_static"
+    else:
+        prefix = f"{prefix}_{modelType}"
+
+    expResultsDir = outDir / f"{prefix}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
-
-    prefix = f"{prefix}_{modelType}"
 
     runTest('throughput', models, modelType, prefix, expResultsDir,
             runTime=runTime, nCpy=nCpy, policy=policy, fractional=fractional,
