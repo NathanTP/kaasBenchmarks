@@ -7,6 +7,8 @@ import signal
 import math
 from pprint import pprint
 import psutil
+import enum
+import collections
 
 import time
 
@@ -51,12 +53,15 @@ maxMemResource = 16160 * (2**20)
 maxSMResource = 100
 
 
-def roundMIG(frac):
-    # Round to the nearest multiple of 1/8 (granularity of MIG slices)
+def roundMIG(frac, ceil=True):
+    # Round up to the nearest multiple of 1/8 (granularity of MIG slices)
     if frac % 0.125 == 0:
         nSlice = frac / 0.125
     else:
-        nSlice = int(frac / 0.125) + 1
+        if ceil:
+            nSlice = int(frac / 0.125) + 1
+        else:
+            nSlice = int(frac / 0.125)
 
     return nSlice * 0.125
 
@@ -238,6 +243,13 @@ class runActor(kaas.pool.PoolWorker):
     def runNative(self, modelInfo, inputRefs, completionQ=None, queryId=None,
                   cacheModel=False, clientID=None):
 
+        # For MPS modes, CUDA_VISIBLE_DEVICES cannot be set so we use an
+        # explicit devID instead. It doesn't hurt to do it this way for all
+        # modes though.
+        if 'CUDA_VISIBLE_DEVICES' in os.environ:
+            self.devID = int(os.environ['CUDA_VISIBLE_DEVICES'])
+            del os.environ['CUDA_VISIBLE_DEVICES']
+
         profs = self.getProfs()
 
         # The runActor must cache the model, if you wan't to reset, you must
@@ -256,7 +268,7 @@ class runActor(kaas.pool.PoolWorker):
                     modelSpec = ray.get(modelInfo[0])
                     modelArg = ray.get(modelInfo[1])
 
-                model = modelSpec.modelClass(modelArg)
+                model = modelSpec.modelClass(modelArg, devID=self.devID)
 
             if modelSpec.modelClass.runMap.const is None:
                 nConst = 0
@@ -539,14 +551,14 @@ def nShotRegister(pool, modelSpec, benchConfig):
     if benchConfig['fractional'] is None:
         pool.registerGroup(benchConfig['name'], runActor)
     else:
-        nGpu = infbench.getNGpu()
+        nGPU = infbench.getNGpu()
         props = properties.getProperties()
         reqs = props.resourceReqs(modelSpec.name, modelSpec.modelType)
 
         memFrac = roundMIG(reqs['mem'] / maxMemResource)
         smFrac = roundMIG(reqs['sm'] / maxSMResource)
 
-        if memFrac > nGpu:
+        if memFrac > nGPU:
             raise RuntimeError("Maximum GPU memory exceeded")
 
         if benchConfig['fractional'] == 'mem':
@@ -554,9 +566,9 @@ def nShotRegister(pool, modelSpec, benchConfig):
         else:
             frac = smFrac
 
-        nWorkers = nGpu / frac
+        nWorkers = nGPU / frac
         if nWorkers == 0:
-            raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {nGpu}")
+            raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {nGPU}")
 
         # We need at least one CPU for the pool and one more to execute tasks
         maxWorkers = psutil.cpu_count() - 2
@@ -600,8 +612,8 @@ def nShot(modelSpec, n, benchConfig, reportPath="results.json"):
         loader = modelSpec.loader(modelSpec.dataDir)
         loader.preLoad(range(min(max(n, infbench.getNGpu()*2), loader.ndata)))
 
-    nGpu = infbench.getNGpu()
-    pool = kaas.pool.Pool(nGpu, policy=benchConfig['policy'])
+    nGPU = infbench.getNGpu()
+    pool = kaas.pool.Pool(nGPU, policy=benchConfig['policy'])
 
     nShotRegister(pool, modelSpec, benchConfig)
     if modelSpec.modelType == 'kaas':
@@ -700,8 +712,8 @@ class throughputLoop():
         self.loader = self.modelSpec.loader(self.modelSpec.dataDir)
         self.loader.preLoad(range(self.loader.ndata))
 
-        self.nGpu = infbench.getNGpu()
-        self.pool = kaas.pool.Pool(self.nGpu, policy=benchConfig['policy'])
+        self.nGPU = infbench.getNGpu()
+        self.pool = kaas.pool.Pool(self.nGPU, policy=benchConfig['policy'])
         self.pool.registerGroup("throughputGroup", runActor)
 
         # This info is only used to get performance estimates
@@ -744,9 +756,9 @@ class throughputLoop():
         results = []
 
         # We don't control how ray handles workers, but we assume that
-        # sending a burst of nGpu*2 should be enough to trigger all the
+        # sending a burst of nGPU*2 should be enough to trigger all the
         # cold starts.
-        for i in range(self.nGpu*2):
+        for i in range(self.nGPU*2):
             results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
                            self.constRefs, inpRefs, inline=self.benchConfig['inline'],
                            runPool=self.pool, stats=self.coldServerStats))
@@ -930,8 +942,8 @@ class mlperfRunner():
 
         self.specRef = ray.put(self.modelSpec)
 
-        self.nGpu = infbench.getNGpu()
-        self.pool = kaas.pool.Pool(self.nGpu, policy=benchConfig['policy'], profLevel=1)
+        self.nGPU = infbench.getNGpu()
+        self.pool = kaas.pool.Pool(self.nGPU, policy=benchConfig['policy'], profLevel=1)
         self.pool.registerGroup(benchConfig['name'], runActor)
 
     def start(self, preWarm=True):
@@ -949,9 +961,9 @@ class mlperfRunner():
             results = []
 
             # We don't control how ray handles workers, but we assume that
-            # sending a burst of nGpu*2 should be enough to trigger all the
+            # sending a burst of nGPU*2 should be enough to trigger all the
             # cold starts.
-            for i in range(self.nGpu*2):
+            for i in range(self.nGPU*2):
                 results.append(_runOne(self.modelSpec, self.specRef, self.modelArg,
                                self.constants, inpRefs, inline=self.benchConfig['inline'],
                                runPool=self.pool,
@@ -1053,8 +1065,17 @@ def mlperfBench(modelSpec, benchConfig):
 # =============================================================================
 # Server Mode
 # =============================================================================
+class ServerError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return self.msg
+
+
 class clientState():
-    def __init__(self, modelName, modelType):
+    def __init__(self, clientID, modelName, modelType, fractional=None):
+        self.clientID = clientID
         self.modelName = modelName
         self.modelSpec = util.getModelSpec(modelName, modelType)
         self.specRef = ray.put(self.modelSpec)
@@ -1085,6 +1106,17 @@ class clientState():
         else:
             self.modelArg = ray.put(self.modelSpec.getModelArg())
 
+        if fractional is not None:
+            self.nWorker = 0
+            self.memFrac, self.smFrac = self.getGPUFraction()
+            # resFrac is the fraction of the target resource for this run
+            if fractional == 'full':
+                self.resFrac = 1.0
+            elif fractional == 'mem':
+                self.resFrac = roundMIG(self.memFrac)
+            else:
+                self.resFrac = roundMIG(self.smFrac)
+
     def getGPUFraction(self):
         """Return the fraction of a GPU this client requires (suitable for
         Ray's num_gpus argument).
@@ -1101,30 +1133,57 @@ class clientState():
         return (roundMIG(memFrac), roundMIG(smFrac))
 
 
-# { clientID -> clientState }
-# For now, we only support one model per client
-clients = {}
+class ServerState(enum.Enum):
+    REGISTER = enum.auto()  # Waiting for clients to register
+    WARM = enum.auto()  # Waiting for clients to warm themselves
+    RUNNING = enum.auto()  # Actively running regular requests
 
 
-@ray.remote(num_gpus=1)
-def fakeRayModel(clientID, reqID, rayQ):
-    time.sleep(.07)
-    rayQ.put(([b''], (clientID, reqID)))
+class GPUAssignment():
+    def __init__(self):
+        self.clients = []
+        self.resUtil = 0.0
+        self.nWorkers = 0
+
+    def assignWorker(self, client: clientState):
+        self.clients.append(client)
+        self.resUtil += client.resFrac
+        self.nWorkers += 1
 
 
-@ray.remote
-class fakeActorModel():
-    def run(self, clientID, reqID, rayQ):
-        time.sleep(.07)
-        rayQ.put(([b''], (clientID, reqID)))
+def checkForMPS():
+    """Check if the MPS daemon is running"""
+    for proc in psutil.process_iter():
+        if proc.cmdline() == ['nvidia-cuda-mps-control', '-d']:
+            return True
+    return False
 
-        # Return value is used as a completion notification
-        return True
+
+def getSmallestGPU(gpus, requestedFrac):
+    """Returns the least thread utilized GPU that can support requestedFrac
+    new resources. If there is a tie, return the GPU with the least
+    resource utilization."""
+    minGPU = gpus[0]
+    for gpu in gpus:
+        if gpu.resUtil + requestedFrac > 1:
+            continue
+
+        if gpu.nWorkers < minGPU.nWorkers:
+            minGPU = gpu
+        elif gpu.resUtil < minGPU.resUtil:
+            minGPU = gpu
+
+    if minGPU.resUtil + requestedFrac > 1:
+        return None
+    else:
+        return minGPU
 
 
 class serverLoop():
     """ServerTask"""
     def __init__(self, clientSock, barrierSock, benchConfig):
+        self.state = ServerState.REGISTER
+
         self.loop = IOLoop.instance()
         self.benchConfig = benchConfig
 
@@ -1137,26 +1196,14 @@ class serverLoop():
 
         IOLoop.current().add_callback(self.handleWorker)
 
-        self.nGpu = infbench.getNGpu()
+        self.nGPUs = infbench.getNGpu()
 
-        if benchConfig['fractional'] is not None:
-            # workers are assumed to consume one CPU (default for Ray). We need to
-            # have at least one CPU free for tasks.
-            self.maxWorkers = psutil.cpu_count() - 1
-            self.nWorkers = 0
+        self.pendingRegistrations = []
 
-            # For static only:
-            # Clients must be given a fair-share of resources. This is for the
-            # resource in benchConfig['fractional']. We also track mem and sm
-            # separately. Mem is particularly important as we must make sure not to
-            # exceed this, even in sm mode.
-            self.clientResourceFrac = self.nGpu / self.benchConfig['numClient']
-            self.memFracConsumed = 0
-            self.smFracConsumed = 0
-
+        self.clients = {}
         self.clientStats = profiling.profCollection()
 
-        self.pool = kaas.pool.Pool(self.nGpu, policy=benchConfig['policy'])
+        self.pool = kaas.pool.Pool(self.nGPUs, policy=benchConfig['policy'])
 
         self.rayQ = ray.util.queue.Queue()
 
@@ -1198,49 +1245,114 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (self.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
-    def registerClient(self, modelName, modelType, clientID):
-        print("Registering ", clientID)
-        cState = clientState(modelName, modelType)
-        clients[clientID] = cState
+    def _assignClients(self, gpus, clients, maxNewWorkers):
+        """Run one round of assignments of clients to GPUs. Returns the number
+        of new workers assigned. Client workers are assigned to the GPU with
+        the least number of workers if feasible, otherwise it goes to the GPU
+        with the most free resources.
+        Arguments:
+            GPUs: heap of GPUAssignment
+            clients: Map of {clientID: clientState}
+            maxNewWorkers: Maximum number of new workers to create
+        Returns:
+            Number of new workers assigned
+        """
+        nNewWorker = 0
+        for client in clients.values():
+            if maxNewWorkers is not None and nNewWorker == maxNewWorkers:
+                return nNewWorker
 
-        if self.benchConfig['fractional'] is None:
-            self.pool.registerGroup(clientID, runActor)
-        else:
-            memFrac, smFrac = cState.getGPUFraction()
-            self.memFracConsumed += memFrac
-            self.smFracConsumed += smFrac
-            if self.memFracConsumed > self.nGpu:
-                raise RuntimeError("Maximum GPU memory exceeded")
-
-            if self.benchConfig['fractional'] == 'mem':
-                frac = memFrac
+            minGPU = getSmallestGPU(gpus, client.resFrac)
+            if minGPU is None:
+                # No feasible solution found
+                return nNewWorker
             else:
-                frac = smFrac
+                minGPU.assignWorker(client)
+                nNewWorker += 1
+                client.nWorker += 1
 
-            nWorker = int(self.clientResourceFrac / frac)
-            if nWorker == 0:
-                raise RuntimeError(f"Insufficient resources for this client:\n\trequested: {frac}\n\tMaximum Allocation: {self.clientResourceFrac}")
-            self.nWorkers += nWorker
+        return nNewWorker
 
-            if self.nWorkers > self.maxWorkers:
-                raise RuntimeError("Maximum number of CPUs exceeded")
+    def registerClients(self):
+        if self.benchConfig['policy'] == 'static':
+            if self.benchConfig['fractional'] is None:
+                resource = 'full'
+            else:
+                resource = self.benchConfig['fractional']
 
-            self.pool.registerGroup(clientID, runActor.options(num_gpus=frac),
-                                    nWorker=nWorker, workerResources=frac)
+            if resource != 'full' and not checkForMPS():
+                raise ServerError("MPS Daemon not running, static with a fractional argument requires the MPS daemon. Start with 'nvidia-cuda-mps-control -d'")
+
+            # workers are assumed to consume one CPU (default for Ray). We need
+            # to have at least one CPU free for tasks plus one for the pool. We
+            # also can't allocate a worker that's less than 1/8 of a GPU.
+            maxWorkers = min(psutil.cpu_count() - 2, self.nGPUs * 8)
+
+            for clientID, modelName, modelType in self.pendingRegistrations:
+                self.clients[clientID] = clientState(clientID, modelName, modelType,
+                                                     fractional=resource)
+
+            nWorker = 0
+            GPUs = [GPUAssignment() for i in range(self.nGPUs)]
+
+            # Everyone has to get at least one Worker
+            nWorker += self._assignClients(GPUs, self.clients, maxWorkers)
+            if nWorker < len(self.clients):
+                raise ServerError("Cannot register all clients: insufficient resources")
+
+            # Keep going until all GPUs have at least one client or we exceed
+            # the maximum number of workers/exhuast resources. This policy
+            # maximizes the minimum nThread per worker while remaining
+            # work-conserving. However, it creates the minimum number of
+            # workers which can lead to poor utilization when there are many
+            # clients or clients with very different compute requirements. It
+            # also may give some clients more threads and target resources than
+            # others.
+            target = min(maxWorkers, self.nGPUs)
+            while nWorker < target:
+                nWorker += self._assignClients(GPUs, self.clients, target - nWorker)
+
+            # List of workers to create for each client (defined by resourc
+            # requirements)
+            # {client: [(threadFrac, resFrac)]}
+            clientWorkers = collections.defaultdict(list)
+            for gpu in GPUs:
+                clientThreadFrac = roundMIG(1 / gpu.nWorkers, ceil=False)
+                for client in gpu.clients:
+                    clientWorkers[client.clientID].append((clientThreadFrac, client.resFrac))
+
+            for clientID, resReqs in clientWorkers.items():
+                self.pool.registerGroup(clientID,
+                                        runActor,
+                                        workerResources=resReqs)
+
+        else:
+            for clientID, modelName, modelType in self.pendingRegistrations:
+                cState = clientState(clientID, modelName, modelType)
+                self.clients[clientID] = cState
+                self.pool.registerGroup(clientID, runActor)
 
     def handleClients(self, msg):
         clientID = msg[0].decode('utf-8')
         reqID = msg[1]
         data = msg[2:]
 
-        cState = clients.get(clientID, None)
-
-        if cState is None:
+        if self.state == ServerState.REGISTER:
             modelName = reqID.decode('utf-8')
             modelType = data[0].decode('utf-8')
-            self.registerClient(modelName, modelType, clientID)
+            self.pendingRegistrations.append((clientID, modelName, modelType))
+            if len(self.pendingRegistrations) == self.benchConfig['numClient']:
+                self.registerClients()
+                print("All clients registered, entering warming phase.")
+                for cID in self.clients.keys():
+                    self.clientStream.send_multipart([cID.encode('utf-8'), b'', b'REGISTERED'])
+
+                self.state = ServerState.WARM
         else:
+            cState = self.clients[clientID]
+
             self.nOutstanding += 1
+
             # Too many outstanding queries can overwhelm Ray and hurt
             # throughput.
             if self.nOutstanding > self.maxOutstanding:
@@ -1298,12 +1410,3 @@ def serveRequests(benchConfig):
     resPath = "server_stats.json"
     print(f"Saving results to: {resPath}")
     infbench.saveReport(looper.warmStats, None, benchConfig, resPath)
-    # for cID, profs in looper.warmStats.getMods():
-    #     if cID is None:
-    #         strCID = "None"
-    #     else:
-    #         strCID = cID
-    #
-    #     resPath = f"server_stats_{strCID}.json"
-    #     print(f"Saving client {strCID} report to {resPath}")
-    #     infbench.saveReport(profs.report(), None, benchConfig, resPath)

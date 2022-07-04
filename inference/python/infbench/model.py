@@ -136,13 +136,17 @@ def readModelBuf(libraryPath):
     return modelBuf, meta
 
 
-def _loadSo(libraryPath):
+def _loadSo(libraryPath, devID=None):
     metaPath = libraryPath.with_suffix(".json")
     module = tvm.runtime.load_module(libraryPath)
     with open(metaPath, 'r') as f:
         meta = json.load(f)
 
-    model = graph_executor.GraphModule(module['default'](tvm.cuda()))
+    if devID is None:
+        model = graph_executor.GraphModule(module['default'](tvm.cuda()))
+    else:
+        model = graph_executor.GraphModule(module['default'](tvm.cuda(dev_id=devID)))
+
     return model, meta
 
 
@@ -169,7 +173,7 @@ def _loadOnnx(onnxPath, cache=True):
     return model, meta
 
 
-def loadModel(modelDesc):
+def loadModel(modelDesc, devID=None):
     """Load a saved model. modelDesc describes where to get the model, it can be either:
         - Path to onnx file: If modelDesc is a path to a .onnx file, loadModel
               will attempt to find a cached pre-compiled version of the onnx file
@@ -182,6 +186,7 @@ def loadModel(modelDesc):
               this case bytes is assumed to be the contents of a .so file and dict
               is the corresponding metadata.
 
+    devID: Optional explicit device ID to use instead of CUDA_VISIBLE_DEVICES
     Paths are assumed to be pathlib.Path
 
     Returns:
@@ -190,7 +195,7 @@ def loadModel(modelDesc):
     """
     if isinstance(modelDesc, pathlib.Path):
         if modelDesc.suffix == ".so":
-            model, meta = _loadSo(modelDesc)
+            model, meta = _loadSo(modelDesc, devID=devID)
 
         elif modelDesc.suffix == ".onnx":
             libraryPath, metaPath = getCachePath(modelDesc.stem)
@@ -211,7 +216,11 @@ def loadModel(modelDesc):
 
             graphMod = tvm.runtime.load_module(fpath)
 
-        model = graph_executor.GraphModule(graphMod['default'](tvm.cuda()))
+        if devID is None:
+            model = graph_executor.GraphModule(graphMod['default'](tvm.cuda()))
+        else:
+            model = graph_executor.GraphModule(graphMod['default'](tvm.cuda(dev_id=devID)))
+
         meta = modelDesc[1]
 
     else:
@@ -339,8 +348,8 @@ class Model(abc.ABC):
 class tvmModel(Model):
     """A generic tvm model. Should be initialized with a precompiled .so"""
 
-    def __init__(self, modelDesc):
-        self.model, self.meta = loadModel(modelDesc)
+    def __init__(self, modelDesc, devID=None):
+        self.model, self.meta = loadModel(modelDesc, devID=devID)
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes

@@ -54,10 +54,11 @@ def preWarm(serverSock, barrierSock, inputs):
     barrier(barrierSock)
 
 
-def register(serverSock, benchConfig):
+def register(serverSock, barrierSock, benchConfig):
     sendReq(serverSock,
             benchConfig['model'].encode('utf-8'),
             [benchConfig['modelType'].encode('utf-8')])
+    serverSock.recv_multipart()
 
 
 # =============================================================================
@@ -142,7 +143,7 @@ def nShot(modelSpec, n, benchConfig):
 
     # Registration
     print("Registering client: ", benchConfig['name'])
-    register(serverSocket, benchConfig)
+    register(serverSocket, barrierSocket, benchConfig)
 
     # Cold starts
     _nShotAsync(inpIds[:nWarmStep], loader, serverSocket,
@@ -215,7 +216,7 @@ class throughputLoop():
         self.serverSocket, self.barrierSocket = setupZmq(self.clientID, context=zmqContext)
 
         # Register and PreWarm
-        register(self.serverSocket, self.benchConfig)
+        register(self.serverSocket, self.barrierSocket, self.benchConfig)
 
         if self.modelSpec.cacheInputs:
             inputs = [(0).to_bytes(8, sys.byteorder)]
@@ -404,7 +405,7 @@ class mlperfLoop():
         self.serverStream.on_recv(self.handleServer)
 
         # Register with the benchmark server
-        register(self.serverSocket, self.benchConfig)
+        register(self.serverSocket, self.barrierSocket, self.benchConfig)
 
         # PreWarm
         if self.modelSpec.cacheInputs:

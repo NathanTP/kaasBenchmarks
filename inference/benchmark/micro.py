@@ -8,15 +8,16 @@ import subprocess as sp
 nIter = 10
 
 
-# model = 'testModel'
-model = 'resnet50'
+model = 'testModel'
+# model = 'resnet50'
 
 nvCmd = ['nvprof', '-f', '--log-file', 'results.csv', '--profile-from-start', 'off', '--csv']
-actNvColdCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '--force-cold', '-m', model + "Tvm"]
-actNvWarmCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '-m', model + "Tvm"]
-actPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Tvm"]
-actInlineCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'exclusive', '-m', model + "Tvm", '--inline']
-kaasPipeCmd = ['./benchmark.py', '-b', 'ray', '-e', 'nshot', '-p', 'balance', '-m', model + "Kaas"]
+nativeNvColdCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '--force-cold', '-m', model, '-t', 'native']
+nativeNvWarmCmd = nvCmd + ['./benchmark.py', '-b', 'local', '-e', 'deepProf', '-m', model, '-t', 'native']
+nativePipeCmd = ['./experiment.py', '-b', 'ray', '-n', '1', '-e', 'nshot', '-s', '1', '-p', 'exclusive', '-m', model, '-t', "native"]
+staticPipeCmd = ['./experiment.py', '-b', 'ray', '-n', '1', '-e', 'nshot', '-s', '1', '-p', 'static', '--fractional=mem', '-m', model, '-t', 'native']
+actInlineCmd = ['./experiment.py', '-b', 'ray', '-n', '1', '-e', 'nshot', '-s', '1', '-p', 'exclusive', '-m', model, '-t', 'native', '--inline']
+kaasPipeCmd = ['./experiment.py', '-b', 'ray', '-n', '1', '-e', 'nshot', '-s', '1', '-p', 'balance', '-m', model, '-t', "kaas"]
 
 
 def runTest(cmd, niter, resDir, cmdOutPath, environ):
@@ -38,20 +39,24 @@ def main():
     environ = os.environ.copy()
     environ['CUDA_VISIBLE_DEVICES'] = '0'
 
-    print("Running nvprof Actor Cold")
-    print(" ".join(actNvColdCmd))
-    runTest(actNvColdCmd, nIter, suiteOutDir / "actNvCold", pathlib.Path("./results.csv"), environ)
+    print("Running nvprof Native Cold")
+    print(" ".join(nativeNvColdCmd))
+    runTest(nativeNvColdCmd, nIter, suiteOutDir / "nativeNvCold", pathlib.Path("./results.csv"), environ)
 
-    print("Running nvprof Actor Warm")
-    print(" ".join(actNvWarmCmd))
-    runTest(actNvWarmCmd, nIter, suiteOutDir / "actNvWarm", pathlib.Path("./results.csv"), environ)
+    print("Running nvprof Native Warm")
+    print(" ".join(nativeNvWarmCmd))
+    runTest(nativeNvWarmCmd, nIter, suiteOutDir / "nativeNvWarm", pathlib.Path("./results.csv"), environ)
 
-    print("Running Actor Pipelined")
-    print(" ".join(actPipeCmd))
-    runTest(actPipeCmd, nIter, suiteOutDir / "actPipe", pathlib.Path("./results.json"), environ)
+    print("Running Native Pipelined")
+    print(" ".join(nativePipeCmd))
+    runTest(nativePipeCmd, nIter, suiteOutDir / "nativePipe", pathlib.Path("./results.json"), environ)
 
-    # print("Running Actor Inlined")
-    # runTest(actInlineCmd, nIter, suiteOutDir / "actInline", pathlib.Path("./results.json"), environ)
+    print("Running Static Pipelined")
+    print(" ".join(nativePipeCmd))
+    runTest(staticPipeCmd, nIter, suiteOutDir / "staticPipe", pathlib.Path("./results.json"), environ)
+
+    # print("Running Native Inlined")
+    # runTest(nativeInlineCmd, nIter, suiteOutDir / "nativeInline", pathlib.Path("./results.json"), environ)
 
     print("Running KaaS")
     print(" ".join(kaasPipeCmd))

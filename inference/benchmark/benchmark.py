@@ -107,11 +107,15 @@ def main():
         benchConfig['model_type'] = spec.modelType
         backend.nShot(spec, int(args.scale), benchConfig)
     elif args.experiment == 'mlperf':
+        if args.backend != 'client':
+            print("WARNING: mlperf mode directly in benchmark.py is deprecated and may not work correctly. Use experiment.py --nCopy=1 instead.")
         benchConfig['model_type'] = spec.modelType
         backend.mlperfBench(spec, benchConfig)
     elif args.experiment == 'server':
         backend.serveRequests(benchConfig)
     elif args.experiment == 'throughput':
+        if args.backend != 'client':
+            print("WARNING: throughput mode directly in benchmark.py is deprecated and may not work correctly. Use experiment.py --nCopy=1 instead.")
         benchConfig['model_type'] = spec.modelType
         backend.throughput(spec, benchConfig)
     elif args.experiment == 'deepProf':
