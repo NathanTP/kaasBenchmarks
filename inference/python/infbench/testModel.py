@@ -9,7 +9,6 @@ import numpy as np
 import pickle
 
 import pycuda.driver as cuda
-import pycuda.tools
 
 
 # These parameters should match kaasSources/sgemm to be consistent, though if you
@@ -68,14 +67,14 @@ class testModel():
 class testModelNative(testModel, model.Model):
     """Calls the GPU kernel natively instead of using KaaS"""
 
-    def __init__(self, modelArg):
+    def __init__(self, modelArg, devID=None):
         super().__init__(modelArg)
         self.modelPath = modelArg
         self.dConsts = None
         self.dIOs = None
 
         cuda.init()
-        self.cudaCtx = pycuda.tools.make_default_context()
+        self.cudaCtx = cuda.Device(devID).make_context()
         profiling.cudaProfilerResetCtx()
 
         gpuHandle = cuda.Device(0)
@@ -111,6 +110,8 @@ class testModelNative(testModel, model.Model):
         packedConstants = data[:self.nConst]
         hInp = data[self.nConst]
         inpSize = hInp.nbytes
+
+        self.cudaCtx.push()
 
         constants = []
         nElem = matSize ** 2
@@ -149,6 +150,7 @@ class testModelNative(testModel, model.Model):
         hRes = np.empty(inpSize, dtype=np.int8)
         cuda.memcpy_dtoh(hRes, self.dIOs[-1])
 
+        self.cudaCtx.pop()
         return (hRes,)
 
 

@@ -13,13 +13,15 @@ modelDir = (pathlib.Path(__file__).parent / ".." / "models").resolve()
 
 
 class ModelSpec():
-    def __init__(self, name, loader, modelPath, modelClass, dataDir=dataDir, modelType='tvm', cacheInputs=False):
+    def __init__(self, name, loader, modelPath, modelClass, dataDir=dataDir,
+                 modelType='native', impl='tvm', cacheInputs=False):
         self.name = name
         self.loader = loader
         self.dataDir = dataDir
         self.modelPath = modelPath
         self.modelClass = modelClass
         self.modelType = modelType
+        self.impl = impl
 
         # This is a hack to deal with Ray's immutable object store. For models
         # with even modestly sized inputs, the benchmarks start crashing if you
@@ -31,172 +33,193 @@ class ModelSpec():
         self.cacheInputs = cacheInputs
 
     def getModelArg(self, constRefs=None, backend='ray'):
-        if self.modelType == 'tvm':
+        if self.impl == 'tvm':
             return infbench.model.readModelBuf(self.modelPath)
-        elif self.modelType == 'kaas':
+        elif self.impl == 'kaas':
             # KaaS models live on the client so we only need one
             return self.modelClass(self.modelPath, constRefs, backend=backend)
-        elif self.modelType == "direct":
+        elif self.impl == "direct":
             return self.modelPath
         else:
-            raise ValueError("Unrecognized model type: ", self.modelType)
+            raise ValueError("Unrecognized model implementation method: ", self.impl)
 
     def getModelInstance(self, constRefs=None, backend='ray'):
-        if self.modelType == 'tvm':
+        if self.impl == 'tvm':
             arg = infbench.model.readModelBuf(self.modelPath)
             return self.modelClass(arg)
-        elif self.modelType == 'kaas':
+        elif self.impl == 'kaas':
             return self.modelClass(self.modelPath, constRefs, backend=backend)
-        elif self.modelType == "direct":
+        elif self.impl == "direct":
             return self.modelClass(self.modelPath)
         else:
-            raise ValueError("Unrecognized model type: ", self.modelType)
+            raise ValueError("Unrecognized model implementation method: ", self.impl)
 
 
 # This is implemented this way to ensure that models are only imported if
 # necessary. Imports have a large impact on performance, and some models have a
 # bigger impact than others.
-def getModelSpec(modelName):
+def getModelSpec(modelName, modelType):
     # You must run tools/getModels.py first to get these .so's
-    if modelName == "dummyModelKaas":
+    if modelName == "dummyModel" and modelType == "kaas":
         import infbench.dummyModel
         return ModelSpec(name="dummyModel",
                          loader=infbench.dummyModel.dummyLoader,
                          dataDir=modelDir / "dummy",
                          modelPath=modelDir / "dummy" / "dummy_model.yaml",
                          modelClass=infbench.dummyModel.dummyModelKaas,
-                         modelType="kaas")
+                         modelType=modelType,
+                         impl="kaas")
 
-    elif modelName == "testModelKaas":
+    elif modelName == "testModel" and modelType == "kaas":
         import infbench.testModel
         return ModelSpec(name="testModel",
                          loader=infbench.testModel.testLoader,
                          dataDir=modelDir / "sgemm",
                          modelPath=modelDir / "sgemm" / "sgemm_model.yaml",
                          modelClass=infbench.testModel.testModelKaas,
-                         modelType="kaas")
+                         modelType=modelType,
+                         impl="kaas")
 
-    elif modelName == "jacobiTvm":
-        import infbench.jacobi
-        return ModelSpec(name="jacobi",
-                         loader=infbench.jacobi.jacobiLoader,
-                         modelPath=modelDir / "jacobi",
-                         modelClass=infbench.jacobi.jacobi,
-                         modelType="direct",
-                         cacheInputs=True)
-
-    elif modelName == "jacobiKaas":
-        import infbench.jacobi
-        return ModelSpec(name="jacobi",
-                         loader=infbench.jacobi.jacobiLoader,
-                         modelPath=modelDir / "jacobi" / "jacobi_model.yaml",
-                         modelClass=infbench.jacobi.jacobiKaas,
-                         modelType="kaas",
-                         cacheInputs=True)
-
-    elif modelName == "cGEMMKaas":
-        import infbench.cGEMM
-        return ModelSpec(name="cGEMM",
-                         loader=infbench.cGEMM.cutlassSgemmLoader,
-                         dataDir=modelDir / "complexCutlassGemm",
-                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
-                         modelClass=infbench.cGEMM.sgemmKaas,
-                         modelType="kaas",
-                         cacheInputs=True)
-
-    elif modelName == "cGEMMTvm":
-        import infbench.cGEMM
-        return ModelSpec(name="cGEMM",
-                         loader=infbench.cGEMM.cutlassSgemmLoader,
-                         dataDir=modelDir / "complexCutlassGemm",
-                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
-                         modelClass=infbench.cGEMM.sgemm,
-                         modelType="direct",
-                         cacheInputs=True)
-
-    elif modelName == "cutlassSgemmKaas":
-        import infbench.cutlassSgemm
-        return ModelSpec(name="cutlassSgemm",
-                         loader=infbench.cutlassSgemm.cutlassSgemmLoader,
-                         modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
-                         modelClass=infbench.cutlassSgemm.sgemmKaas,
-                         modelType="kaas")
-
-    elif modelName == "cutlassSgemmTvm":
-        import infbench.cutlassSgemm
-        return ModelSpec(name="cutlassSgemm",
-                         loader=infbench.cutlassSgemm.cutlassSgemmLoader,
-                         modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
-                         dataDir=modelDir / "cutlassSgemm",
-                         modelClass=infbench.cutlassSgemm.sgemm,
-                         modelType="direct")
-
-    elif modelName == "superResKaas":
-        import infbench.superres
-        return ModelSpec(name="superRes",
-                         loader=infbench.superres.superResLoader,
-                         modelPath=modelDir / "superRes" / "superRes_model.yaml",
-                         modelClass=infbench.superres.superResKaas,
-                         modelType="kaas")
-
-    elif modelName == "resnet50Kaas":
-        import infbench.resnet50
-        return ModelSpec(name="resnet50",
-                         loader=infbench.resnet50.imageNetLoader,
-                         modelPath=modelDir / "resnet50" / "resnet50_model.yaml",
-                         modelClass=infbench.resnet50.resnet50Kaas,
-                         modelType="kaas",
-                         cacheInputs=True)
-
-    elif modelName == "bertKaas":
-        import infbench.bert
-        return ModelSpec(name="bert",
-                         loader=infbench.bert.bertLoader,
-                         modelClass=infbench.bert.bertModelKaas,
-                         modelPath=modelDir / "bert" / "bert_model.yaml",
-                         modelType="kaas")
-
-    elif modelName == "testModelTvm":
+    elif modelName == "testModel" and modelType == "native":
         import infbench.testModel
         return ModelSpec(name="testModel",
                          loader=infbench.testModel.testLoader,
                          dataDir=modelDir / "sgemm",
                          modelPath=modelDir / "sgemm" / "sgemm_meta.yaml",
                          modelClass=infbench.testModel.testModelNative,
-                         modelType="direct")
+                         modelType=modelType,
+                         impl='direct')
 
-    elif modelName == "superResTvm":
+    elif modelName == "jacobi" and modelType == "kaas":
+        import infbench.jacobi
+        return ModelSpec(name="jacobi",
+                         loader=infbench.jacobi.jacobiLoader,
+                         modelPath=modelDir / "jacobi" / "jacobi_model.yaml",
+                         modelClass=infbench.jacobi.jacobiKaas,
+                         modelType=modelType,
+                         impl="kaas",
+                         cacheInputs=True)
+
+    elif modelName == "jacobi" and modelType == "native":
+        import infbench.jacobi
+        return ModelSpec(name="jacobi",
+                         loader=infbench.jacobi.jacobiLoader,
+                         modelPath=modelDir / "jacobi",
+                         modelClass=infbench.jacobi.jacobi,
+                         modelType=modelType,
+                         impl="direct",
+                         cacheInputs=True)
+
+    elif modelName == "cGEMM" and modelType == "kaas":
+        import infbench.cGEMM
+        return ModelSpec(name="cGEMM",
+                         loader=infbench.cGEMM.cutlassSgemmLoader,
+                         dataDir=modelDir / "complexCutlassGemm",
+                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
+                         modelClass=infbench.cGEMM.sgemmKaas,
+                         modelType=modelType,
+                         impl="kaas",
+                         cacheInputs=True)
+
+    elif modelName == "cGEMM" and modelType == "native":
+        import infbench.cGEMM
+        return ModelSpec(name="cGEMM",
+                         loader=infbench.cGEMM.cutlassSgemmLoader,
+                         dataDir=modelDir / "complexCutlassGemm",
+                         modelPath=modelDir / "complexCutlassGemm" / "complexCutlassGemm_model.yaml",
+                         modelClass=infbench.cGEMM.sgemm,
+                         modelType=modelType,
+                         impl="direct",
+                         cacheInputs=True)
+
+    elif modelName == "cutlassSgemm" and modelType == "kaas":
+        import infbench.cutlassSgemm
+        return ModelSpec(name="cutlassSgemm",
+                         loader=infbench.cutlassSgemm.cutlassSgemmLoader,
+                         modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
+                         modelClass=infbench.cutlassSgemm.sgemmKaas,
+                         modelType=modelType,
+                         impl="kaas")
+
+    elif modelName == "cutlassSgemm" and modelType == "native":
+        import infbench.cutlassSgemm
+        return ModelSpec(name="cutlassSgemm",
+                         loader=infbench.cutlassSgemm.cutlassSgemmLoader,
+                         modelPath=modelDir / "cutlassSgemm" / "cutlassSgemm_model.yaml",
+                         dataDir=modelDir / "cutlassSgemm",
+                         modelClass=infbench.cutlassSgemm.sgemm,
+                         modelType=modelType,
+                         impl="direct")
+
+    elif modelName == "superRes" and modelType == "kaas":
+        import infbench.superres
+        return ModelSpec(name="superRes",
+                         loader=infbench.superres.superResLoader,
+                         modelPath=modelDir / "superRes" / "superRes_model.yaml",
+                         modelClass=infbench.superres.superResKaas,
+                         modelType=modelType,
+                         impl="kaas")
+
+    elif modelName == "superRes" and modelType == "native":
         import infbench.superres
         return ModelSpec(name="superRes",
                          loader=infbench.superres.superResLoader,
                          modelPath=modelDir / "superRes" / "superres.so",
-                         modelClass=infbench.superres.superResTvm)
+                         modelClass=infbench.superres.superResTvm,
+                         modelType=modelType,
+                         impl='tvm')
 
-    elif modelName == "resnet50Tvm":
+    elif modelName == "resnet50" and modelType == "kaas":
+        import infbench.resnet50
+        return ModelSpec(name="resnet50",
+                         loader=infbench.resnet50.imageNetLoader,
+                         modelPath=modelDir / "resnet50" / "resnet50_model.yaml",
+                         modelClass=infbench.resnet50.resnet50Kaas,
+                         modelType=modelType,
+                         impl="kaas",
+                         cacheInputs=True)
+
+    elif modelName == "resnet50" and modelType == "native":
         import infbench.resnet50
         return ModelSpec(name="resnet50",
                          loader=infbench.resnet50.imageNetLoader,
                          modelPath=modelDir / "resnet50" / "resnet50.so",
                          modelClass=infbench.resnet50.resnet50,
+                         modelType=modelType,
+                         impl='tvm',
                          cacheInputs=True)
 
-    elif modelName == "ssdMobileNetTvm":
-        import infbench.ssdmobilenet
-        return ModelSpec(name="ssdMobileNet",
-                         loader=infbench.ssdmobilenet.cocoLoader,
-                         modelPath=modelDir / "ssdMobilenet.so",
-                         modelClass=infbench.ssdmobilenet.ssdMobilenet)
+    elif modelName == "bert" and modelType == "kaas":
+        import infbench.bert
+        return ModelSpec(name="bert",
+                         loader=infbench.bert.bertLoader,
+                         modelClass=infbench.bert.bertModelKaas,
+                         modelPath=modelDir / "bert" / "bert_model.yaml",
+                         modelType=modelType,
+                         impl="kaas")
 
-    elif modelName == "bertTvm":
+    elif modelName == "bert" and modelType == "native":
         import infbench.bert
         return ModelSpec(name="bert",
                          loader=infbench.bert.bertLoader,
                          dataDir=dataDir,
                          modelPath=modelDir / 'bert' / "bert.so",
-                         modelClass=infbench.bert.bertModel)
+                         modelClass=infbench.bert.bertModel,
+                         modelType=modelType,
+                         impl='tvm')
+
+    elif modelName == "ssdMobileNet" and modelType == "native":
+        import infbench.ssdmobilenet
+        return ModelSpec(name="ssdMobileNet",
+                         loader=infbench.ssdmobilenet.cocoLoader,
+                         modelPath=modelDir / "ssdMobilenet.so",
+                         modelClass=infbench.ssdmobilenet.ssdMobilenet,
+                         modelType=modelType,
+                         impl='tvm'
+                         )
 
     else:
-        raise ValueError("Unrecognized model: ", modelName)
+        raise ValueError(f"Unrecognized model: {modelName} ({modelType})")
 
 
 def packInputs(maps, const=None, inp=None, pre=None, run=None):

@@ -11,17 +11,12 @@ from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-# nReplicas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-# models = ['bert', 'resnet50', 'jacobi', 'cGEMM']
-# modes = ['kaas', 'tvm']
-
-# nReplicas = [1, 4, 5]
-# modes = ['kaas', 'tvm']
-
-# nReplicas = [1]
-nReplicas = [3, 4, 5, 15, 16]
-models = ['cGEMM']
-modes = ['kaas', 'static']
+# nReplicas = [1, 4]
+# models = ['cGEMM', 'jacobi']
+# modes = ['kaas', 'native', 'static']
+nReplicas = [1, 2]
+models = ['cGEMM', 'jacobi']
+modes = ['kaas', 'native', 'static']
 
 
 def getTargetRuntime(nReplica, model, mode, fast=False):
@@ -94,8 +89,8 @@ def throughput(configs, suiteOutDir, fast=False):
         runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
 
         if mode == 'static':
-            mode = 'tvm'
-            policyArg = ['-p', 'static', '--mig', '--fractional', 'mem']
+            mode = 'native'
+            policyArg = ['-p', 'static', '--fractional', 'mem']
         else:
             policyArg = []
 

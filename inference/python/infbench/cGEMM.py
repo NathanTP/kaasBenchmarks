@@ -3,7 +3,6 @@ from . import dataset
 import numpy as np
 import ctypes as ct
 import pycuda.driver as cuda
-import pycuda.tools
 import pickle
 
 from kaas import profiling
@@ -106,7 +105,7 @@ class sgemmBase(model.Model):
 
 
 class sgemm(sgemmBase):
-    def __init__(self, modelArgs):
+    def __init__(self, modelArgs, devID=None):
         self.modelDir = modelArgs
         self.initialized = False
         self.dbufA = None
@@ -116,7 +115,7 @@ class sgemm(sgemmBase):
         self.dbufE = None
 
         cuda.init()
-        self.cudaCtx = pycuda.tools.make_default_context()
+        self.cudaCtx = cuda.Device(devID).make_context()
         profiling.cudaProfilerResetCtx()
         self.getArg, self.getDims = loadAdapter(self.modelDir.parent)
         self.refKern, self.cutlassKern = loadKerns(self.modelDir.parent)
@@ -126,8 +125,9 @@ class sgemm(sgemmBase):
 
     def run(self, dat, stats=None):
         """Run the model against input 'dat'. Dat is expected to be a bytes
-       object that can be converted to numpy/tvm and passed to the model as
-       input."""
+        object that can be converted to numpy/tvm and passed to the model as
+        input."""
+        self.cudaCtx.push()
 
         lda = M
         ldb = K
@@ -191,6 +191,7 @@ class sgemm(sgemmBase):
 
         cuda.memcpy_dtoh(e, self.dbufE)
 
+        self.cudaCtx.pop()
         return (e,)
 
 

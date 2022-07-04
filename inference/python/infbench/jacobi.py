@@ -2,7 +2,6 @@ from . import model
 from . import dataset
 import numpy as np
 import pycuda.driver as cuda
-import pycuda.tools
 
 
 ROWS_PER_CTA = 8
@@ -43,10 +42,10 @@ class jacobiBase(model.Model):
 
 
 class jacobi(jacobiBase):
-    def __init__(self, modelArgs):
+    def __init__(self, modelArgs, devID=None):
         self.modelDir = modelArgs
         cuda.init()
-        self.cudaCtx = pycuda.tools.make_default_context()
+        self.cudaCtx = cuda.Device(devID).make_context()
         self.jacobiKern = loadKerns(self.modelDir)
 
     def run(self, dat, stats=None):
@@ -101,6 +100,7 @@ class jacobi(jacobiBase):
         x_new_d.free()
         d_d.free()
 
+        self.cudaCtx.pop()
         return (x_new, d)
 
     def shutdown(self):

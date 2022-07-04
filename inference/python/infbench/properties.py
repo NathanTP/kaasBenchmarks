@@ -22,41 +22,33 @@ class Properties():
         if gpuType is None:
             gpuType = util.getGpuType()
 
-        if modelType == 'direct':
-            modelType = 'tvm'
-
         if independent:
             return self.perfData['isolated'][modelName][modelType]['qps']
         else:
             modelData = self.perfData['isolated'][modelName]
-            return min((modelData['kaas']['qps'], modelData['tvm']['qps']))
+            return min((modelData['kaas']['qps'], modelData['native']['qps']))
 
     def resourceReqs(self, modelName, modelType):
         """Return resoure requirements for modelName and modelType (kaas or
-        tvm). 'mem' and 'sm'.
+        native). 'mem' and 'sm'.
         """
-        if modelType == 'direct':
-            modelType = 'tvm'
         return self.perfData['isolated'][modelName][modelType]
 
-    def latency(self, modelName, gpuType=None):
+    def latency(self, modelName, modelType=None, independent=True):
         """Return the estimated single-GPU latency of this model in ms"""
-        if gpuType is None:
-            gpuType = util.getGpuType()
-
         modelData = self.perfData['isolated'][modelName]
-        return min((modelData['kaas']['latency'], modelData['tvm']['latency']))
+        if independent:
+            return modelData[modelType]['latency']
+        else:
+            return min((modelData['kaas']['latency'], modelData['native']['latency']))
 
     def throughputFull(self, modelName, nClient, modelType=None, independent=True):
         """Return throughput for the full 8 GPU experiment"""
-        if modelType == 'direct':
-            modelType = 'tvm'
-
         if independent:
             thpt = self.perfData['full'][modelName][modelType]['throughput']
         else:
             kThr = self.perfData['full'][modelName]['kaas']['throughput'][nClient - 1]
-            tThr = self.perfData['full'][modelName]['tvm']['throughput'][nClient - 1]
+            tThr = self.perfData['full'][modelName]['native']['throughput'][nClient - 1]
             if kThr is None or tThr is None:
                 thpt = None
             else:
@@ -72,12 +64,13 @@ class Properties():
         if gpuType is None:
             gpuType = util.getGpuType()
 
-        maxQps = self.throughputSingle(modelName, gpuType,
+        maxQps = self.throughputSingle(modelName,
                                        modelType=benchConfig['model_type'],
                                        independent=independent)
-        latency = self.latency(modelName, gpuType,
-                               modelType=benchConfig['model_type'],
+
+        latency = self.latency(modelName, modelType=benchConfig['model_type'],
                                independent=independent)
+
         settings = model.getDefaultMlPerfCfg(maxQps, latency, benchConfig)
 
         return settings
