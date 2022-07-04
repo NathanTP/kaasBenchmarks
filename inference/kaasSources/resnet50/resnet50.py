@@ -8,7 +8,6 @@ redisPwd = "Cd+OBWBEAXV0o2fg5yDrMjD9JUkW7J6MATWuGlRtkQXk/CBvf2HYEjKDYw4FC+eWPeVR
 testPath = pathlib.Path(__file__).resolve().parent
 
 
-
 # Adds the given array to the kv with name node_num.
 def addToKV(node_num, arr, const=True, ephemeral=False):
     nByte = arr.nbytes
@@ -927,7 +926,5 @@ def createReq(params, cubinPath, mode='direct'):
     shapes = [(1, 1, 1), (1001, 1, 1)]
     kerns.append(makeKern('fused_divide_kernel0', path, shapes, arguments))
 
-
     req = kaas.kaasReq(kerns)
     return req
-
