@@ -1,7 +1,6 @@
 import pathlib
 import json
 from . import model
-from . import util
 
 
 perfData = None
@@ -19,6 +18,10 @@ class Properties():
 
     def throughputSingle(self, modelName, expKey):
         """Return estimated single-GPU throughput of this model in ms"""
+        # Lazy hack rather than do this right
+        if expKey != 'kaas':
+            expKey = 'exclusive'
+
         return self.perfData['isolated'][modelName][expKey]['qps']
 
     def resourceReqs(self, modelName, modelType):
@@ -29,8 +32,11 @@ class Properties():
 
     def latency(self, modelName, expKey):
         """Return the estimated single-GPU latency of this model in ms"""
-        modelData = self.perfData['isolated'][modelName]
-        return modelData[expKey]['latency']
+        # Lazy hack rather than do this right
+        if expKey != 'kaas':
+            expKey = 'exclusive'
+
+        return self.perfData['isolated'][modelName][expKey]['latency']
 
     def throughputFull(self, modelName, nClient, expKey):
         """Return throughput for the full 8 GPU experiment"""
