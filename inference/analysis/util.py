@@ -648,7 +648,7 @@ if __name__ == "__main__":
     # pprint(loadAllThroughput(resDir)['cGEMM'])
 
     props = generateProperties(propFile=pathlib.Path('testProperties.json'),
-                               nShotDir=pathlib.Path('../benchmark/results/nshot_suite'),
-                               throughputSingleDir=pathlib.Path('../benchmark/results/throughputSingle'),
+                               nShotDir=pathlib.Path('./results/nshot'),
+                               throughputSingleDir=pathlib.Path('./results/throughputSingle'),
                                throughputFullDir=pathlib.Path('../benchmark/results/throughputFull'))
     pprint(props)

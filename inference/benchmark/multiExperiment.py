@@ -12,9 +12,9 @@ from infbench import properties
 resultsDir = pathlib.Path("./results")
 
 nReplicas = [1]
-models = ['cGEMM']
-# expKeys = ['kaas', 'native', 'static', 'fractional']
-expKeys = ['kaas', 'fractional']
+models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
+# expKeys = ['kaas', 'exclusive', 'static', 'fractional']
+expKeys = ['kaas', 'exclusive']
 
 
 def keyToOpts(expKey):
@@ -22,7 +22,7 @@ def keyToOpts(expKey):
     include type, policy, and fractional"""
     if expKey == 'kaas':
         return ['-t', 'kaas', '-p', 'balance']
-    elif expKey == 'native':
+    elif expKey == 'exclusive':
         return ['-t', 'native', '-p', 'exclusive']
     elif expKey == 'static':
         return ['-t', 'native', '-p', 'static']
@@ -34,7 +34,7 @@ def keyToOpts(expKey):
 
 def getTargetRuntime(nReplica, model, expKey, fast=False):
     if fast:
-        return 30
+        return 120
 
     # After 4 replicas, TVM is so slow that we need lots of time to get a good
     # measurement. How much longer we need depends on the model, though longer
