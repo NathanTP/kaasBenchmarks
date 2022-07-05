@@ -8,12 +8,8 @@ import os
 import argparse
 import json
 from pprint import pprint
-import time
-import tempfile
-import shutil
 
-import infbench
-
+import util
 
 expRoot = pathlib.Path(__file__).resolve().parent
 resultsDir = expRoot / 'results'
@@ -25,25 +21,37 @@ def linkLatest(newLatest):
     latestDir.symlink_to(newLatest)
 
 
-def launchServer(outDir, nClient, policy, nGpu=None, fractional=None):
-    """Launch the benchmark server. outDir is the directory where experiment
-    outputs should go. Returns a Popen object. If nGpu is none, all gpus are
-    used, otherwise we restrict the server to nGpu."""
-    env = os.environ
-    if nGpu is not None:
-        env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(nGpu)])
+class serverProc():
+    def __init__(self, outDir, nClient, policy, modelType=None, nGpu=None, fractional=None):
+        env = os.environ
+        if nGpu is not None:
+            env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(nGpu)])
 
-    cmd = [expRoot / "benchmark.py",
-                     "-e", "server",
-                     '-b', 'ray',
-                     '--policy=' + policy,
-                     '--numClient=' + str(nClient)]
+        if policy == 'static' and fractional is not None:
+            self.mpsServer = sp.Popen(['nvidia-cuda-mps-control', '-f'], stdout=sp.DEVNULL)
+        else:
+            self.mpsServer = None
 
-    if fractional is not None:
-        fracArgs = ['--fractional', fractional]
-        cmd += fracArgs
+        cmd = [expRoot / "benchmark.py",
+                         "-e", "server",
+                         '-b', 'ray',
+                         '-t', modelType,
+                         '--policy=' + policy,
+                         '--numClient=' + str(nClient)]
 
-    return sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
+        if fractional is not None:
+            fracArgs = ['--fractional', fractional]
+            cmd += fracArgs
+
+        self.benchServer = sp.Popen(cmd, cwd=outDir, stdout=sys.stdout, env=env)
+
+    def stop(self):
+        if self.mpsServer is not None:
+            self.mpsServer.send_signal(signal.SIGINT)
+            self.mpsServer.wait()
+
+        self.benchServer.send_signal(signal.SIGINT)
+        self.benchServer.wait()
 
 
 # There are a lot of parameters to the clients that don't make a functional
@@ -100,16 +108,15 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
                                                  nClient=nCpy*len(modelNames),
                                                  fractional=fractional, policy=policy)
 
-    server = launchServer(resultsDir, len(runners), policy,
-                          fractional=fractional)
+    server = serverProc(resultsDir, len(runners), policy,
+                        fractional=fractional, modelType=modelType)
 
     failed = []
     for name, runner in runners.items():
         runner.wait()
         if runner.returncode != 0:
             failed.append(name)
-    server.send_signal(signal.SIGINT)
-    server.wait()
+    server.stop()
 
     if len(failed) != 0:
         raise RuntimeError("Some runners failed: ", failed)
@@ -131,14 +138,11 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
     return True
 
 
-def mlperf(modelType, prefix="mlperf", outDir="results", scales=None,
-           runTime=None, nCpy=1, models=None, policy=None):
+def mlperf(modelType, outDir="results", scales=None, runTime=None, nCpy=1,
+           models=None, policy=None, expKey=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
 
-    if policy == 'static':
-        prefix = f"{prefix}_static"
-    else:
-        prefix = f"{prefix}_{modelType}"
+    prefix = "mlperf_" + expKey
 
     expResultsDir = outDir / f"{prefix}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -170,96 +174,90 @@ def mlperf(modelType, prefix="mlperf", outDir="results", scales=None,
 # WARNING: This isn't really used for anything in the current experiments and
 # is not maintained. Don't expect it to work the first time if you need it
 # again.
-def mlperfSearch(modelType, prefix="mlperf_multi", outDir="results", scale=None,
-                 runTime=None, nCpy=1, models=None, policy=None):
+# def mlperfSearch(modelType, prefix="mlperf_multi", outDir="results", scale=None,
+#                  runTime=None, nCpy=1, models=None, policy=None):
+#     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
+#     expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
+#
+#     prefix = f"{prefix}_{modelType}"
+#
+#     # Attempt to find a valid scale, starting with "perfect" scaling
+#     nModel = nCpy * len(models)
+#     if scale is None:
+#         scale = ((1 / nModel) * infbench.getNGpu())
+#         startScale = scale
+#         succeedScale = 0
+#         failureScale = scale
+#         runOnce = False
+#     else:
+#         # This tricks the system into only running one iteration
+#         startScale = float('inf')
+#         succeedScale = scale
+#         failureScale = scale
+#         runOnce = True
+#
+#     # Minimum step size when searching
+#     step = 0.05
+#
+#     # Binary Search
+#     found = False
+#     while not found:
+#         print("\n\nAttempting scale: ", scale)
+#         time.sleep(10)  # ray is bad at cleaning up, gotta wait to be sure
+#         with tempfile.TemporaryDirectory() as tmpRes:
+#             tmpRes = pathlib.Path(tmpRes)
+#             failure = not runTest('mlperf', models, modelType, prefix, tmpRes,
+#                                   nCpy=nCpy, scale=scale, runTime=runTime,
+#                                   policy=policy)
+#             if failure:
+#                 failureScale = scale
+#             else:
+#                 if expResultsDir.exists():
+#                     shutil.rmtree(expResultsDir)
+#                 shutil.copytree(tmpRes, expResultsDir, ignore=shutil.ignore_patterns("*.ipc"))
+#                 succeedScale = scale
+#
+#             if (failureScale - succeedScale) <= step:
+#                 # Sometimes we guess wrong and start too low, this bumps us up a
+#                 # bit to make sure we get a valid answer.
+#                 if scale == startScale and not runOnce:
+#                     scale *= 1.5
+#                     startScale = scale
+#                 else:
+#                     found = True
+#                     # If we never found a passing result, we just report the last
+#                     # one that ran
+#                     if not expResultsDir.exists():
+#                         shutil.copytree(tmpRes, expResultsDir, ignore=shutil.ignore_patterns("*.ipc"))
+#
+#             else:
+#                 scale = succeedScale + ((failureScale - succeedScale) / 2)
+#
+#     linkLatest(expResultsDir)
+#
+#     print("Final results at: ", expResultsDir)
+#     print("Max achievable scale: ", scale)
+#     return succeedScale
+
+
+def nShot(n, modelType='kaas', nCpy=1, outDir="results", models=None,
+          policy=None, fractional=None, expKey=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    expResultsDir = outDir / f"mlperf_{modelType}_{suffix}"
-
-    prefix = f"{prefix}_{modelType}"
-
-    # Attempt to find a valid scale, starting with "perfect" scaling
-    nModel = nCpy * len(models)
-    if scale is None:
-        scale = ((1 / nModel) * infbench.getNGpu())
-        startScale = scale
-        succeedScale = 0
-        failureScale = scale
-        runOnce = False
-    else:
-        # This tricks the system into only running one iteration
-        startScale = float('inf')
-        succeedScale = scale
-        failureScale = scale
-        runOnce = True
-
-    # Minimum step size when searching
-    step = 0.05
-
-    # Binary Search
-    found = False
-    while not found:
-        print("\n\nAttempting scale: ", scale)
-        time.sleep(10)  # ray is bad at cleaning up, gotta wait to be sure
-        with tempfile.TemporaryDirectory() as tmpRes:
-            tmpRes = pathlib.Path(tmpRes)
-            failure = not runTest('mlperf', models, modelType, prefix, tmpRes,
-                                  nCpy=nCpy, scale=scale, runTime=runTime,
-                                  policy=policy)
-            if failure:
-                failureScale = scale
-            else:
-                if expResultsDir.exists():
-                    shutil.rmtree(expResultsDir)
-                shutil.copytree(tmpRes, expResultsDir, ignore=shutil.ignore_patterns("*.ipc"))
-                succeedScale = scale
-
-            if (failureScale - succeedScale) <= step:
-                # Sometimes we guess wrong and start too low, this bumps us up a
-                # bit to make sure we get a valid answer.
-                if scale == startScale and not runOnce:
-                    scale *= 1.5
-                    startScale = scale
-                else:
-                    found = True
-                    # If we never found a passing result, we just report the last
-                    # one that ran
-                    if not expResultsDir.exists():
-                        shutil.copytree(tmpRes, expResultsDir, ignore=shutil.ignore_patterns("*.ipc"))
-
-            else:
-                scale = succeedScale + ((failureScale - succeedScale) / 2)
-
-    linkLatest(expResultsDir)
-
-    print("Final results at: ", expResultsDir)
-    print("Max achievable scale: ", scale)
-    return succeedScale
-
-
-def nShot(n, modelType='kaas', prefix='nshot', nCpy=1, outDir="results",
-          models=None, policy=None, fractional=None):
-    suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
-    expResultsDir = outDir / f"nshot_{modelType}_{suffix}"
+    expResultsDir = outDir / f"nshot_{expKey}_{suffix}"
     expResultsDir.mkdir(0o700)
     linkLatest(expResultsDir)
 
-    if policy == 'static':
-        prefix = f"{prefix}_static"
-    else:
-        prefix = f"{prefix}_{modelType}"
+    prefix = "nshot_" + expKey
 
     runTest('nshot', models, modelType, prefix, expResultsDir, scales=[n]*len(models),
             nCpy=nCpy, policy=policy, fractional=fractional)
 
 
-def throughput(modelType, runTime=None, prefix="throughput", outDir="results",
-               nCpy=1, models=None, policy=None, fractional=None):
+def throughput(modelType, runTime=None, outDir="results",
+               nCpy=1, models=None, policy=None, fractional=None, expKey=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
 
-    if policy == 'static':
-        prefix = f"{prefix}_static"
-    else:
-        prefix = f"{prefix}_{modelType}"
+    prefix = "throughput_" + expKey
 
     expResultsDir = outDir / f"{prefix}_{suffix}"
     expResultsDir.mkdir(0o700)
@@ -309,29 +307,29 @@ if __name__ == "__main__":
 
     if args.policy is None:
         if args.modelType == 'kaas':
-            policy = 'balance'
+            args.policy = 'balance'
         elif args.modelType == 'native':
-            policy = 'exclusive'
+            args.policy = 'exclusive'
         else:
             raise ValueError("Unrecognized model type: ", args.modelType)
-    else:
-        policy = args.policy
+
+    benchConfig = util.argsToConfig(args)
 
     if args.experiment == 'nshot':
         print("Starting nshot")
         nShot(int(args.scale[0]), modelType=args.modelType, nCpy=args.nCopy,
-              outDir=resultsDir, models=args.model, policy=policy,
-              fractional=args.fractional)
+              outDir=resultsDir, models=args.model, policy=args.policy,
+              fractional=args.fractional, expKey=benchConfig['expKey'])
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
-        mlperf(args.modelType, outDir=resultsDir,
-               scales=args.scale, runTime=args.runTime,
-               models=args.model, nCpy=args.nCopy, policy=policy)
+        mlperf(args.modelType, outDir=resultsDir, scales=args.scale,
+               runTime=args.runTime, models=args.model, nCpy=args.nCopy,
+               policy=args.policy, expKey=benchConfig['expKey'])
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
         throughput(args.modelType, outDir=resultsDir, runTime=args.runTime,
-                   models=args.model, nCpy=args.nCopy, policy=policy,
-                   fractional=args.fractional)
+                   models=args.model, nCpy=args.nCopy, policy=args.policy,
+                   fractional=args.fractional, expKey=benchConfig['expKey'])
     else:
         raise ValueError("Invalid experiment: ", args.experiment)
 

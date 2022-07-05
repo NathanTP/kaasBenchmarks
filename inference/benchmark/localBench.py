@@ -355,8 +355,6 @@ def mlperfBench(modelSpec, benchConfig):
 
     model = modelSpec.getModelInstance(constRefs=runConstKeys, backend='local')
 
-    gpuType = infbench.getGpuType()
-
     runner = mlperfRunner(loader, constKeys, model, kv, benchConfig, mode)
 
     sut = mlperf_loadgen.ConstructSUT(
@@ -366,7 +364,7 @@ def mlperfBench(modelSpec, benchConfig):
         loader.ndata, infbench.model.mlperfNquery, loader.preLoad, loader.unLoad)
 
     props = properties.getProperties()
-    settings = props.getMlPerfConfig(modelSpec.name, benchConfig, gpuType)
+    settings = props.getMlPerfConfig(modelSpec.name, benchConfig)
     mlperf_loadgen.StartTest(sut, qsl, settings)
 
     mlperf_loadgen.DestroyQSL(qsl)

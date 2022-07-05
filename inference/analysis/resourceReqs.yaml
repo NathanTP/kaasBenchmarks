@@ -11,34 +11,34 @@ testModel:
     kaas:
         mem: 384827392
         sm: 6
-    tvm:
+    native:
         mem: 349175808
         sm: 6
 resnet50: 
     kaas:
         mem: 567279616 
         sm: 16
-    tvm:
+    native:
         mem: 470810624
         sm: 16
 bert: 
     kaas:
         mem: 3775922176
         sm: 68
-    tvm:
+    native:
         mem: 1699741696
         sm: 71
 cGEMM: 
     kaas:
         mem: 2406481920
         sm: 89
-    tvm:
+    native:
         mem: 2389704704
         sm: 88
 jacobi: 
     kaas:
         mem: 324009984
         sm: 87
-    tvm:
+    native:
         mem: 321912832
         sm: 89

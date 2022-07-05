@@ -717,7 +717,7 @@ class throughputLoop():
         self.pool.registerGroup("throughputGroup", runActor)
 
         # This info is only used to get performance estimates
-        maxQps = properties.getProperties().throughputSingle(modelSpec.name, modelSpec.modelType)
+        maxQps = properties.getProperties().throughputSingle(modelSpec.name, benchConfig['expKey'])
 
         self.completionQueue = ray.util.queue.Queue()
 
@@ -1154,7 +1154,7 @@ class GPUAssignment():
 def checkForMPS():
     """Check if the MPS daemon is running"""
     for proc in psutil.process_iter():
-        if proc.cmdline() == ['nvidia-cuda-mps-control', '-d']:
+        if 'nvidia-cuda-mps-control' in proc.cmdline():
             return True
     return False
 
@@ -1274,6 +1274,9 @@ class serverLoop():
         return nNewWorker
 
     def registerClients(self):
+        if self.benchConfig['fractional'] is None and checkForMPS():
+            print("WARNING: MPS is enabled in non-fractional mode")
+
         if self.benchConfig['policy'] == 'static':
             if self.benchConfig['fractional'] is None:
                 resource = 'full'

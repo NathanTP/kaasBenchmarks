@@ -10,6 +10,8 @@ import collections
 import shutil
 from pprint import pprint
 
+
+expKeys = ['kaas', 'exclusive', 'static', 'fractional']
 models = ['cGEMM', 'resnet50', 'testModel', 'bert', 'jacobi']
 
 baselineName = "eTask"
@@ -89,17 +91,10 @@ def aggregateModels(fullResults, metric):
         fullIndex = list(range(1, maxNReplica+1))
         df = pd.DataFrame(index=fullIndex)
 
-        expResults = {staticName: [], baselineName: [], kaasName: []}
+        expResults = collections.defaultdict(list)
         for res in modelRes:
             config = res['config']
-            # The 3 is a legacy thing from before I switched to a string Enum.
-            # You can remove it after re-running all the results
-            if config['policy'] == 'static' or config['policy'] == 3:
-                expResults[staticName].append(res)
-            elif config['model_type'] in ['native', 'direct']:
-                expResults[baselineName].append(res)
-            elif config['model_type'] in ['kaas']:
-                expResults[kaasName].append(res)
+            expResults[config['expKey']].append(res)
 
         for name, expRes in expResults.items():
             ser = pd.Series([res[metric] for res in expRes], dtype='float64',
@@ -352,7 +347,7 @@ def loadOneNShot(resPaths):
 
 def loadAllNShot(resDir):
     """Given an nshot suite directory, return all the merged results including derived metrics.
-        {[model]_[mode]_[nReplica]: {metric: {'events': [...], 'mean': mean, 'p50': median, etc...}, ...}, ...}
+        {[model]_[expKey]_[nReplica]: {metric: {'events': [...], 'mean': mean, 'p50': median, etc...}, ...}, ...}
     Returns warmResults, coldResults
     """
     runDirs = getRunDirs(resDir)
@@ -526,18 +521,11 @@ def generatePropertiesNShot(dat, nShotDir):
     warmNShot, _ = loadAllNShot(nShotDir)
     isolated = dat['isolated']
     for modelName in models:
-        kaasRunName = f"{modelName}_kaas_1"
-        natRunName = f"{modelName}_native_1"
-        staticRunName = f"{modelName}_static_1"
+        for expKey in expKeys:
+            runName = f"{modelName}_{expKey}_1"
 
-        if kaasRunName in warmNShot:
-            isolated[modelName]['kaas']['latency'] = warmNShot[kaasRunName]['t_e2e']['p50']
-
-        if natRunName in warmNShot:
-            isolated[modelName]['native']['latency'] = warmNShot[natRunName]['t_e2e']['p50']
-
-        if staticRunName in warmNShot:
-            isolated[modelName]['static']['latency'] = warmNShot[natRunName]['t_e2e']['p50']
+            if runName in warmNShot:
+                isolated[modelName][expKey]['latency'] = warmNShot[runName]['t_e2e']['p50']
 
 
 def generatePropertiesThroughputSingle(dat, throughputDir):
@@ -546,13 +534,9 @@ def generatePropertiesThroughputSingle(dat, throughputDir):
     isolated = dat['isolated']
     for modelName in models:
         if modelName in throughputRes:
-            modelRes = throughputRes[modelName]
-            kQps = modelRes.loc[1, 'kTask']
-            eQps = modelRes.loc[1, 'eTask']
-            sQps = modelRes.loc[1, 'static']
-            isolated[modelName]['kaas']['qps'] = kQps
-            isolated[modelName]['native']['qps'] = eQps
-            isolated[modelName]['static']['qps'] = sQps
+            row = throughputRes[modelName].iloc[0]
+            for expKey, val in row.iteritems():
+                isolated[modelName][expKey]['qps'] = row[expKey]
 
 
 def generatePropertiesThroughputFull(dat, throughputDir):
@@ -564,9 +548,8 @@ def generatePropertiesThroughputFull(dat, throughputDir):
         if modelName in throughputRes:
             modelRes = throughputRes[modelName]
             for nClient, row in modelRes.iterrows():
-                full[modelName]['kaas']['throughput'][nClient - 1] = row['kTask']
-                full[modelName]['native']['throughput'][nClient - 1] = row['eTask']
-                full[modelName]['static']['throughput'][nClient - 1] = row['static']
+                for expKey, val in row.iteritems():
+                    full[modelName][expKey]['throughput'][nClient - 1] = val
 
 
 def generateProperties(propFile, nShotDir, throughputSingleDir,
@@ -612,8 +595,7 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
     #                 # See resourceReqs.yaml for details
     #                 "sm": peak gpu compute utilization (%)
     #             },
-    #             'native': {...},
-    #             'static': {...}
+    #             ...other expKey's,
     #         }, ...
     #     },
     #     # measurements from full suite of runs on 8 GPU system.
@@ -625,52 +607,39 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
     #                 # Use ./multiExperiment.py -e throughput
     #                 'throughput': [throughput for 1 client, 2 clients, ..., 16 clients]
     #             },
-    #             'native': {...}
+    #             ...other expKeys
     #         }
     #     }
     # }
 
     # Create a template for the generate* functions to populate
-    newDat = {}
-    newDat['isolated'] = {}
-    newDat['full'] = {}
+    dat = {}
+    dat['isolated'] = {}
+    dat['full'] = {}
     for modelName in models:
-        newDat['isolated'][modelName] = {'kaas': {'latency': None, 'qps': None,
-                                                  'mem': None, 'sm': None},
-                                         'native': {'latency': None, 'qps': None,
-                                                    'mem': None, 'sm': None},
-                                         'static': {'latency': None, 'qps': None,
-                                                    'mem': None, 'sm': None}}
-
-        newDat['full'][modelName] = {'kaas': {'throughput': [None]*16},
-                                     'native':  {'throughput': [None]*16},
-                                     'static':  {'throughput': [None]*16}}
+        dat['isolated'][modelName] = {}
+        dat['full'][modelName] = {}
+        for expKey in expKeys:
+            dat['isolated'][modelName][expKey] = {'latency': None, 'qps': None}
+            dat['full'][modelName][expKey] = {'throughput': [None]*16}
 
     with open(resourceReqFile, 'r') as f:
         resourceReqs = yaml.safe_load(f)
 
-    newDat['isolated'] |= resourceReqs
+    dat['reqs'] = resourceReqs
 
     if nShotDir is not None:
-        generatePropertiesNShot(newDat, nShotDir)
+        generatePropertiesNShot(dat, nShotDir)
 
     if throughputSingleDir is not None:
-        generatePropertiesThroughputSingle(newDat, throughputSingleDir)
+        generatePropertiesThroughputSingle(dat, throughputSingleDir)
 
     if throughputFullDir is not None:
-        generatePropertiesThroughputFull(newDat, throughputFullDir)
-
-    if propFile is not None and propFile.exists():
-        with open(propFile, 'r') as f:
-            oldDat = json.load(f)
-        mergedDat = oldDat | newDat
-    else:
-        mergedDat = newDat
-
+        generatePropertiesThroughputFull(dat, throughputFullDir)
     with open(propFile, 'w') as f:
-        json.dump(mergedDat, f)
+        json.dump(dat, f)
 
-    return mergedDat
+    return dat
 
 
 if __name__ == "__main__":
@@ -678,7 +647,7 @@ if __name__ == "__main__":
     # pprint(loadAllThroughput(resDir)['cGEMM'])
 
     props = generateProperties(propFile=pathlib.Path('testProperties.json'),
-                               nShotDir=pathlib.Path('results/nshotFast'),
-                               throughputSingleDir=pathlib.Path('../benchmark/results/throughputSingleNew'),
-                               throughputFullDir=pathlib.Path('../benchmark/results/throughputTesting'))
+                               nShotDir=pathlib.Path('./results/nshot'),
+                               throughputSingleDir=pathlib.Path('./results/throughputSingle'),
+                               throughputFullDir=pathlib.Path('../benchmark/results/throughputFull'))
     pprint(props)
