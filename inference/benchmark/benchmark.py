@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import util
 import argparse
-import datetime
-from kaas.pool import policies
 
 
 def sanityCheck(backend):

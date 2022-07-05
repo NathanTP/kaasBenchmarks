@@ -9,7 +9,6 @@ import numpy as np
 import collections
 import shutil
 from pprint import pprint
-import sys
 
 
 expKeys = ['kaas', 'exclusive', 'static', 'fractional']
