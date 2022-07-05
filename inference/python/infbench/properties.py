@@ -30,13 +30,20 @@ class Properties():
         """
         return self.perfData['reqs'][modelName][modelType]
 
-    def latency(self, modelName, expKey):
-        """Return the estimated single-GPU latency of this model in ms"""
+    def latency(self, modelName, expKey, e2e=True):
+        """Return the estimated single-GPU latency of this model in ms.
+        Arguments
+            e2e: Return the end-to-end runtime from the clients perspective. If
+            false, returns the model runtime as seen by the pool.
+        """
         # Lazy hack rather than do this right
         if expKey != 'kaas':
             expKey = 'exclusive'
 
-        return self.perfData['isolated'][modelName][expKey]['latency']
+        if e2e:
+            return self.perfData['isolated'][modelName][expKey]['latency']
+        else:
+            return self.perfData['isolated'][modelName][expKey]['model_runtime']
 
     def throughputFull(self, modelName, nClient, expKey):
         """Return throughput for the full 8 GPU experiment"""
