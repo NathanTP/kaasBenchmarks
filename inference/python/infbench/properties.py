@@ -17,59 +17,29 @@ class Properties():
         with open(self.propFile, 'r') as f:
             self.perfData = json.load(f)
 
-    def throughputSingle(self, modelName, modelType=None, gpuType=None, independent=True):
+    def throughputSingle(self, modelName, expKey):
         """Return estimated single-GPU throughput of this model in ms"""
-        if gpuType is None:
-            gpuType = util.getGpuType()
-
-        if independent:
-            return self.perfData['isolated'][modelName][modelType]['qps']
-        else:
-            modelData = self.perfData['isolated'][modelName]
-            return min((modelData['kaas']['qps'], modelData['native']['qps']))
+        return self.perfData['isolated'][modelName][expKey]['qps']
 
     def resourceReqs(self, modelName, modelType):
         """Return resoure requirements for modelName and modelType (kaas or
         native). 'mem' and 'sm'.
         """
-        return self.perfData['isolated'][modelName][modelType]
+        return self.perfData['reqs'][modelName][modelType]
 
-    def latency(self, modelName, modelType=None, independent=True):
+    def latency(self, modelName, expKey):
         """Return the estimated single-GPU latency of this model in ms"""
         modelData = self.perfData['isolated'][modelName]
-        if independent:
-            return modelData[modelType]['latency']
-        else:
-            return min((modelData['kaas']['latency'], modelData['native']['latency']))
+        return modelData[expKey]['latency']
 
-    def throughputFull(self, modelName, nClient, modelType=None, independent=True):
+    def throughputFull(self, modelName, nClient, expKey):
         """Return throughput for the full 8 GPU experiment"""
-        if independent:
-            thpt = self.perfData['full'][modelName][modelType]['throughput']
-        else:
-            kThr = self.perfData['full'][modelName]['kaas']['throughput'][nClient - 1]
-            tThr = self.perfData['full'][modelName]['native']['throughput'][nClient - 1]
-            if kThr is None or tThr is None:
-                thpt = None
-            else:
-                thpt = min(kThr, tThr)
+        return self.perfData['full'][modelName][expKey]['throughput']
 
-        if thpt is None:
-            raise ValueError(f"Throughput data not available for {modelName} {nClient}")
-
-        return thpt
-
-    def getMlPerfConfig(self, modelName, benchConfig, gpuType=None, independent=True):
+    def getMlPerfConfig(self, modelName, benchConfig):
         """Return an mlperf config object for the specified model"""
-        if gpuType is None:
-            gpuType = util.getGpuType()
-
-        maxQps = self.throughputSingle(modelName,
-                                       modelType=benchConfig['model_type'],
-                                       independent=independent)
-
-        latency = self.latency(modelName, modelType=benchConfig['model_type'],
-                               independent=independent)
+        maxQps = self.throughputSingle(modelName, benchConfig['expKey'])
+        latency = self.latency(modelName, benchConfig['expKey'])
 
         settings = model.getDefaultMlPerfCfg(maxQps, latency, benchConfig)
 

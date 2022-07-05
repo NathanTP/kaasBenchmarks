@@ -11,17 +11,30 @@ from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-# nReplicas = [1, 4]
-# models = ['cGEMM', 'jacobi']
-# modes = ['kaas', 'native', 'static']
-nReplicas = [1, 2]
-models = ['cGEMM', 'jacobi']
-modes = ['kaas', 'native', 'static']
+nReplicas = [1]
+models = ['cGEMM']
+# expKeys = ['kaas', 'native', 'static', 'fractional']
+expKeys = ['kaas', 'fractional']
 
 
-def getTargetRuntime(nReplica, model, mode, fast=False):
+def keyToOpts(expKey):
+    """Return arguments to add to the base commands for this mode. These
+    include type, policy, and fractional"""
+    if expKey == 'kaas':
+        return ['-t', 'kaas', '-p', 'balance']
+    elif expKey == 'native':
+        return ['-t', 'native', '-p', 'exclusive']
+    elif expKey == 'static':
+        return ['-t', 'native', '-p', 'static']
+    elif expKey == 'fractional':
+        return ['-t', 'native', '-p', 'static', '--fractional', 'mem']
+    else:
+        raise ValueError("Unrecognized experiment: " + expKey)
+
+
+def getTargetRuntime(nReplica, model, expKey, fast=False):
     if fast:
-        return 180
+        return 30
 
     # After 4 replicas, TVM is so slow that we need lots of time to get a good
     # measurement. How much longer we need depends on the model, though longer
@@ -49,14 +62,17 @@ def mlperf(configs, suiteOutDir, fast=False):
     else:
         scaleArg = []
 
-    for model, mode, nReplica in configs:
-        runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
+    for model, expKey, nReplica in configs:
+        runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
 
-        name = f"{model}_{mode}_{nReplica}"
+        name = f"{model}_{expKey}_{nReplica}"
         print("\nStarting test: ", name)
-        sp.run(['./experiment.py', '-e', 'mlperfMulti',
-                '-n', str(nReplica), f'--runTime={runTime}',
-                '-t', mode, '-m', model] + scaleArg)
+        cmd = ['./experiment.py', '-e', 'mlperfMulti',
+               '-n', str(nReplica), f'--runTime={runTime}',
+               '-m', model]
+        cmd += scaleArg
+        cmd += keyToOpts(expKey)
+        sp.run(cmd)
 
         runOutDir = suiteOutDir / name
         shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
@@ -66,43 +82,36 @@ def mlperf(configs, suiteOutDir, fast=False):
 
 
 def nShot(configs, suiteOutDir):
-    for model, mode, nReplica in configs:
-        name = f"{model}_{mode}_{nReplica}"
+    for model, expKey, nReplica in configs:
+        name = f"{model}_{expKey}_{nReplica}"
         print("\nStarting test: ", name)
-        sp.run(['./experiment.py',
-                '-e', 'nshot',
-                '-n', str(nReplica),
-                '-s', '64',
-                '-t', mode,
-                '-m', model])
+        cmd = ['./experiment.py',
+               '-e', 'nshot',
+               '-n', str(nReplica),
+               '-s', '64',
+               '-m', model]
+        cmd += keyToOpts(expKey)
+        sp.run(cmd)
 
         runOutDir = suiteOutDir / name
         shutil.copytree(resultsDir / 'latest', runOutDir, ignore=shutil.ignore_patterns("*.ipc"))
-        time.sleep(20)
+        time.sleep(10)
 
     print("Final Results in: ", suiteOutDir)
 
 
 def throughput(configs, suiteOutDir, fast=False):
-    for model, mode, nReplica in configs:
-        name = f"{model}_{mode}_{nReplica}"
-        runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
-
-        if mode == 'static':
-            mode = 'native'
-            policyArg = ['-p', 'static', '--fractional', 'mem']
-        else:
-            policyArg = []
+    for model, expKey, nReplica in configs:
+        name = f"{model}_{expKey}_{nReplica}"
+        runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
 
         cmd = ['./experiment.py',
                '-e', 'throughput',
                '-n', str(nReplica),
                '-s', str(1 / nReplica),
                f'--runTime={runTime}',
-               '-t', mode,
                '-m', model]
-
-        cmd += policyArg
+        cmd += keyToOpts(expKey)
 
         print("\nStarting test: ", name)
         sp.run(cmd)
@@ -114,10 +123,9 @@ def throughput(configs, suiteOutDir, fast=False):
     print("Final Results in: ", suiteOutDir)
 
 
-def getScale(props, model, mode, nReplica, independent, fast):
-    peakThr = props.throughputFull(model, nClient=nReplica, modelType=mode,
-                                   independent=independent)
-    baseThr = props.throughputSingle(model, modelType=mode, independent=independent)
+def getScale(props, model, expKey, nReplica, fast):
+    peakThr = props.throughputFull(model, nReplica, expKey)
+    baseThr = props.throughputSingle(model, expKey)
 
     if fast:
         safeThr = 0.2 * peakThr
@@ -127,16 +135,17 @@ def getScale(props, model, mode, nReplica, independent, fast):
     return (safeThr / baseThr) / nReplica
 
 
-def latDistribution(configs, suiteOutDir, independent=False, fast=False):
+def latDistribution(configs, suiteOutDir, fast=False):
     props = properties.getProperties()
-    for model, mode, nReplica in configs:
-        scale = getScale(props, model, mode, nReplica, independent, fast)
-        runTime = getTargetRuntime(nReplica, model, mode, fast=fast)
+    for model, expKey, nReplica in configs:
+        scale = getScale(props, model, expKey, nReplica, fast)
+        runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
 
-        name = f"{model}_{mode}_{nReplica}"
+        name = f"{model}_{expKey}_{nReplica}"
         print("\nStarting test: ", name)
         cmd = ['./experiment.py', '-e', 'mlperf', '-n', str(nReplica),
-               '-s', str(scale), f'--runTime={runTime}', '-t', mode, '-m', model]
+               '-s', str(scale), f'--runTime={runTime}', '-m', model]
+        cmd += keyToOpts(expKey)
         sp.run(cmd)
 
         runOutDir = suiteOutDir / name
@@ -151,7 +160,6 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'mlperf', 'nshot'])
     parser.add_argument('-f', '--fast', action='store_true')
     parser.add_argument('-o', '--outDir', type=pathlib.Path)
-    parser.add_argument('--independent', action='store_true', help="For the lat experiment, this uses the peak throughput for each mode independently. Otherwise, the lowest throughput is used for both modes.")
 
     args = parser.parse_args()
 
@@ -168,11 +176,11 @@ if __name__ == "__main__":
         outDir = args.outDir / f'run{runIdx}'
         outDir.mkdir(0o700, parents=True)
 
-    configs = itertools.product(models, modes, nReplicas)
+    configs = itertools.product(models, expKeys, nReplicas)
     if args.experiment == 'throughput':
         throughput(configs, outDir, fast=args.fast)
     elif args.experiment == 'lat':
-        latDistribution(configs, outDir, independent=args.independent, fast=args.fast)
+        latDistribution(configs, outDir, fast=args.fast)
     elif args.experiment == 'mlperf':
         mlperf(configs, outDir, fast=args.fast)
     elif args.experiment == 'nshot':

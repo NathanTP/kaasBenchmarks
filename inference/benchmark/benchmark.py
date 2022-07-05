@@ -51,14 +51,6 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Starting {args.experiment} experiment")
-    print(f"\t Model: {args.model} ({args.modelType})")
-    print("\t Backend: ", args.backend)
-    print("\t Runner Policy: ", args.policy)
-    print("\t Force Cold: ", args.forceCold)
-    print("\t Inline: ", args.inline)
-    print("\t Fractional: ", args.fractional)
-
     if args.backend == 'local':
         import localBench
         backend = localBench
@@ -74,31 +66,16 @@ def main():
     if args.fractional is not None and args.policy != 'static':
         raise ValueError("'fractional' can only be used with the static policy")
 
-    if args.policy == 'balance':
-        policy = policies.BALANCE
-    elif args.policy == 'exclusive':
-        policy = policies.EXCLUSIVE
-    elif args.policy == 'static':
-        policy = policies.STATIC
-    else:
-        raise ValueError("Unsupported policy: ", args.policy)
+    benchConfig = util.argsToConfig(args)
 
-    benchConfig = {
-        "time": datetime.datetime.today().strftime("%y-%m-%d:%d:%H:%M:%S"),
-        "gitHash": util.currentGitHash(),
-        "name": args.name,
-        "model": args.model,
-        "modelType": args.modelType,
-        "experiment": args.experiment,
-        "backend": args.backend,
-        "policy": policy,
-        "forceCold": args.forceCold,
-        "inline": args.inline,
-        "scale": args.scale,
-        "runTime": args.runTime,
-        "numClient": args.numClient,
-        "fractional": args.fractional
-    }
+    print(f"Starting {args.experiment} experiment")
+    print(f"\t Model: {benchConfig['model']} ({benchConfig['modelType']})")
+    print("\t Experiment Key: ", benchConfig['expKey'])
+    print("\t Backend: ", benchConfig['backend'])
+    print("\t Runner Policy: ", benchConfig['policy'])
+    print("\t Force Cold: ", benchConfig['forceCold'])
+    print("\t Inline: ", benchConfig['inline'])
+    print("\t Fractional: ", benchConfig['fractional'])
 
     if args.experiment != "server":
         spec = util.getModelSpec(args.model, args.modelType)

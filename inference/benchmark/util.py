@@ -3,6 +3,8 @@ import infbench.model
 import subprocess as sp
 import re
 from pprint import pprint
+import datetime
+from kaas.pool import policies
 
 
 clientUrl = "ipc://client.ipc"
@@ -258,3 +260,48 @@ def analyzeStats(stats):
 def currentGitHash():
     p = sp.run(['git', 'rev-parse', 'HEAD'], stdout=sp.PIPE, check=True, text=True, cwd=pathlib.Path(__file__).parent)
     return p.stdout.strip()
+
+
+def getExpKey(benchConfig):
+    """Return a unique identifier for the experiment configuration based on a
+    benchconfig. Everything should use this when logging or analyzing
+    experiments."""
+    if benchConfig['modelType'] == 'kaas':
+        return 'kaas'
+    elif benchConfig['modelType'] == 'native':
+        if benchConfig['policy'] == policies.EXCLUSIVE:
+            return 'exclusive'
+        elif benchConfig['policy'] == policies.STATIC and benchConfig['fractional'] is None:
+            return 'static'
+        elif benchConfig['policy'] == policies.STATIC and benchConfig['fractional'] is not None:
+            return 'fractional'
+        else:
+            raise ValueError(f"Unrecognized or invalid configuration: {benchConfig['modelType']}-{benchConfig['policy']}")
+    else:
+        raise ValueError(f"Unrecognized or invalid configuration: {benchConfig['modelType']}-{benchConfig['policy']}")
+
+
+def argsToConfig(args):
+    """Generate a benchConfig from parseargs args. This relies on all
+    benchmarks using the same names for common arguments."""
+    if args.fractional is not None and args.policy != 'static':
+        raise ValueError("'fractional' can only be used with the static policy")
+
+    if args.policy == 'balance':
+        args.policy = policies.BALANCE
+    elif args.policy == 'exclusive':
+        args.policy = policies.EXCLUSIVE
+    elif args.policy == 'static':
+        args.policy = policies.STATIC
+    else:
+        raise ValueError("Unsupported policy: ", args.policy)
+
+    benchConfig = {
+        "time": datetime.datetime.today().strftime("%d%m%y-%H%M%S"),
+        "gitHash": currentGitHash()
+    }
+
+    benchConfig |= vars(args)
+    benchConfig['expKey'] = getExpKey(benchConfig)
+
+    return benchConfig
