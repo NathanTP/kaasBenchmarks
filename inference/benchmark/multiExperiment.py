@@ -21,7 +21,7 @@ def keyToOpts(expKey):
     """Return arguments to add to the base commands for this mode. These
     include type, policy, and fractional"""
     if expKey == 'kaas':
-        return ['-t', 'kaas', '-p', 'balance']
+        return ['-t', 'kaas', '-p', 'affinity']
     elif expKey == 'exclusive':
         return ['-t', 'native', '-p', 'exclusive']
     elif expKey == 'static':
@@ -39,7 +39,7 @@ def getTargetRuntime(nReplica, model, expKey, fast=False):
     # After 4 replicas, TVM is so slow that we need lots of time to get a good
     # measurement. How much longer we need depends on the model, though longer
     # is always better.
-    if nReplica > 4:
+    if nReplica > 4 and expKey == 'exclusive':
         if model == 'bert':
             runTime = 800
         elif model == 'jacobi':

@@ -267,6 +267,7 @@ def getExpKey(benchConfig):
     benchconfig. Everything should use this when logging or analyzing
     experiments."""
     if benchConfig['modelType'] == 'kaas':
+        assert benchConfig['policy'] == policies.AFFINITY
         return 'kaas'
     elif benchConfig['modelType'] == 'native':
         if benchConfig['policy'] == policies.EXCLUSIVE:
