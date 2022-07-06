@@ -15,7 +15,8 @@ cutlassDir = modelDir / "complexCutlassGemm"
 
 def getMeta(M, N, K):
     constants = [{"name": "b", "type": "csingle", "shape": [K, N], "dataIdx": 0},
-                 {"name": "d", "type": "csingle", "shape": [N, 1], "dataIdx": 1}]
+                 {"name": "d", "type": "csingle", "shape": [N, 1], "dataIdx": 1},
+                 {"name": "t1", "type": "csingle", "shape": [N, N], "dataIdx": 2}]
     outputs = [{"name": "e", "type": "csingle", "shape": [M, 1]}]
     inputs = [{"name": "a", "type": "csingle", "shape": [M, K]}]
     return {"constants": constants, "inputs": inputs, "outputs": outputs}

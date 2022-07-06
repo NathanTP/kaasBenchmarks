@@ -71,6 +71,25 @@ def createReq(M, N, K, redDim, alpha, beta):
                                 arguments=[(aBuf, 'i'), (bBuf, 'i'), (cBuf, 't')],
                                 literals=literals)
 
+    tBuf = kaas.bufferSpec('t1', N*N*dtypeSize, ephemeral=False)
+    literals = [kaas.literalSpec('f', alpha), kaas.literalSpec('f', beta),
+                kaas.literalSpec('f', M), kaas.literalSpec('f', N),
+                kaas.literalSpec('f', N), kaas.literalSpec('f', M),
+                kaas.literalSpec('f', N), kaas.literalSpec('f', M)]
+
+    fBuf = kaas.bufferSpec('f1', M*N*dtypeSize, ephemeral=False)
+
+    cfg = getDims(M, N, N).contents
+    grid = (cfg.gridX, cfg.gridY, cfg.gridZ)
+    block = (cfg.blockX, cfg.blockY, cfg.blockZ)
+
+    tempKern = kaas.kernelSpec(kaas.builtins["complexCutlass"], "complexGemm0",
+                                grid, block, sharedSize=smem,
+                                arguments=[(cBuf, 'i'), (tBuf, 'i'), (fBuf, 't')],
+                                literals=literals)
+
+
+
     dBuf = kaas.bufferSpec('d', N*redDim*dtypeSize, ephemeral=False)
     eBuf = kaas.bufferSpec('e', M*redDim*dtypeSize, ephemeral=True)
 
@@ -87,10 +106,10 @@ def createReq(M, N, K, redDim, alpha, beta):
 
     secondKern = kaas.kernelSpec(kaas.builtins["complexCutlass"], "complexGemm0",
                                  grid, block, sharedSize=smem,
-                                 arguments=[(cBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')],
+                                 arguments=[(fBuf, 'i'), (dBuf, 'i'), (eBuf, 'o')],
                                  literals=literals)
 
-    req = kaas.kaasReq([firstKern, secondKern])
+    req = kaas.kaasReq([firstKern, tempKern, secondKern])
     return req
 
 
@@ -106,4 +125,6 @@ def generateData(M, N, K, redDim):
     d = np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32)) + \
         np.asfortranarray(rng.standard_normal((N, redDim), dtype=np.float32) * (1j))
 
-    return (a, (b, d))
+    t = np.asfortranarray(rng.standard_normal((N, N), dtype=np.float32)) + \
+        np.asfortranarray(rng.standard_normal((N, N), dtype=np.float32) * (1j))
+    return (a, (b, d, t))
