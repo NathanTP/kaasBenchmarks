@@ -8,6 +8,7 @@ import os
 import argparse
 import json
 from pprint import pprint
+import time
 
 import util
 
@@ -29,6 +30,7 @@ class serverProc():
 
         if policy == 'static' and fractional is not None:
             self.mpsServer = sp.Popen(['nvidia-cuda-mps-control', '-f'], stdout=sp.DEVNULL)
+            time.sleep(2)
         else:
             self.mpsServer = None
 
