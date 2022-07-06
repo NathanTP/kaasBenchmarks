@@ -6,6 +6,7 @@ import shutil
 import time
 import itertools
 import argparse
+import numpy as np
 
 from infbench import properties
 
@@ -123,8 +124,12 @@ def throughput(configs, suiteOutDir, fast=False):
     print("Final Results in: ", suiteOutDir)
 
 
-def getScale(props, model, expKey, nReplica, fast):
+def getScales(props, model, expKey, nReplica, fast, hetero=False):
+    # How many qps the system can sustain with nReplica
     peakThr = props.throughputFull(model, nReplica, expKey)
+
+    # How many qps a single node can push to a single GPU (clients use this as
+    # a baseline). Actual qps at the client is baseThr*scale.
     baseThr = props.throughputSingle(model, expKey)
 
     if fast:
@@ -132,13 +137,25 @@ def getScale(props, model, expKey, nReplica, fast):
     else:
         safeThr = 0.8 * peakThr
 
-    return (safeThr / baseThr) / nReplica
+    if hetero:
+        # Find a zipf series that isn't too skewed.
+        # Use the same seed for every experiment for fairness
+        rng = np.random.default_rng(0)
+        raw = rng.zipf(2, nReplica)
+        while max(raw) > 20:
+            raw = rng.zipf(2, nReplica)
+
+        # Scale the raw distribution to fit under safeThr
+        normFactor = sum(raw)
+        pass
+    else:
+        return [(safeThr / baseThr) / nReplica]*nReplica
 
 
-def latDistribution(configs, suiteOutDir, fast=False):
+def latDistribution(configs, suiteOutDir, fast=False, hetero=False):
     props = properties.getProperties()
     for model, expKey, nReplica in configs:
-        scale = getScale(props, model, expKey, nReplica, fast)
+        scales = getScales(props, model, expKey, nReplica, fast, hetero)
         runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
 
         name = f"{model}_{expKey}_{nReplica}"
