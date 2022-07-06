@@ -705,7 +705,7 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
         dat['full'][modelName] = {}
         for expKey in expKeys:
             dat['isolated'][modelName][expKey] = {'latency': None, 'qps': None, 'model_runtime': None}
-            dat['full'][modelName][expKey] = {'throughput': [None]*16}
+            dat['full'][modelName][expKey] = {'throughput': [None]*32}
 
     with open(resourceReqFile, 'r') as f:
         resourceReqs = yaml.safe_load(f)
