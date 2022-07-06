@@ -1151,7 +1151,7 @@ def checkForMPS():
     return False
 
 
-def getSmallestGPU(gpus, requestedFrac):
+def getSmallestGPU(gpus, requestedFrac, oversubscribe=False):
     """Returns the least thread utilized GPU that can support requestedFrac
     new resources. If there is a tie, return the GPU with the least
     resource utilization."""
@@ -1166,9 +1166,17 @@ def getSmallestGPU(gpus, requestedFrac):
             minGPU = gpu
 
     if minGPU.resUtil + requestedFrac > 1:
-        return None
-    else:
-        return minGPU
+        minGPU = None
+
+    # If we are oversubscribed (and allowed to), it's better to even out
+    # resources than threads.
+    if oversubscribe and minGPU is None:
+        minGPU = gpus[0]
+        for gpu in gpus:
+            if gpu.resUtil < minGPU.resUtil:
+                minGPU = gpu
+
+    return minGPU
 
 
 class serverLoop():
@@ -1237,7 +1245,7 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (self.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
-    def _assignClients(self, gpus, clients, maxNewWorkers=None):
+    def _assignClients(self, gpus, clients, maxNewWorkers=None, oversubscribe=False):
         """Run one round of assignments of clients to GPUs. Returns the number
         of new workers assigned. Client workers are assigned to the GPU with
         the least number of workers if feasible, otherwise it goes to the GPU
@@ -1254,7 +1262,7 @@ class serverLoop():
             if maxNewWorkers is not None and nNewWorker == maxNewWorkers:
                 return nNewWorker
 
-            minGPU = getSmallestGPU(gpus, client.resFrac)
+            minGPU = getSmallestGPU(gpus, client.resFrac, oversubscribe=oversubscribe)
             if minGPU is None:
                 # No feasible solution found
                 return nNewWorker
@@ -1278,13 +1286,13 @@ class serverLoop():
             GPUs = [GPUAssignment() for i in range(self.nGPUs)]
 
             # Everyone has to get at least one Worker
-            nWorker = self._assignClients(GPUs, self.clients)
+            nWorker = self._assignClients(GPUs, self.clients, oversubscribe=True)
             assert nWorker == len(self.clients)
 
             # Keep going until all GPUs have at least one client
             target = self.nGPUs
             while nWorker < target:
-                nWorker += self._assignClients(GPUs, self.clients, target - nWorker)
+                nWorker += self._assignClients(GPUs, self.clients, target - nWorker, oversubscribe=True)
 
             # {clientID: [gpuID, ...]}
             clientAffinities = collections.defaultdict(list)
@@ -1309,6 +1317,8 @@ class serverLoop():
             # to have at least one CPU free for tasks plus one for the pool. We
             # also can't allocate a worker that's less than 1/8 of a GPU.
             maxWorkers = min(psutil.cpu_count() - 2, self.nGPUs * 8)
+            if len(self.pendingRegistrations) > maxWorkers:
+                raise ServerError("Cannot register all clients: insufficient CPUs")
 
             for clientID, modelName, modelType in self.pendingRegistrations:
                 self.clients[clientID] = clientState(clientID, modelName, modelType,
@@ -1321,7 +1331,7 @@ class serverLoop():
             # Everyone has to get at least one Worker
             nWorker += self._assignClients(GPUs, self.clients, maxWorkers)
             if nWorker < len(self.clients):
-                raise ServerError("Cannot register all clients: insufficient resources")
+                raise ServerError("Cannot register all clients: insufficient GPUs")
 
             # Keep going until all GPUs have at least one client or we exceed
             # the maximum number of workers/exhuast resources. This policy
@@ -1410,7 +1420,7 @@ class serverLoop():
 
 
 def serveRequests(benchConfig):
-    ray.init(include_dashboard=False)
+    ray.init(include_dashboard=False, object_store_memory=(128*(2**30)))
     context = zmq.Context()
 
     clientSock = context.socket(zmq.ROUTER)
