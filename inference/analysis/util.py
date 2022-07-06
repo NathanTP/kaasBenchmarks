@@ -676,6 +676,6 @@ if __name__ == "__main__":
 
     props = generateProperties(propFile=pathlib.Path('testProperties.json'),
                                nShotDir=pathlib.Path('./results/nshot'),
-                               throughputSingleDir=None,
-                               throughputFullDir=None)
+                               throughputSingleDir=pathlib.Path('./results/throughputSingle'),
+                               throughputFullDir=pathlib.Path('./results/throughputFull'))
     pprint(props)
