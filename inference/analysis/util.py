@@ -648,7 +648,7 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
         dat['isolated'][modelName] = {}
         dat['full'][modelName] = {}
         for expKey in expKeys:
-            dat['isolated'][modelName][expKey] = {'latency': None, 'qps': None}
+            dat['isolated'][modelName][expKey] = {'latency': None, 'qps': None, 'model_runtime': None}
             dat['full'][modelName][expKey] = {'throughput': [None]*16}
 
     with open(resourceReqFile, 'r') as f:
@@ -676,6 +676,6 @@ if __name__ == "__main__":
 
     props = generateProperties(propFile=pathlib.Path('testProperties.json'),
                                nShotDir=pathlib.Path('./results/nshot'),
-                               throughputSingleDir=pathlib.Path('./results/throughputSingle'),
-                               throughputFullDir=pathlib.Path('../benchmark/results/throughputFull'))
+                               throughputSingleDir=None,
+                               throughputFullDir=None)
     pprint(props)
