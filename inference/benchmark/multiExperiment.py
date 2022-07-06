@@ -11,11 +11,9 @@ from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-# nReplicas = [1, 4, 8, 12, 16]
-# models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
-# expKeys = ['kaas']
-nReplicas = [4]
+nReplicas = [8]
 models = ['cGEMM']
+# models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
 expKeys = ['kaas']
 
 
@@ -69,7 +67,7 @@ def mlperf(configs, suiteOutDir, fast=False):
 
         name = f"{model}_{expKey}_{nReplica}"
         print("\nStarting test: ", name)
-        cmd = ['./experiment.py', '-e', 'mlperfMulti',
+        cmd = ['./experiment.py', '-e', 'mlperf',
                '-n', str(nReplica), f'--runTime={runTime}',
                '-m', model]
         cmd += scaleArg
@@ -131,7 +129,7 @@ def throughput(configs, suiteOutDir, fast=False):
     print("Final Results in: ", suiteOutDir)
 
 
-def getScale(props, model, expKey, nReplica, fast):
+def getScales(props, model, expKey, nReplica, fast):
     peakThr = props.throughputFull(model, nReplica, expKey, independent=False)
     baseThr = props.throughputSingle(model, expKey)
 
@@ -148,7 +146,7 @@ def getScale(props, model, expKey, nReplica, fast):
 def latDistribution(configs, suiteOutDir, fast=False):
     props = properties.getProperties()
     for model, expKey, nReplica in configs:
-        scale = getScale(props, model, expKey, nReplica, fast)
+        scale = getScales(props, model, expKey, nReplica, fast)
         runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
 
         name = f"{model}_{expKey}_{nReplica}"

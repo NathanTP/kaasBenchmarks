@@ -92,7 +92,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
         modelType: kaas or native
         prefix: Used to name the run
         resultsDir: Where to output all results from this test
-        scale: For tests that use the --scale parameter (mlperf, nshot)
+        scale: For tests that use the --scale parameter
         runTime: Target runtime of experiment
         policy: Scheduling policy to use for this experiment
         fractional: See argparse help for details.
@@ -141,7 +141,7 @@ def runTest(test, modelNames, modelType, prefix, resultsDir, nCpy=1, scales=None
 
 
 def mlperf(modelType, outDir="results", scales=None, runTime=None, nCpy=1,
-           models=None, policy=None, expKey=None):
+           models=None, policy=None, expKey=None, fractional=None):
     suffix = datetime.datetime.now().strftime("%d%m%y-%H%M%S")
 
     prefix = "mlperf_" + expKey
@@ -153,10 +153,9 @@ def mlperf(modelType, outDir="results", scales=None, runTime=None, nCpy=1,
     if scales is None:
         raise ValueError("mlperf requires explicit scales")
 
-    prefix = f"{prefix}_{modelType}"
-
     runTest('mlperf', models, modelType, prefix, expResultsDir,
-            scales=scales, runTime=runTime, nCpy=nCpy, policy=policy)
+            scales=scales, runTime=runTime, nCpy=nCpy, policy=policy,
+            fractional=fractional)
 
     p50s = {}
     p90s = {}
@@ -309,7 +308,7 @@ if __name__ == "__main__":
 
     if args.policy is None:
         if args.modelType == 'kaas':
-            args.policy = 'balance'
+            args.policy = 'affinity'
         elif args.modelType == 'native':
             args.policy = 'exclusive'
         else:
@@ -326,7 +325,8 @@ if __name__ == "__main__":
         print("Starting mlperf")
         mlperf(args.modelType, outDir=resultsDir, scales=args.scale,
                runTime=args.runTime, models=args.model, nCpy=args.nCopy,
-               policy=args.policy, expKey=benchConfig['expKey'])
+               policy=args.policy, expKey=benchConfig['expKey'],
+               fractional=args.fractional)
     elif args.experiment == 'throughput':
         print("Starting Throughput Test")
         throughput(args.modelType, outDir=resultsDir, runTime=args.runTime,

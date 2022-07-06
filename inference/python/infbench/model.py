@@ -505,7 +505,8 @@ def getDefaultMlPerfCfg(maxQps, medianLat, benchConfig):
         settings.mode = mlperf_loadgen.TestMode.FindPeakPerformance
     else:
         settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-        settings.server_target_qps = maxQps * benchConfig['scale']
+        # settings.server_target_qps = maxQps * benchConfig['scale']
+        settings.server_target_qps = benchConfig['scale']
 
         if benchConfig['runTime'] is None:
             settings.min_duration_ms = int(300*1E3)
