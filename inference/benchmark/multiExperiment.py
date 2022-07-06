@@ -12,13 +12,13 @@ from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-nReplicas = [1, 4, 8, 12, 16]
+nReplicas = [4, 8]
 # models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
 # expKeys = ['kaas']
 # nReplicas = [4]
-models = ['cGEMM']
+models = ['cGEMM', 'resnet50']
 # models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
-expKeys = ['kaas']
+expKeys = ['kaas', 'fractional']
 
 
 def keyToOpts(expKey):
@@ -137,10 +137,6 @@ def getScales(props, model, expKey, nReplica, fast, hetero=False):
     # How many qps the system can sustain with nReplica
     peakThr = props.throughputFull(model, nReplica, expKey, independent=False)
 
-    # How many qps a single node can push to a single GPU (clients use this as
-    # a baseline). Actual qps at the client is baseThr*scale.
-    baseThr = props.throughputSingle(model, expKey)
-
     if fast:
         safeThr = 0.2 * peakThr
     else:
@@ -163,7 +159,7 @@ def getScales(props, model, expKey, nReplica, fast, hetero=False):
         scaleFactor = heavyScale / heavyRaw
         return scaleFactor * raw
     else:
-        return [(safeThr / baseThr) / nReplica]*nReplica
+        return [safeThr / nReplica]*nReplica
 
 
 def latDistribution(configs, suiteOutDir, fast=False, hetero=False):
@@ -189,9 +185,35 @@ def latDistribution(configs, suiteOutDir, fast=False, hetero=False):
     print("Final Results in: ", suiteOutDir)
 
 
+def latThr(configs, suiteOutDir, fast=False, hetero=False):
+    props = properties.getProperties()
+    # sweepScales = [0.2, 0.4, 0.6, 0.8]
+    #XXX
+    sweepScales = [0.2, 0.4]
+    for model, expKey, nReplica in configs:
+        scales = getScales(props, model, expKey, nReplica, False, hetero)
+        runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
+        name = f"{model}_{expKey}_{nReplica}"
+        runOutDir = suiteOutDir / name
+
+        print("\nStarting test: ", name)
+        for sweepScale in sweepScales:
+            print(f"Running Submission rate {sweepScale*100}%")
+            runScales = [scale*sweepScale for scale in scales]
+            cmd = ['./experiment.py', '-e', 'mlperf', '-n', str(nReplica),
+                   f'--runTime={runTime}', '-m', model]
+            cmd += ['-s', ",".join(map(str, runScales))]
+            cmd += keyToOpts(expKey)
+
+            print("Running: ", " ".join(cmd))
+            sp.run(cmd)
+
+            shutil.copytree(resultsDir / 'latest', runOutDir / f"rate{int(sweepScale*100)}",
+                            ignore=shutil.ignore_patterns("*.ipc"))
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Full experiment suites")
-    parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'mlperf', 'nshot'])
+    parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'latThr', 'mlperf', 'nshot'])
     parser.add_argument('-f', '--fast', action='store_true')
     parser.add_argument('-o', '--outDir', type=pathlib.Path)
     parser.add_argument("--hetero", action='store_true', help="For lat tests, submit using heterogeneous submission rates (based on a zipf)")
@@ -216,6 +238,8 @@ if __name__ == "__main__":
         throughput(configs, outDir, fast=args.fast)
     elif args.experiment == 'lat':
         latDistribution(configs, outDir, fast=args.fast, hetero=args.hetero)
+    elif args.experiment == 'latThr':
+        latThr(configs, outDir, fast=args.fast, hetero=args.hetero)
     elif args.experiment == 'mlperf':
         mlperf(configs, outDir, fast=args.fast)
     elif args.experiment == 'nshot':

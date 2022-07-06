@@ -9,6 +9,8 @@ import numpy as np
 import collections
 import shutil
 from pprint import pprint
+import sys
+import re
 
 
 expKeys = ['kaas', 'exclusive', 'static', 'fractional']
@@ -258,6 +260,60 @@ def loadAllThroughput(resDir):
         fullResults[name] = aggRes
 
     return aggregateModels(fullResults, 'throughput')
+
+
+# pd.DataFrame(index=target_qps, cols=[p50, p90, qps])
+def loadOneLatThr(dirs):
+    # dirs= [run0/'model_mode_replica', run1/'model_mode_replica', ...]
+    # each model_mode_replica has: [rate20/, rate40/, rate60/, ...]
+    # each rateX/ dir has: [mlperf_mode_model_0_0_results.json, ...]
+
+    # break dirs into lists of [run0/.../rate20, run1/.../rate20, ...] for each
+    # rate and then feed those into loadOneMlPerf()
+    rateDirs = collections.defaultdict(list)
+    for d in dirs:
+        for rateDir in d.iterdir():
+            assert rateDir.is_dir()
+            rateDirs[rateDir.name].append(rateDir)
+
+    df = pd.DataFrame(columns=['p50', 'p90', 'qps'])
+    for rateName, resDirs in rateDirs.items():
+        rateRes = loadOneMlPerf(resDirs)
+        rateSer = pd.Series(data=[rateRes['p50'], rateRes['p90'], rateRes['completion_rate']],
+                            index=['p50', 'p90', 'qps'])
+        df.loc[rateRes['submission_rate']] = rateSer
+
+    return df
+
+
+# Output Schema:
+# model:
+#   nClient:
+#     mode:
+#       pd.DataFrame(index=target_qps, cols=[p50, p90, thr])
+def loadAllLatThr(resPath):
+    # per-(model,mode,nReplica) lists of results directories
+    expDirs = getRunDirs(resPath)
+
+    aggResults = {}
+    for name, dirs in expDirs.items():
+        aggRes = loadOneLatThr(dirs)
+        aggResults[name] = aggRes
+
+    finalResults = collections.defaultdict(dict)
+
+    nameParser = re.compile("(?P<model>.*)_(?P<mode>.*)_(?P<nClient>.*)")
+    for expName, res in aggResults.items():
+        match = nameParser.match(expName)
+        model = match.group('model')
+        nClient = match.group('nClient')
+        mode = match.group('mode')
+        if nClient not in finalResults[model]:
+            finalResults[model][nClient] = {mode: res}
+        else:
+            finalResults[model][nClient][mode] = res
+
+    return finalResults
 
 
 def loadAllMlPerf(resPath, expNames=None):
@@ -671,11 +727,11 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
 
 
 if __name__ == "__main__":
-    # resDir = pathlib.Path(sys.argv[1])
-    # pprint(loadAllThroughput(resDir)['cGEMM'])
+    resDir = pathlib.Path(sys.argv[1])
+    pprint(loadAllLatThr(resDir))
 
-    props = generateProperties(propFile=pathlib.Path('testProperties.json'),
-                               nShotDir=pathlib.Path('./results/nshot'),
-                               throughputSingleDir=pathlib.Path('./results/throughputSingle'),
-                               throughputFullDir=pathlib.Path('./results/throughputFull'))
-    pprint(props)
+    # props = generateProperties(propFile=pathlib.Path('testProperties.json'),
+    #                            nShotDir=pathlib.Path('./results/nshot'),
+    #                            throughputSingleDir=pathlib.Path('./results/throughputSingle'),
+    #                            throughputFullDir=pathlib.Path('./results/throughputFull'))
+    # pprint(props)
