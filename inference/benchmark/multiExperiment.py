@@ -6,12 +6,16 @@ import shutil
 import time
 import itertools
 import argparse
+import numpy as np
 
 from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-nReplicas = [8]
+nReplicas = [1, 4, 8, 12, 16]
+# models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
+# expKeys = ['kaas']
+# nReplicas = [4]
 models = ['cGEMM']
 # models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
 expKeys = ['kaas']
@@ -129,30 +133,50 @@ def throughput(configs, suiteOutDir, fast=False):
     print("Final Results in: ", suiteOutDir)
 
 
-def getScales(props, model, expKey, nReplica, fast):
+def getScales(props, model, expKey, nReplica, fast, hetero=False):
+    # How many qps the system can sustain with nReplica
     peakThr = props.throughputFull(model, nReplica, expKey, independent=False)
+
+    # How many qps a single node can push to a single GPU (clients use this as
+    # a baseline). Actual qps at the client is baseThr*scale.
     baseThr = props.throughputSingle(model, expKey)
 
-    print("Peak: ", peakThr)
-    print("Base: ", baseThr)
     if fast:
         safeThr = 0.2 * peakThr
     else:
         safeThr = 0.8 * peakThr
 
-    return (safeThr / baseThr) / nReplica
+    if hetero:
+        zipfFactor = 1.8
+        # Find a zipf series that isn't too skewed.
+        # Use the same seed for every experiment for fairness
+        rng = np.random.default_rng(0)
+        raw = rng.zipf(zipfFactor, nReplica)
+        while (max(raw) / min(raw)) > 20:
+            raw = rng.zipf(zipfFactor, nReplica)
+        # We scale the submission rate so that the heaviest model submits at
+        # full (safe) throughput. Everyone else is scaled down accordingly.
+        heavyScale = peakThr / nReplica
+        heavyRaw = max(raw)
+
+        # Normalize the raw distribution to the target scale
+        scaleFactor = heavyScale / heavyRaw
+        return scaleFactor * raw
+    else:
+        return [(safeThr / baseThr) / nReplica]*nReplica
 
 
-def latDistribution(configs, suiteOutDir, fast=False):
+def latDistribution(configs, suiteOutDir, fast=False, hetero=False):
     props = properties.getProperties()
     for model, expKey, nReplica in configs:
-        scale = getScales(props, model, expKey, nReplica, fast)
+        scales = getScales(props, model, expKey, nReplica, fast, hetero)
         runTime = getTargetRuntime(nReplica, model, expKey, fast=fast)
 
         name = f"{model}_{expKey}_{nReplica}"
         print("\nStarting test: ", name)
         cmd = ['./experiment.py', '-e', 'mlperf', '-n', str(nReplica),
-               '-s', str(scale), f'--runTime={runTime}', '-m', model]
+               f'--runTime={runTime}', '-m', model]
+        cmd += ['-s', ",".join(map(str, scales))]
         cmd += keyToOpts(expKey)
 
         print("Running: ", " ".join(cmd))
@@ -170,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--experiment', choices=['throughput', 'lat', 'mlperf', 'nshot'])
     parser.add_argument('-f', '--fast', action='store_true')
     parser.add_argument('-o', '--outDir', type=pathlib.Path)
+    parser.add_argument("--hetero", action='store_true', help="For lat tests, submit using heterogeneous submission rates (based on a zipf)")
 
     args = parser.parse_args()
 
@@ -190,7 +215,7 @@ if __name__ == "__main__":
     if args.experiment == 'throughput':
         throughput(configs, outDir, fast=args.fast)
     elif args.experiment == 'lat':
-        latDistribution(configs, outDir, fast=args.fast)
+        latDistribution(configs, outDir, fast=args.fast, hetero=args.hetero)
     elif args.experiment == 'mlperf':
         mlperf(configs, outDir, fast=args.fast)
     elif args.experiment == 'nshot':

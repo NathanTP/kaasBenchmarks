@@ -291,7 +291,7 @@ if __name__ == "__main__":
                         help="Which experiment to run.")
     parser.add_argument("-t", "--modelType", default='native',
                         choices=['kaas', 'native'], help="Which model type to use")
-    parser.add_argument("-s", "--scale", type=float, action='append', help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations. If there are multiple models, multiple scales can be provided for each model (just specify the model and scale in the same order).")
+    parser.add_argument("-s", "--scales", type=str, help="For mlperf modes, what scale to run each client at. For nshot, this is the number of iterations. Multiple scales can be provided in a comma-separated list if you would like clients to use heterogeneous scales.")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("-n", "--nCopy", type=int, default=1, help="Number of model replicas to use")
     parser.add_argument("-p", "--policy", choices=['exclusive', 'balance', 'static', 'affinity'],
@@ -301,10 +301,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.scale is None:
-        args.scale = [1]*len(args.model)
-    elif len(args.scale) == 1:
-        args.scale = args.scale*len(args.model)
+    if args.scales is None:
+        scales = [1]*len(args.model)
+    else:
+        scales = [float(s.strip()) for s in args.scales.split(",")]
 
     if args.policy is None:
         if args.modelType == 'kaas':
@@ -318,12 +318,12 @@ if __name__ == "__main__":
 
     if args.experiment == 'nshot':
         print("Starting nshot")
-        nShot(int(args.scale[0]), modelType=args.modelType, nCpy=args.nCopy,
+        nShot(int(scales[0]), modelType=args.modelType, nCpy=args.nCopy,
               outDir=resultsDir, models=args.model, policy=args.policy,
               fractional=args.fractional, expKey=benchConfig['expKey'])
     elif args.experiment == 'mlperf':
         print("Starting mlperf")
-        mlperf(args.modelType, outDir=resultsDir, scales=args.scale,
+        mlperf(args.modelType, outDir=resultsDir, scales=scales,
                runTime=args.runTime, models=args.model, nCpy=args.nCopy,
                policy=args.policy, expKey=benchConfig['expKey'],
                fractional=args.fractional)
