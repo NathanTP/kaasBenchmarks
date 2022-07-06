@@ -410,14 +410,14 @@ def _runOne(modelSpec, specRef, modelArg, constRefs, inputRefs, inline=False,
                 reqRef = ray.put(model.run(runInp, stats=stats))
 
             if completionQ is not None and mClass.noPost:
-                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"queryId": queryId,
                                              "completionQ": completionQ,
                                              "clientID": clientID})
             else:
-                runOut = runPool.run('kaasExecutor', 'runKaas', num_returns=mClass.nOutRun,
+                runOut = runPool.run(clientID, 'runKaas', num_returns=mClass.nOutRun,
                                      refDeps=dynInp,
                                      args=[reqRef],
                                      kwargs={"clientID": clientID})
@@ -1074,7 +1074,7 @@ class ServerError(Exception):
 
 
 class clientState():
-    def __init__(self, clientID, modelName, modelType, fractional=None):
+    def __init__(self, clientID, modelName, modelType, expKey, fractional=None):
         self.clientID = clientID
         self.modelName = modelName
         self.modelSpec = util.getModelSpec(modelName, modelType)
@@ -1107,8 +1107,15 @@ class clientState():
             self.modelArg = ray.put(self.modelSpec.getModelArg())
 
         if fractional is not None:
+            props = properties.getProperties()
+
+            self.gpuTime = props.latency(self.modelSpec.name, expKey, e2e=False)
+
+            reqs = props.resourceReqs(self.modelSpec.name, self.modelSpec.modelType)
+            self.memFrac = roundMIG(reqs['mem'] / maxMemResource)
+            self.smFrac = roundMIG(reqs['sm'] / maxSMResource)
+
             self.nWorker = 0
-            self.memFrac, self.smFrac = self.getGPUFraction()
             # resFrac is the fraction of the target resource for this run
             if fractional == 'full':
                 self.resFrac = 1.0
@@ -1116,21 +1123,6 @@ class clientState():
                 self.resFrac = roundMIG(self.memFrac)
             else:
                 self.resFrac = roundMIG(self.smFrac)
-
-    def getGPUFraction(self):
-        """Return the fraction of a GPU this client requires (suitable for
-        Ray's num_gpus argument).
-
-        Returns:
-            (mem, sm) requirements as a fraction of GPU capacity
-        """
-        props = properties.getProperties()
-        reqs = props.resourceReqs(self.modelSpec.name, self.modelSpec.modelType)
-
-        memFrac = reqs['mem'] / maxMemResource
-        smFrac = reqs['sm'] / maxSMResource
-
-        return (roundMIG(memFrac), roundMIG(smFrac))
 
 
 class ServerState(enum.Enum):
@@ -1245,7 +1237,7 @@ class serverLoop():
         if self.overwhelmed and self.nOutstanding < (self.maxOutstanding * 0.8):
             self.clientStream.on_recv(self.handleClients)
 
-    def _assignClients(self, gpus, clients, maxNewWorkers):
+    def _assignClients(self, gpus, clients, maxNewWorkers=None):
         """Run one round of assignments of clients to GPUs. Returns the number
         of new workers assigned. Client workers are assigned to the GPU with
         the least number of workers if feasible, otherwise it goes to the GPU
@@ -1277,7 +1269,34 @@ class serverLoop():
         if self.benchConfig['fractional'] is None and checkForMPS():
             print("WARNING: MPS is enabled in non-fractional mode")
 
-        if self.benchConfig['policy'] == 'static':
+        if self.benchConfig['policy'] == 'affinity':
+            for clientID, modelName, modelType in self.pendingRegistrations:
+                self.clients[clientID] = clientState(clientID, modelName, modelType,
+                                                     self.benchConfig['expKey'],
+                                                     fractional='mem')
+
+            GPUs = [GPUAssignment() for i in range(self.nGPUs)]
+
+            # Everyone has to get at least one Worker
+            nWorker = self._assignClients(GPUs, self.clients)
+            assert nWorker == len(self.clients)
+
+            # Keep going until all GPUs have at least one client
+            target = self.nGPUs
+            while nWorker < target:
+                nWorker += self._assignClients(GPUs, self.clients, target - nWorker)
+
+            # {clientID: [gpuID, ...]}
+            clientAffinities = collections.defaultdict(list)
+            for gpuID, gpu in enumerate(GPUs):
+                for client in gpu.clients:
+                    clientAffinities[client.clientID].append(gpuID)
+
+            for client in self.clients.values():
+                self.pool.registerGroup(client.clientID, runActor,
+                                        weight=client.gpuTime,
+                                        affinities=clientAffinities[client.clientID])
+        elif self.benchConfig['policy'] == 'static':
             if self.benchConfig['fractional'] is None:
                 resource = 'full'
             else:
@@ -1293,6 +1312,7 @@ class serverLoop():
 
             for clientID, modelName, modelType in self.pendingRegistrations:
                 self.clients[clientID] = clientState(clientID, modelName, modelType,
+                                                     self.benchConfig['expKey'],
                                                      fractional=resource)
 
             nWorker = 0
@@ -1331,7 +1351,7 @@ class serverLoop():
 
         else:
             for clientID, modelName, modelType in self.pendingRegistrations:
-                cState = clientState(clientID, modelName, modelType)
+                cState = clientState(clientID, modelName, modelType, self.benchConfig['expKey'])
                 self.clients[clientID] = cState
                 self.pool.registerGroup(clientID, runActor)
 

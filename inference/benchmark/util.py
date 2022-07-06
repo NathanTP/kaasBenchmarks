@@ -293,6 +293,8 @@ def argsToConfig(args):
         args.policy = policies.EXCLUSIVE
     elif args.policy == 'static':
         args.policy = policies.STATIC
+    elif args.policy == 'affinity':
+        args.policy = policies.AFFINITY
     else:
         raise ValueError("Unsupported policy: ", args.policy)
 

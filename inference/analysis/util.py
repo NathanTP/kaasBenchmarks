@@ -306,15 +306,19 @@ def getMaxThroughputs(thrReport):
 
 def mergeNShot(allRes):
     # Merge just the events from each metric for all runs
-    # aggDict = collections.defaultdict(lambda: collections.defaultdict(list))
     aggDict = {}
-    for res in allRes:
-        for metric, values in res.items():
-            if metric not in aggDict:
-                aggDict[metric] = {'events': []}
-            aggDict[metric]['events'] += values['events']
 
-    for metric, values in aggDict.items():
+    # This is the same for everyone in a run
+    aggDict['server'] = allRes[0]['server']
+
+    aggDict['client'] = {}
+    for res in allRes:
+        for metric, values in res['client'].items():
+            if metric not in aggDict['client']:
+                aggDict['client'][metric] = {'events': []}
+            aggDict['client'][metric]['events'] += values['events']
+
+    for metric, values in aggDict['client'].items():
         values['max'] = np.max(values['events'])
         values['min'] = np.min(values['events'])
         values['mean'] = np.mean(values['events'])
@@ -335,12 +339,35 @@ def loadOneNShot(resPaths):
     allWarm = []
     allCold = []
     for resPath in resPaths:
+        warmRes = {}
+        coldRes = {}
+
+        with open(resPath / 'server_stats.json', 'r') as f:
+            serverRes = json.load(f)
+
+        warmRes = {}
+        if serverRes['metrics_warm'] is not None:
+            # for OneNShot there's only one group and we only care about it's
+            # metrics (not the server as a whole)
+            _, warmRes['server'] = serverRes['metrics_warm']['workers']['groups'].popitem()
+        else:
+            warmRes['server'] = None
+
+        coldRes = {}
+        if serverRes['metrics_cold'] is not None:
+            _, coldRes['server'] = serverRes['metrics_cold']['workers']['groups'].popitem()
+        else:
+            coldRes['server'] = None
+
         resFiles = list(resPath.glob("*_results.json"))
         assert len(resFiles) == 1
         with open(resFiles[0], 'r') as f:
             allRes = json.load(f)
-            allWarm.append(allRes['metrics_warm'])
-            allCold.append(allRes['metrics_cold'])
+            warmRes['client'] = allRes['metrics_warm']
+            coldRes['client'] = allRes['metrics_cold']
+
+        allWarm.append(warmRes)
+        allCold.append(coldRes)
 
     return mergeNShot(allWarm), mergeNShot(allCold)
 
@@ -525,7 +552,8 @@ def generatePropertiesNShot(dat, nShotDir):
             runName = f"{modelName}_{expKey}_1"
 
             if runName in warmNShot:
-                isolated[modelName][expKey]['latency'] = warmNShot[runName]['t_e2e']['p50']
+                isolated[modelName][expKey]['latency'] = warmNShot[runName]['client']['t_e2e']['p50']
+                isolated[modelName][expKey]['model_runtime'] = warmNShot[runName]['server']['t_model_run']['mean']
 
 
 def generatePropertiesThroughputSingle(dat, throughputDir):
@@ -620,7 +648,7 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
         dat['isolated'][modelName] = {}
         dat['full'][modelName] = {}
         for expKey in expKeys:
-            dat['isolated'][modelName][expKey] = {'latency': None, 'qps': None}
+            dat['isolated'][modelName][expKey] = {'latency': None, 'qps': None, 'model_runtime': None}
             dat['full'][modelName][expKey] = {'throughput': [None]*16}
 
     with open(resourceReqFile, 'r') as f:
@@ -649,5 +677,5 @@ if __name__ == "__main__":
     props = generateProperties(propFile=pathlib.Path('testProperties.json'),
                                nShotDir=pathlib.Path('./results/nshot'),
                                throughputSingleDir=pathlib.Path('./results/throughputSingle'),
-                               throughputFullDir=pathlib.Path('../benchmark/results/throughputFull'))
+                               throughputFullDir=pathlib.Path('./results/throughputFull'))
     pprint(props)

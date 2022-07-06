@@ -2,6 +2,7 @@
 *.tar
 *.o
 *.png
+*.swp
 __pycache__
 *.egg-info*
 .ropeproject

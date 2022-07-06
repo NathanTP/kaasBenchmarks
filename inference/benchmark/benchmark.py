@@ -32,7 +32,7 @@ def main():
                         default="nshot", choices=['nshot', 'mlperf', 'server', 'throughput', 'deepProf'],
                         help="Which test to run")
     parser.add_argument("-p", "--policy",
-                        choices=['exclusive', 'balance', 'static'], default='balance',
+                        choices=['exclusive', 'balance', 'static', 'affinity'], default='balance',
                         help="Scheduling policy to use for actor and KaaS mode.")
     parser.add_argument("--force-cold", action="store_true", dest='forceCold',
                         help="Force cold starts if possible (this is only valid in some configurations)")

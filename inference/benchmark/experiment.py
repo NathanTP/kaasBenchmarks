@@ -8,6 +8,7 @@ import os
 import argparse
 import json
 from pprint import pprint
+import time
 
 import util
 
@@ -29,6 +30,7 @@ class serverProc():
 
         if policy == 'static' and fractional is not None:
             self.mpsServer = sp.Popen(['nvidia-cuda-mps-control', '-f'], stdout=sp.DEVNULL)
+            time.sleep(2)
         else:
             self.mpsServer = None
 
@@ -293,7 +295,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--scale", type=float, action='append', help="For mlperf modes, what scale to run each client at. If omitted, tests will try to find peak performance. For nshot, this is the number of iterations. If there are multiple models, multiple scales can be provided for each model (just specify the model and scale in the same order).")
     parser.add_argument("--runTime", type=float, help="Target runtime for experiment in seconds (only valid for throughput and mlperf tests).")
     parser.add_argument("-n", "--nCopy", type=int, default=1, help="Number of model replicas to use")
-    parser.add_argument("-p", "--policy", choices=['exclusive', 'balance', 'static'],
+    parser.add_argument("-p", "--policy", choices=['exclusive', 'balance', 'static', 'affinity'],
                         help="Scheduling policy to use. If omitted, the default policy for the model type will be used (Exclusive for native, Balance for kaas)")
     parser.add_argument("--fractional", default=None, choices=['mem', 'sm'],
                         help="In server mode, assign fractional GPUs to clients based on the specified resource (memory or SM)")
