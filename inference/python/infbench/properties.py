@@ -45,9 +45,14 @@ class Properties():
         else:
             return self.perfData['isolated'][modelName][expKey]['model_runtime']
 
-    def throughputFull(self, modelName, nClient, expKey):
+    def throughputFull(self, modelName, nClient, expKey, independent=True):
         """Return throughput for the full 8 GPU experiment"""
-        return self.perfData['full'][modelName][expKey]['throughput']
+        if not independent and (expKey == 'kaas' or expKey == 'fractional'):
+            kThpt = self.perfData['full'][modelName]['kaas']['throughput'][nClient - 1]
+            fThpt = self.perfData['full'][modelName]['fractional']['throughput'][nClient - 1]
+            return min(kThpt, fThpt)
+        else:
+            return self.perfData['full'][modelName][expKey]['throughput'][nClient - 1]
 
     def getMlPerfConfig(self, modelName, benchConfig):
         """Return an mlperf config object for the specified model"""

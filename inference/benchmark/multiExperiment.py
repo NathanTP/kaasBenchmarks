@@ -12,10 +12,12 @@ from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-nReplicas = [1]
-models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
-# expKeys = ['kaas', 'exclusive', 'static', 'fractional']
-expKeys = ['kaas', 'exclusive']
+# nReplicas = [1, 4, 8, 12, 16]
+# models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
+# expKeys = ['kaas']
+nReplicas = [4]
+models = ['cGEMM']
+expKeys = ['kaas']
 
 
 def keyToOpts(expKey):
@@ -82,16 +84,22 @@ def mlperf(configs, suiteOutDir, fast=False):
     print("Final Results in: ", suiteOutDir)
 
 
-def nShot(configs, suiteOutDir):
+def nShot(configs, suiteOutDir, fast=False):
     for model, expKey, nReplica in configs:
         name = f"{model}_{expKey}_{nReplica}"
         print("\nStarting test: ", name)
         cmd = ['./experiment.py',
                '-e', 'nshot',
                '-n', str(nReplica),
-               '-s', '64',
                '-m', model]
+
         cmd += keyToOpts(expKey)
+
+        if fast:
+            cmd += ['-s', '1']
+        else:
+            cmd += ['-s', '64']
+
         sp.run(cmd)
 
         runOutDir = suiteOutDir / name
@@ -126,12 +134,14 @@ def throughput(configs, suiteOutDir, fast=False):
 
 def getScales(props, model, expKey, nReplica, fast, hetero=False):
     # How many qps the system can sustain with nReplica
-    peakThr = props.throughputFull(model, nReplica, expKey)
+    peakThr = props.throughputFull(model, nReplica, expKey, independent=False)
 
     # How many qps a single node can push to a single GPU (clients use this as
     # a baseline). Actual qps at the client is baseThr*scale.
     baseThr = props.throughputSingle(model, expKey)
 
+    print("Peak: ", peakThr)
+    print("Base: ", baseThr)
     if fast:
         safeThr = 0.2 * peakThr
     else:
@@ -163,6 +173,8 @@ def latDistribution(configs, suiteOutDir, fast=False, hetero=False):
         cmd = ['./experiment.py', '-e', 'mlperf', '-n', str(nReplica),
                '-s', str(scale), f'--runTime={runTime}', '-m', model]
         cmd += keyToOpts(expKey)
+
+        print("Running: ", " ".join(cmd))
         sp.run(cmd)
 
         runOutDir = suiteOutDir / name
@@ -201,6 +213,6 @@ if __name__ == "__main__":
     elif args.experiment == 'mlperf':
         mlperf(configs, outDir, fast=args.fast)
     elif args.experiment == 'nshot':
-        nShot(configs, outDir)
+        nShot(configs, outDir, fast=args.fast)
     else:
         raise ValueError("Unrecognized experiment: ", args.experiment)
