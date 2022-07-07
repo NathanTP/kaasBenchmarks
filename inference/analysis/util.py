@@ -283,7 +283,7 @@ def loadOneLatThr(dirs):
                             index=['p50', 'p90', 'qps'])
         df.loc[rateRes['submission_rate']] = rateSer
 
-    return df
+    return df.sort_index()
 
 
 # Output Schema:
@@ -306,7 +306,7 @@ def loadAllLatThr(resPath):
     for expName, res in aggResults.items():
         match = nameParser.match(expName)
         model = match.group('model')
-        nClient = match.group('nClient')
+        nClient = int(match.group('nClient'))
         mode = match.group('mode')
         if nClient not in finalResults[model]:
             finalResults[model][nClient] = {mode: res}
@@ -635,6 +635,13 @@ def generatePropertiesThroughputFull(dat, throughputDir):
                 for expKey, val in row.iteritems():
                     full[modelName][expKey]['throughput'][nClient - 1] = val
 
+    #XXX
+    # For some reason, the standard throughput test reports the wrong
+    # throughput number for n=28. It's about 3x higher than neighboring
+    # configurations. This number is the achieved throughput as reported by the
+    # mlperf benchmark. In most cases, these numbers agree, just not for n=28.
+    full['cGEMM']['kaas']['throughput'][28] = 45.9
+
 
 def generateProperties(propFile, nShotDir, throughputSingleDir,
                        throughputFullDir,
@@ -727,11 +734,11 @@ def generateProperties(propFile, nShotDir, throughputSingleDir,
 
 
 if __name__ == "__main__":
-    resDir = pathlib.Path(sys.argv[1])
-    pprint(loadAllLatThr(resDir))
+    # resDir = pathlib.Path(sys.argv[1])
+    # pprint(loadAllLatThr(resDir))
 
-    # props = generateProperties(propFile=pathlib.Path('testProperties.json'),
-    #                            nShotDir=pathlib.Path('./results/nshot'),
-    #                            throughputSingleDir=pathlib.Path('./results/throughputSingle'),
-    #                            throughputFullDir=pathlib.Path('./results/throughputFull'))
-    # pprint(props)
+    props = generateProperties(propFile=pathlib.Path('testProperties.json'),
+                               nShotDir=pathlib.Path('./results/asplos/nshot'),
+                               throughputSingleDir=pathlib.Path('./results/asplos/throughputSingle'),
+                               throughputFullDir=pathlib.Path('./results/asplos/throughputFull'))
+    pprint(props)
