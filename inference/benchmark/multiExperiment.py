@@ -12,13 +12,9 @@ from infbench import properties
 
 resultsDir = pathlib.Path("./results")
 
-nReplicas = [4, 8]
+# nReplicas = [2, 4, 6, 8]
 # models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
-# expKeys = ['kaas']
-# nReplicas = [4]
-models = ['cGEMM', 'resnet50']
-# models = ['cGEMM', 'jacobi', 'resnet50', 'bert']
-expKeys = ['kaas', 'fractional']
+# expKeys = ['exclusive']
 
 
 def keyToOpts(expKey):
@@ -45,13 +41,13 @@ def getTargetRuntime(nReplica, model, expKey, fast=False):
     # is always better.
     if nReplica > 4 and expKey == 'exclusive':
         if model == 'bert':
-            runTime = 800
+            runTime = 600
         elif model == 'jacobi':
-            runTime = 800
+            runTime = 600
         elif model == 'resnet50':
             runTime = 600
         elif model == 'cGEMM':
-            runTime = 800
+            runTime = 600
         else:
             raise RuntimeError("Please configure a target runtime for model: ", model)
     else:
@@ -135,12 +131,12 @@ def throughput(configs, suiteOutDir, fast=False):
 
 def getScales(props, model, expKey, nReplica, fast, hetero=False):
     # How many qps the system can sustain with nReplica
-    peakThr = props.throughputFull(model, nReplica, expKey, independent=False)
+    peakThr = props.throughputFull(model, nReplica, expKey, independent=True)
 
     if fast:
         safeThr = 0.2 * peakThr
     else:
-        safeThr = 0.8 * peakThr
+        safeThr = 0.7 * peakThr
 
     if hetero:
         zipfFactor = 1.8

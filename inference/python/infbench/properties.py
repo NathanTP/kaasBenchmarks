@@ -47,9 +47,9 @@ class Properties():
 
     def throughputFull(self, modelName, nClient, expKey, independent=True):
         """Return throughput for the full 8 GPU experiment"""
-        if not independent and (expKey == 'kaas' or expKey == 'fractional'):
+        if not independent and (expKey == 'kaas' or expKey == 'exclusive'):
             kThpt = self.perfData['full'][modelName]['kaas']['throughput'][nClient - 1]
-            fThpt = self.perfData['full'][modelName]['fractional']['throughput'][nClient - 1]
+            fThpt = self.perfData['full'][modelName]['exclusive']['throughput'][nClient - 1]
             return min(kThpt, fThpt)
         else:
             return self.perfData['full'][modelName][expKey]['throughput'][nClient - 1]
