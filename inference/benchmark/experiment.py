@@ -302,9 +302,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.scales is None:
-        scales = [1]*len(args.model)
+        scales = [1]*args.nCopy
     else:
         scales = [float(s.strip()) for s in args.scales.split(",")]
+        if len(scales) == 1 and args.nCopy != 1:
+            scales *= args.nCopy
 
     if args.policy is None:
         if args.modelType == 'kaas':
